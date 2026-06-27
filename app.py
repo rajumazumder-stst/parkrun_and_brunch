@@ -10,6 +10,7 @@ Run:  streamlit run app.py
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import duckdb
@@ -22,7 +23,28 @@ import plotly.express as px
 import streamlit as st
 from matplotlib_venn import venn3
 
-DB_PATH = str(Path.home() / "Documents" / "duckdb" / "my_database.duckdb")
+def _resolve_db_path() -> str:
+    """Locate the DuckDB to read, in priority order:
+
+    1. ``PARKRUN_DB`` env var (local dev against the full personal DB, or a
+       MotherDuck connection string later).
+    2. A ``PARKRUN_DB`` Streamlit secret (set in the hosting dashboard).
+    3. The read-only ``parkrun``-only snapshot bundled with the repo — what a
+       deployed/shared instance uses by default.
+    """
+    env = os.environ.get("PARKRUN_DB")
+    if env:
+        return env
+    try:
+        secret = st.secrets.get("PARKRUN_DB")
+        if secret:
+            return str(secret)
+    except Exception:
+        pass
+    return str(Path(__file__).resolve().parent / "data" / "parkrun_snapshot.duckdb")
+
+
+DB_PATH = _resolve_db_path()
 
 # Fixed per-athlete colours, used consistently everywhere (Dark2 palette).
 ATHLETE_COLORS = {"George": "#1b9e77", "Raju": "#d95f02", "Duncan": "#7570b3"}

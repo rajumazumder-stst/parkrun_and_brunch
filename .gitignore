@@ -44,6 +44,10 @@ htmlcov/
 # Tracked CSVs (curated seeds + scraped snapshots) live in data/ and are
 # version-controlled deliberately; only binaries / transient downloads are ignored.
 *.duckdb
+# Exception: the read-only, parkrun-ONLY snapshot the web app serves is tracked
+# deliberately. It must never contain the personal_finance schema — it is built
+# from scratch with only the parkrun schema (see CLAUDE.md hosting notes).
+!data/parkrun_snapshot.duckdb
 *.duckdb.wal
 *.db
 *.sqlite

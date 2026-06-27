@@ -1,0 +1,14 @@
+# Web app (app.py) — runtime dependencies for hosting.
+streamlit==1.58.0
+duckdb==1.5.4
+pandas==3.0.3
+plotly==6.8.0
+matplotlib==3.11.0
+matplotlib-venn==1.1.2
+
+# Data pipeline (parkrun_pipeline.py) — only needed if running a refresh,
+# not required to serve the bundled read-only snapshot.
+requests==2.34.2
+beautifulsoup4==4.15.0
+lxml==6.1.1
+html5lib==1.1

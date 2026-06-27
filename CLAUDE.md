@@ -26,8 +26,11 @@ where they differ from the original brief, **the spec wins**.
   schema of `~/Documents/duckdb/my_database.duckdb`.
 - ✅ Analytics layer — `v_overlap` + `v_head_to_head` views and the
   `current_targets` table built and wired into refresh (see Analytics layer below).
-- ✅ Streamlit front end — **local** app built (`app.py`, 3 tabs). Online/hosted
-  access (MotherDuck + scheduled refresh) is a separate future strand.
+- ✅ Streamlit front end — `app.py`, 3 tabs. Deployable: `app.py` resolves its DB
+  via `PARKRUN_DB` env var > Streamlit secret > a bundled read-only snapshot
+  (`data/parkrun_snapshot.duckdb`), so it can be hosted (e.g. Streamlit Community
+  Cloud) from the repo alone. `requirements.txt` pins the runtime deps.
+  A live MotherDuck backend + scheduled refresh remains a separate future strand.
 - ⏳ Scheduler (Saturday ~14:00) + manual Refresh button — not wired up.
 
 ---
@@ -267,11 +270,22 @@ are (re)created on every connection via `ensure_views()`.
 | `data/parkrun_results.csv` (versioned snapshots) | `data/events.json` (transient download) |
 | `data/country_lookup.csv` | |
 | `data/athletes_lookup.csv` | |
+| `data/parkrun_snapshot.duckdb` (read-only, deploy snapshot) | |
+| `requirements.txt` | |
 | Python scripts | |
 
 `parkrun_results.csv` is tracked deliberately: parkrun only serves *current*
 results, so re-scraping cannot reproduce a past state — the committed snapshots
 are the only historical record, and diffs form a per-refresh audit trail.
+
+`data/parkrun_snapshot.duckdb` is a tracked **exception** to the `*.duckdb`
+ignore (`!data/parkrun_snapshot.duckdb` in `.gitignore`). It is what a hosted
+app serves, so it must be **parkrun-only** — built from scratch (parkrun tables
++ views copied across) so it can never carry the `personal_finance` schema that
+lives in the dev DB `~/Documents/duckdb/my_database.duckdb`. Its catalog name
+must differ from the `parkrun` schema (hence `parkrun_snapshot`, not
+`parkrun.duckdb`) or `parkrun.v_overlap` becomes an ambiguous reference.
+Rebuild it after a refresh before redeploying.
 
 ---
 
@@ -280,14 +294,17 @@ are the only historical record, and diffs form a per-refresh audit trail.
 | Path | Purpose |
 |---|---|
 | `parkrun_pipeline.py` | Loader: `bootstrap` / `refresh` / `status` (Path A/B, DuckDB) + analytics views/targets. Also owns scraping (`scrape_athlete`) and time parsing (`time_to_seconds`). |
-| `app.py` | Streamlit front end (3 tabs) reading the `parkrun` schema read-only |
+| `app.py` | Streamlit front end (3 tabs) reading the `parkrun` schema read-only; DB path resolved via `PARKRUN_DB` env/secret, else the bundled snapshot |
+| `requirements.txt` | Pinned runtime deps for hosting (Streamlit Cloud etc.) |
 | `data/parkrun_events.csv` | Event catalogue (events.json dump + Victoria Dock) |
 | `data/country_lookup.csv` | country_code → country_name |
 | `data/athletes_lookup.csv` | Athlete names + DOB |
 | `data/parkrun_results.csv` | Results snapshot exported by the pipeline (keyed on event_id) |
+| `data/parkrun_snapshot.duckdb` | Read-only, parkrun-only DuckDB the deployed app serves |
 
 Run the pipeline: `python parkrun_pipeline.py refresh` (auto-bootstraps an empty DB).
-Run the app: `streamlit run app.py`.
+Run the app locally against the full dev DB: `PARKRUN_DB=~/Documents/duckdb/my_database.duckdb streamlit run app.py`.
+Run the app against the bundled snapshot (as hosted): `streamlit run app.py`.
 
 ---
 
