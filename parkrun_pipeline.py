@@ -35,7 +35,10 @@ DB_PATH = Path.home() / "Documents" / "duckdb" / "my_database.duckdb"
 SCHEMA = "parkrun"
 DATA_DIR = Path(__file__).parent / "data"
 
-ATHLETE_IDS = [5672, 5462426, 3087156]
+# Fixed cohort. The mapping drives the per-athlete columns in v_overlap.
+ATHLETE_NAMES = {5672: "raju", 5462426: "duncan", 3087156: "george"}
+ATHLETE_IDS = list(ATHLETE_NAMES)
+TARGET_WINDOW_DAYS = 91  # head-to-head / current-form lookback
 ATHLETE_URL = "https://www.parkrun.org.uk/parkrunner/{athlete_id}/all/"
 EVENTS_JSON_URL = "https://images.parkrun.com/events.json"
 
@@ -134,6 +137,89 @@ def ensure_schema(con: duckdb.DuckDBPyConnection) -> None:
             scrape_timestamp TIMESTAMPTZ,
             PRIMARY KEY (athlete_id, run_date, event_id)
         );
+        """
+    )
+    con.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS {SCHEMA}.current_targets (
+            refresh_date   DATE,
+            athlete_id     BIGINT,
+            target_seconds DOUBLE,
+            n_window       INTEGER,
+            PRIMARY KEY (refresh_date, athlete_id)
+        );
+        """
+    )
+    ensure_views(con)
+
+
+def ensure_views(con: duckdb.DuckDBPyConnection) -> None:
+    """(Re)create the derived analytics views. Deterministic from results."""
+    flags = ",\n               ".join(
+        f"bool_or(athlete_id = {aid}) AS has_{name}"
+        for aid, name in ATHLETE_NAMES.items()
+    )
+    con.execute(
+        f"""
+        CREATE OR REPLACE VIEW {SCHEMA}.v_overlap AS
+        SELECT event_id, run_date,
+               {flags},
+               count(*) AS n_athletes
+        FROM {SCHEMA}.results
+        GROUP BY event_id, run_date;
+        """
+    )
+    con.execute(
+        f"""
+        CREATE OR REPLACE VIEW {SCHEMA}.v_head_to_head AS
+        WITH parts AS (
+            SELECT r.event_id, r.run_date, r.athlete_id,
+                   r.time_seconds AS actual_seconds
+            FROM {SCHEMA}.results r
+            JOIN (SELECT event_id, run_date FROM {SCHEMA}.results
+                  GROUP BY event_id, run_date HAVING count(*) >= 2) o
+              USING (event_id, run_date)
+        ),
+        target AS (
+            SELECT p.event_id, p.run_date, p.athlete_id, p.actual_seconds,
+                   median(h.time_seconds) AS target_seconds,
+                   count(h.time_seconds)  AS n_window
+            FROM parts p
+            LEFT JOIN {SCHEMA}.results h
+              ON h.athlete_id = p.athlete_id
+             AND h.run_date BETWEEN p.run_date - {TARGET_WINDOW_DAYS}
+                               AND p.run_date - 1
+            GROUP BY p.event_id, p.run_date, p.athlete_id, p.actual_seconds
+        ),
+        valid AS (SELECT * FROM target WHERE n_window >= 1),
+        h2h AS (
+            SELECT event_id, run_date FROM valid
+            GROUP BY event_id, run_date HAVING count(*) >= 2
+        ),
+        ranked AS (
+            SELECT v.*,
+                   round((v.actual_seconds - v.target_seconds)
+                         / v.target_seconds * 100, 2) AS pct_diff
+            FROM valid v JOIN h2h USING (event_id, run_date)
+        ),
+        placed AS (
+            SELECT r.*, a.athlete_name,
+                   rank() OVER (PARTITION BY r.event_id, r.run_date
+                                ORDER BY r.pct_diff) AS place_rank
+            FROM ranked r JOIN {SCHEMA}.athletes a USING (athlete_id)
+        ),
+        labelled AS (
+            SELECT *,
+                   string_agg(athlete_name, ' vs ' ORDER BY athlete_name)
+                     OVER (PARTITION BY event_id, run_date) AS classification,
+                   count(*) OVER (PARTITION BY event_id, run_date) AS n_ranked
+            FROM placed
+        )
+        SELECT l.event_id, l.run_date, e.short_name,
+               l.athlete_id, l.athlete_name, l.classification, l.n_ranked,
+               l.actual_seconds, l.target_seconds, l.n_window,
+               l.pct_diff, l.place_rank
+        FROM labelled l JOIN {SCHEMA}.events e USING (event_id);
         """
     )
 
@@ -440,6 +526,41 @@ def upsert_results(con: duckdb.DuckDBPyConnection) -> None:
         con.unregister("results_stage")
 
 
+def update_current_targets(con: duckdb.DuckDBPyConnection) -> None:
+    """Snapshot each athlete's current-form target (91-day median, min 1 run)
+    as of today. Stored per refresh_date so form history accumulates."""
+    con.execute(
+        f"""
+        INSERT OR REPLACE INTO {SCHEMA}.current_targets
+        SELECT CURRENT_DATE, a.athlete_id,
+               median(h.time_seconds) AS target_seconds,
+               count(h.time_seconds)  AS n_window
+        FROM {SCHEMA}.athletes a
+        LEFT JOIN {SCHEMA}.results h
+          ON h.athlete_id = a.athlete_id
+         AND h.run_date BETWEEN CURRENT_DATE - {TARGET_WINDOW_DAYS}
+                           AND CURRENT_DATE - 1
+        GROUP BY a.athlete_id;
+        """
+    )
+    rows = con.execute(
+        f"""
+        SELECT a.athlete_name,
+               CASE WHEN t.target_seconds IS NULL THEN 'n/a'
+                    ELSE printf('%d:%02d', t.target_seconds::int // 60,
+                                           t.target_seconds::int % 60) END,
+               t.n_window
+        FROM {SCHEMA}.current_targets t
+        JOIN {SCHEMA}.athletes a USING (athlete_id)
+        WHERE t.refresh_date = CURRENT_DATE
+        ORDER BY t.target_seconds
+        """
+    ).fetchall()
+    log("  current-form targets (as of today):")
+    for name, mmss, n in rows:
+        log(f"    {name:<8} {mmss:>7}  ({n} runs in window)")
+
+
 def export_results_snapshot(con: duckdb.DuckDBPyConnection) -> None:
     out = DATA_DIR / "parkrun_results.csv"
     con.execute(
@@ -463,6 +584,7 @@ def bootstrap(con: duckdb.DuckDBPyConnection) -> None:
     seed_static_tables(con)
     seed_events_from_csv(con)
     upsert_results(con)
+    update_current_targets(con)
     export_results_snapshot(con)
 
 
@@ -472,11 +594,12 @@ def refresh(con: duckdb.DuckDBPyConnection) -> None:
         return
     reconcile_events(con)  # Path A (independent)
     upsert_results(con)  # Path B (runs regardless of Path A)
+    update_current_targets(con)
     export_results_snapshot(con)
 
 
 def status(con: duckdb.DuckDBPyConnection) -> None:
-    for t in ("events", "results", "country_lookup", "athletes"):
+    for t in ("events", "results", "country_lookup", "athletes", "current_targets"):
         n = con.execute(f"SELECT count(*) FROM {SCHEMA}.{t}").fetchone()[0]
         print(f"  {SCHEMA}.{t:<14} {n:>6} rows")
     live = con.execute(

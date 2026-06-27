@@ -16,7 +16,7 @@ where they differ from the original brief, **the spec wins**.
 
 - ✅ Extraction validated — `pd.read_html` works directly; the All Results table
   is the **last `<table>`** on each athlete page (server-rendered, no JS/API
-  workaround needed). See `extract_parkrun.py`.
+  workaround needed). See `scrape_athlete()` in `parkrun_pipeline.py`.
 - ✅ Global event list sourced and flattened (`data/parkrun_events.csv`).
 - ✅ Country code → name lookup built (`data/country_lookup.csv`).
 - ✅ Athlete lookup built (`data/athletes_lookup.csv`).
@@ -24,8 +24,11 @@ where they differ from the original brief, **the spec wins**.
 - ✅ DuckDB loader / reconcile pipeline — built (`parkrun_pipeline.py`); bootstrap
   + refresh (Path A/B) tested against the live site. Data lives in the `parkrun`
   schema of `~/Documents/duckdb/my_database.duckdb`.
+- ✅ Analytics layer — `v_overlap` + `v_head_to_head` views and the
+  `current_targets` table built and wired into refresh (see Analytics layer below).
+- ✅ Streamlit front end — **local** app built (`app.py`, 3 tabs). Online/hosted
+  access (MotherDuck + scheduled refresh) is a separate future strand.
 - ⏳ Scheduler (Saturday ~14:00) + manual Refresh button — not wired up.
-- ⏳ Streamlit front end — not started.
 
 ---
 
@@ -141,6 +144,62 @@ Hand-maintained (`data/athletes_lookup.csv`).
 | athlete_name |
 | date_of_birth |
 
+### `current_targets`
+Materialised by the refresh: each athlete's current-form target as of the
+refresh date (a snapshot — recomputing live would silently drift). Keyed on
+`(refresh_date, athlete_id)` so form history accumulates over refreshes.
+
+| Column | Notes |
+|---|---|
+| refresh_date | PK part; the date the snapshot was taken |
+| athlete_id | PK part |
+| target_seconds | 91-day median of `time_seconds` over `[refresh_date−91, refresh_date−1]`; NULL if no runs in window |
+| n_window | Runs found in the window (target valid when ≥ 1) |
+
+---
+
+## Analytics layer
+
+The comparison features are **derived from `results`**. The two analytical
+features are deterministic from the stored data, so they are DuckDB **views**
+(always live, no duplication, no staleness); only the date-anchored
+`current_targets` is materialised. Created/refreshed by `ensure_views()` and
+`update_current_targets()`. The cohort is fixed (3 athletes); `ATHLETE_NAMES`
+in the pipeline is the single source for the per-athlete column names.
+
+### Feature 1 — participation overlap (`v_overlap`)
+A **shared occasion** is a unique `(event_id, run_date)` (same event, same day =
+physically together). The view is occasion-level with `has_<name>` boolean flags
++ `n_athletes`. From it the app derives:
+- **Venn** — the 7 **exclusive** regions (A-only, …, A&B-not-C, …, all three).
+  Regions partition all occasions and sum to the total.
+- **Per-athlete breakdown** — for each athlete: solo / +one other / +both
+  ("alone" = relative to the three tracked athletes, not "only runner present").
+
+### Feature 2 — head-to-head (`v_head_to_head`)
+A **head-to-head** is an occasion where ≥ 2 of the cohort ran. Placing is
+**form-adjusted**, not actual finish order (the three differ hugely in pace):
+
+1. **Target** per participant = **median** `time_seconds` over their runs in
+   `[date−91, date−1]` (min **1** run). Window excludes the event day.
+2. **`pct_diff` = round((actual − target) / target × 100, 2)** — faster than form
+   is negative.
+3. **Placing** = `rank()` over `pct_diff` **ascending** (most-beat-your-form = 1st);
+   **standard competition ranking** (ties share a rank, e.g. 1-1-3).
+4. **Demote rule** — only participants with a valid target are ranked. Need ≥ 2
+   rankable for a contest; a 3-way where one lacks a target becomes a 2-way
+   (and `classification` reflects the ranked set).
+
+Each row carries `classification` (e.g. `George vs Raju`, `Duncan vs George vs
+Raju`), `n_ranked`, `actual_seconds`, `target_seconds`, `n_window`, `pct_diff`,
+`place_rank`. The app shows a per-head-to-head table + a 1sts/2nds/3rds leaderboard.
+
+Note: `v_overlap` counts **all** co-participations; `v_head_to_head` counts only
+**rankable** ones — so the two totals can differ (occasions with no valid target).
+
+Caveat (accepted): the target averages across all courses in the window, but a
+head-to-head is at one specific course — course difficulty is not adjusted for.
+
 ---
 
 ## Refresh pipeline spec
@@ -183,15 +242,20 @@ Saturday" (a skipped gate doesn't advance it).
 4. Wrap all three athletes in **one** transaction; if any athlete's page fails,
    roll back all three and retry (results stay internally consistent).
 
+After Path B, the refresh runs `update_current_targets()` (snapshots today's
+current-form targets) then exports the results snapshot CSV. The analytics views
+are (re)created on every connection via `ensure_views()`.
+
 ### Bootstrap (empty DB)
 
-1. Create schema.
+1. Create schema (tables + analytics views).
 2. Seed `events` from `data/parkrun_events.csv` (includes the Victoria Dock
    manual row); init `live`/`first_seen`/`last_seen_live` (manual row →
    `live=FALSE`, `last_seen_live=NULL`).
 3. Seed `country_lookup` and `athletes` from their CSVs.
 4. Full results scrape for all 3 athletes (no incremental shortcut).
-5. Corruption gate skips the 95% check on this first run.
+5. Snapshot `current_targets`.
+6. Corruption gate skips the 95% check on this first run.
 
 ---
 
@@ -215,14 +279,15 @@ are the only historical record, and diffs form a per-refresh audit trail.
 
 | Path | Purpose |
 |---|---|
-| `parkrun_pipeline.py` | **Canonical** loader: `bootstrap` / `refresh` / `status` (Path A/B, DuckDB) |
-| `extract_parkrun.py` | Standalone scraper (superseded by the pipeline; kept for ad-hoc extraction) |
+| `parkrun_pipeline.py` | Loader: `bootstrap` / `refresh` / `status` (Path A/B, DuckDB) + analytics views/targets. Also owns scraping (`scrape_athlete`) and time parsing (`time_to_seconds`). |
+| `app.py` | Streamlit front end (3 tabs) reading the `parkrun` schema read-only |
 | `data/parkrun_events.csv` | Event catalogue (events.json dump + Victoria Dock) |
 | `data/country_lookup.csv` | country_code → country_name |
 | `data/athletes_lookup.csv` | Athlete names + DOB |
 | `data/parkrun_results.csv` | Results snapshot exported by the pipeline (keyed on event_id) |
 
-Run: `python parkrun_pipeline.py refresh` (auto-bootstraps an empty DB).
+Run the pipeline: `python parkrun_pipeline.py refresh` (auto-bootstraps an empty DB).
+Run the app: `streamlit run app.py`.
 
 ---
 
@@ -234,16 +299,22 @@ Streamlit (preferred) or Shiny for Python.
 ### Environment
 
 - Python 3.14 venv: `~/Documents/Python scripts/env` (has requests, pandas,
-  bs4, lxml, html5lib, duckdb 1.5.4).
+  bs4, lxml, html5lib, duckdb 1.5.4; front end: streamlit, plotly, matplotlib,
+  matplotlib-venn).
 - DuckDB database: `~/Documents/duckdb/my_database.duckdb`.
 
 ---
 
-## Future visualisations
+## Visualisations
 
-Attendance timeline · shared parkruns · head-to-head positions · fastest times ·
-PB progression · age-grade progression · event frequency · tourism map (uses
-event coordinates) · common events attended together.
+**Built (local Streamlit, `app.py`)**: Tab 1 participation overlap / Venn
+(`v_overlap`) + per-athlete company; Tab 2 form-adjusted head-to-head summary
+(`v_head_to_head`, `current_targets`); Tab 3 head-to-head detail. Hosting it
+online is a separate future strand.
+
+Future ideas: attendance timeline · fastest times · PB progression · age-grade
+progression · event frequency · tourism map (uses event coordinates) · form
+(target time) over refreshes.
 
 ---
 
