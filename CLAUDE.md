@@ -285,7 +285,9 @@ app serves, so it must be **parkrun-only** — built from scratch (parkrun table
 lives in the dev DB `~/Documents/duckdb/my_database.duckdb`. Its catalog name
 must differ from the `parkrun` schema (hence `parkrun_snapshot`, not
 `parkrun.duckdb`) or `parkrun.v_overlap` becomes an ambiguous reference.
-Rebuild it after a refresh before redeploying.
+`bootstrap` and `refresh` rebuild it automatically (`build_snapshot()`);
+`python parkrun_pipeline.py snapshot` rebuilds just that file. Commit + push the
+regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 
 ---
 
@@ -293,7 +295,7 @@ Rebuild it after a refresh before redeploying.
 
 | Path | Purpose |
 |---|---|
-| `parkrun_pipeline.py` | Loader: `bootstrap` / `refresh` / `status` (Path A/B, DuckDB) + analytics views/targets. Also owns scraping (`scrape_athlete`) and time parsing (`time_to_seconds`). |
+| `parkrun_pipeline.py` | Loader: `bootstrap` / `refresh` / `status` / `snapshot` (Path A/B, DuckDB) + analytics views/targets + deploy-snapshot build. Also owns scraping (`scrape_athlete`) and time parsing (`time_to_seconds`). |
 | `app.py` | Streamlit front end (3 tabs) reading the `parkrun` schema read-only; DB path resolved via `PARKRUN_DB` env/secret, else the bundled snapshot |
 | `requirements.txt` | Pinned runtime deps for hosting (Streamlit Cloud etc.) |
 | `data/parkrun_events.csv` | Event catalogue (events.json dump + Victoria Dock) |

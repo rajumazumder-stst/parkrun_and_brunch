@@ -13,10 +13,15 @@ Usage:
     python parkrun_pipeline.py bootstrap   # force first-time seed
     python parkrun_pipeline.py refresh     # normal run (auto-bootstraps if empty)
     python parkrun_pipeline.py status      # row counts
+    python parkrun_pipeline.py snapshot    # rebuild the deploy snapshot only
+
+bootstrap and refresh rebuild the deploy snapshot (data/parkrun_snapshot.duckdb)
+automatically; `snapshot` rebuilds just that file from the current DB.
 """
 
 from __future__ import annotations
 
+import os
 import sys
 import time
 from datetime import datetime, timezone
@@ -34,6 +39,17 @@ from bs4 import BeautifulSoup
 DB_PATH = Path.home() / "Documents" / "duckdb" / "my_database.duckdb"
 SCHEMA = "parkrun"
 DATA_DIR = Path(__file__).parent / "data"
+
+# Read-only, parkrun-ONLY DuckDB the hosted app serves (see CLAUDE.md). Tables
+# the snapshot carries; views are rebuilt from these by ensure_views().
+SNAPSHOT_PATH = DATA_DIR / "parkrun_snapshot.duckdb"
+SNAPSHOT_TABLES = (
+    "athletes",
+    "country_lookup",
+    "current_targets",
+    "events",
+    "results",
+)
 
 # Fixed cohort. The mapping drives the per-athlete columns in v_overlap.
 ATHLETE_NAMES = {5672: "raju", 5462426: "duncan", 3087156: "george"}
@@ -576,6 +592,53 @@ def export_results_snapshot(con: duckdb.DuckDBPyConnection) -> None:
     log(f"  exported snapshot -> {out}")
 
 
+def build_snapshot(con: duckdb.DuckDBPyConnection) -> None:
+    """Write the parkrun-ONLY DuckDB the hosted app serves.
+
+    Built from scratch (never a file copy) so it can NEVER carry the
+    personal_finance schema that shares the dev DB. Tables are copied with
+    native CREATE TABLE AS (exact types preserved — the head-to-head view's
+    date arithmetic needs run_date to stay DATE); views are then rebuilt by
+    ensure_views() with the snapshot as its own default catalog, so their
+    references rebind to the local `parkrun` schema when opened standalone.
+
+    The catalog name (`parkrun_snapshot`, from the filename) deliberately
+    differs from the `parkrun` schema, else `parkrun.v_overlap` is ambiguous.
+    Writes to a temp file and atomically replaces, so a failure never corrupts
+    the committed snapshot.
+    """
+    tmp = SNAPSHOT_PATH.with_name(SNAPSHOT_PATH.name + ".tmp")
+    for p in (tmp, Path(str(tmp) + ".wal")):
+        if p.exists():
+            p.unlink()
+
+    # Phase 1: copy tables from the open dev DB into the attached fresh file.
+    con.execute(f"ATTACH '{tmp}' AS snap;")
+    try:
+        con.execute(f"CREATE SCHEMA snap.{SCHEMA};")
+        for t in SNAPSHOT_TABLES:
+            con.execute(
+                f"CREATE TABLE snap.{SCHEMA}.{t} AS SELECT * FROM {SCHEMA}.{t};"
+            )
+    finally:
+        con.execute("DETACH snap;")
+
+    # Phase 2: rebuild views with the snapshot as the default catalog, so the
+    # stored definitions resolve to its own `parkrun` schema standalone.
+    snap = duckdb.connect(str(tmp))
+    try:
+        ensure_views(snap)
+        snap.execute("CHECKPOINT;")
+    finally:
+        snap.close()
+    wal = Path(str(tmp) + ".wal")
+    if wal.exists():
+        wal.unlink()
+
+    os.replace(tmp, SNAPSHOT_PATH)
+    log(f"  built deploy snapshot -> {SNAPSHOT_PATH}")
+
+
 # --------------------------------------------------------------------------- #
 # Orchestration
 # --------------------------------------------------------------------------- #
@@ -586,6 +649,7 @@ def bootstrap(con: duckdb.DuckDBPyConnection) -> None:
     upsert_results(con)
     update_current_targets(con)
     export_results_snapshot(con)
+    build_snapshot(con)
 
 
 def refresh(con: duckdb.DuckDBPyConnection) -> None:
@@ -596,6 +660,7 @@ def refresh(con: duckdb.DuckDBPyConnection) -> None:
     upsert_results(con)  # Path B (runs regardless of Path A)
     update_current_targets(con)
     export_results_snapshot(con)
+    build_snapshot(con)
 
 
 def status(con: duckdb.DuckDBPyConnection) -> None:
@@ -622,6 +687,11 @@ def main() -> None:
             refresh(con)
         elif cmd == "status":
             status(con)
+        elif cmd == "snapshot":
+            if is_bootstrapped(con):
+                build_snapshot(con)
+            else:
+                log("nothing to snapshot; bootstrap/refresh first")
         else:
             print(__doc__)
             sys.exit(1)
