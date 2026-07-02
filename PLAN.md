@@ -22,6 +22,14 @@ project brief + data-pipeline spec); this file is the **sequenced work plan**.
 
 ## Execution order
 
+> **▶ NEXT: Stage 7 — push the parkrun data to MotherDuck.** Stages 1–6 are
+> shipped, refactored, and committed. This is the only remaining step. It needs
+> your MotherDuck token (set locally as the `motherduck_token` env var — never
+> pasted into chat) and a database name (default `parkrun`), plus a free-tier /
+> pricing check before any upload. Upload is **parkrun-only** (tables + views,
+> same discipline as `build_snapshot()`) so `personal_finance` can never reach
+> the cloud. See Step 7 below.
+
 | # | Change | Status | Why here | Depends on |
 |---|--------|--------|----------|------------|
 | 1 | Local dev/test environment | ✅ done | Foundation — a safe sandbox for everything after | — |
