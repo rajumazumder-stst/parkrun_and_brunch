@@ -5,6 +5,8 @@ pandas==3.0.3
 plotly==6.8.0
 matplotlib==3.11.0
 matplotlib-venn==1.1.2
+folium==0.20.0
+streamlit-folium==0.27.2
 
 # Data pipeline (parkrun_pipeline.py) — only needed if running a refresh,
 # not required to serve the bundled read-only snapshot.

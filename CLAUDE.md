@@ -24,14 +24,20 @@ where they differ from the original brief, **the spec wins**.
 - ✅ DuckDB loader / reconcile pipeline — built (`parkrun_pipeline.py`); bootstrap
   + refresh (Path A/B) tested against the live site. Data lives in the `parkrun`
   schema of `~/Documents/duckdb/my_database.duckdb`.
-- ✅ Analytics layer — `v_overlap` + `v_head_to_head` views and the
-  `current_targets` table built and wired into refresh (see Analytics layer below).
-- ✅ Streamlit front end — `app.py`, 3 tabs. Deployable: `app.py` resolves its DB
-  via `PARKRUN_DB` env var > Streamlit secret > a bundled read-only snapshot
-  (`data/parkrun_snapshot.duckdb`), so it can be hosted (e.g. Streamlit Community
-  Cloud) from the repo alone. `requirements.txt` pins the runtime deps.
-  A live MotherDuck backend + scheduled refresh remains a separate future strand.
+- ✅ Analytics layer — `v_overlap`, `v_head_to_head`, `v_saturday_targets` views
+  and the `current_targets` table, built and wired into refresh (see Analytics
+  layer below).
+- ✅ Streamlit front end — `app.py`, **5 tabs** (overlap/Venn · head-to-head
+  summary · head-to-head detail · form target-time by Saturday · head-to-head
+  map). Deployable: `app.py` resolves its DB via `PARKRUN_DB` env var > Streamlit
+  secret > a bundled read-only snapshot (`data/parkrun_snapshot.duckdb`), so it
+  can be hosted (e.g. Streamlit Community Cloud) from the repo alone.
+  `requirements.txt` pins the runtime deps. A live MotherDuck backend + scheduled
+  refresh remains a separate future strand.
 - ⏳ Scheduler (Saturday ~14:00) + manual Refresh button — not wired up.
+- 🧪 Local dev/test workflow: work on the `dev` branch, `./run_local.sh` serves
+  the app against an isolated `data/parkrun_dev.duckdb` (gitignored copy of the
+  snapshot) so previews never touch `main` or the deploy snapshot. See `DEV.md`.
 
 ---
 
@@ -163,12 +169,15 @@ refresh date (a snapshot — recomputing live would silently drift). Keyed on
 
 ## Analytics layer
 
-The comparison features are **derived from `results`**. The two analytical
-features are deterministic from the stored data, so they are DuckDB **views**
-(always live, no duplication, no staleness); only the date-anchored
-`current_targets` is materialised. Created/refreshed by `ensure_views()` and
-`update_current_targets()`. The cohort is fixed (3 athletes); `ATHLETE_NAMES`
-in the pipeline is the single source for the per-athlete column names.
+The comparison features are **derived from `results`**. They are deterministic
+from the stored data, so they are DuckDB **views** (`v_overlap`,
+`v_head_to_head`, `v_saturday_targets`) — always live, no duplication, no
+staleness; only the date-anchored `current_targets` is materialised.
+Created/refreshed by `ensure_views()` and `update_current_targets()`. The cohort
+is fixed (3 athletes); `ATHLETE_NAMES` in the pipeline is the single source for
+the per-athlete column names. The **cumulative 1st-place trend** (Tab 2) and the
+**head-to-head map** (Tab 5) are derived in `app.py` from `v_head_to_head`
+(+ `events` coordinates for the map) — no extra views.
 
 ### Feature 1 — participation overlap (`v_overlap`)
 A **shared occasion** is a unique `(event_id, run_date)` (same event, same day =
@@ -202,6 +211,16 @@ Note: `v_overlap` counts **all** co-participations; `v_head_to_head` counts only
 
 Caveat (accepted): the target averages across all courses in the window, but a
 head-to-head is at one specific course — course difficulty is not adjusted for.
+
+### Feature 3 — Saturday form targets (`v_saturday_targets`)
+Each athlete's current-form **target** evaluated on **every Saturday** in the
+data span, using the **same 91-day median** as the head-to-head target:
+`median(time_seconds)` over `[Saturday−91, Saturday−1]` (excludes the day),
+valid when ≥ 1 run in the window. Saturdays with no runs in the window are
+omitted (the Form-tab line breaks there, never drops to zero). Columns:
+`athlete_id`, `athlete_name`, `run_date` (the Saturday), `target_seconds`,
+`n_window`. By construction it equals `v_head_to_head.target_seconds` exactly on
+shared athlete/date pairs (verified).
 
 ---
 
@@ -296,7 +315,9 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | Path | Purpose |
 |---|---|
 | `parkrun_pipeline.py` | Loader: `bootstrap` / `refresh` / `status` / `snapshot` (Path A/B, DuckDB) + analytics views/targets + deploy-snapshot build. Also owns scraping (`scrape_athlete`) and time parsing (`time_to_seconds`). |
-| `app.py` | Streamlit front end (3 tabs) reading the `parkrun` schema read-only; DB path resolved via `PARKRUN_DB` env/secret, else the bundled snapshot |
+| `app.py` | Streamlit front end (5 tabs: overlap · head-to-head summary · head-to-head detail · form/target-time · head-to-head map) reading the `parkrun` schema read-only; DB path resolved via `PARKRUN_DB` env/secret, else the bundled snapshot |
+| `run_local.sh` | Local dev launcher: venv + isolated `data/parkrun_dev.duckdb` + `streamlit run` (see `DEV.md`) |
+| `DEV.md` / `PLAN.md` | Local dev workflow / sequenced change plan |
 | `requirements.txt` | Pinned runtime deps for hosting (Streamlit Cloud etc.) |
 | `data/parkrun_events.csv` | Event catalogue (events.json dump + Victoria Dock) |
 | `data/country_lookup.csv` | country_code → country_name |
@@ -313,27 +334,40 @@ Run the app against the bundled snapshot (as hosted): `streamlit run app.py`.
 ## Technology stack
 
 Python · requests · pandas · BeautifulSoup4 · lxml · DuckDB. Front end:
-Streamlit (preferred) or Shiny for Python.
+Streamlit · plotly · matplotlib-venn · folium/streamlit-folium (map).
 
 ### Environment
 
 - Python 3.14 venv: `~/Documents/Python scripts/env` (has requests, pandas,
   bs4, lxml, html5lib, duckdb 1.5.4; front end: streamlit, plotly, matplotlib,
-  matplotlib-venn).
+  matplotlib-venn, folium, streamlit-folium).
 - DuckDB database: `~/Documents/duckdb/my_database.duckdb`.
 
 ---
 
 ## Visualisations
 
-**Built (local Streamlit, `app.py`)**: Tab 1 participation overlap / Venn
-(`v_overlap`) + per-athlete company; Tab 2 form-adjusted head-to-head summary
-(`v_head_to_head`, `current_targets`); Tab 3 head-to-head detail. Hosting it
-online is a separate future strand.
+**Built (local Streamlit, `app.py`, 5 tabs)**:
+- **Tab 1** participation overlap / Venn (`v_overlap`) + per-athlete company.
+- **Tab 2** form-adjusted head-to-head summary (`v_head_to_head`,
+  `current_targets`): current-form targets, latest head-to-head, record
+  leaderboard (3rd place shown only for the 3-way / All), and a **cumulative
+  1st-place finishes** trend (requires a head-to-head; year/season filterable;
+  hover names the winning parkrun).
+- **Tab 3** head-to-head detail (drill into a single contest).
+- **Tab 4** **form — target time by Saturday** (`v_saturday_targets`): per-athlete
+  target line, mm:ss axis, year/season filter, line breaks across >91-day gaps,
+  axes rescale when an athlete is hidden via the legend.
+- **Tab 5** **map — where the head-to-heads happen** (Folium + OpenStreetMap):
+  one pie marker per venue, sized by count and split by wins per athlete; shown
+  once a head-to-head classification is selected.
+
+All date-filtered tabs share one mutually-exclusive Year/Season control
+(`year_season_filters`); "Season" is year-qualified (e.g. `2018/19 Winter`,
+Dec–Feb). Hosting online is a separate future strand.
 
 Future ideas: attendance timeline · fastest times · PB progression · age-grade
-progression · event frequency · tourism map (uses event coordinates) · form
-(target time) over refreshes.
+progression · event frequency · form (target) over refreshes.
 
 ---
 

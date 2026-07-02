@@ -238,6 +238,43 @@ def ensure_views(con: duckdb.DuckDBPyConnection) -> None:
         FROM labelled l JOIN {SCHEMA}.events e USING (event_id);
         """
     )
+    # Each athlete's current-form target evaluated on *every Saturday* in the
+    # data span. Same definition as the head-to-head target: median time_seconds
+    # over the {TARGET_WINDOW_DAYS}-day window BEFORE the Saturday ([S-91, S-1],
+    # excludes the day), valid when >= 1 run in the window. Saturdays with no
+    # runs in the window are omitted (a gap in the line), never zero.
+    con.execute(
+        f"""
+        CREATE OR REPLACE VIEW {SCHEMA}.v_saturday_targets AS
+        WITH bounds AS (
+            SELECT min(run_date) AS d0, max(run_date) AS d1 FROM {SCHEMA}.results
+        ),
+        saturdays AS (
+            SELECT d::date AS sat
+            FROM bounds,
+                 generate_series(d0::timestamp, d1::timestamp, INTERVAL 1 DAY) AS g(d)
+            WHERE dayofweek(d::date) = 6            -- 6 = Saturday
+        ),
+        grid AS (
+            SELECT a.athlete_id, a.athlete_name, s.sat
+            FROM {SCHEMA}.athletes a CROSS JOIN saturdays s
+        ),
+        targets AS (
+            SELECT g.athlete_id, g.athlete_name, g.sat,
+                   median(r.time_seconds) AS target_seconds,
+                   count(r.time_seconds)  AS n_window
+            FROM grid g
+            LEFT JOIN {SCHEMA}.results r
+              ON r.athlete_id = g.athlete_id
+             AND r.run_date BETWEEN g.sat - {TARGET_WINDOW_DAYS} AND g.sat - 1
+            GROUP BY g.athlete_id, g.athlete_name, g.sat
+        )
+        SELECT athlete_id, athlete_name,
+               sat AS run_date, target_seconds, n_window
+        FROM targets
+        WHERE n_window >= 1;
+        """
+    )
 
 
 def is_bootstrapped(con: duckdb.DuckDBPyConnection) -> bool:
