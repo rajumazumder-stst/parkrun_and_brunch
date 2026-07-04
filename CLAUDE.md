@@ -34,6 +34,9 @@ where they differ from the original brief, **the spec wins**.
   can be hosted (e.g. Streamlit Community Cloud) from the repo alone.
   `requirements.txt` pins the runtime deps. A live MotherDuck backend + scheduled
   refresh remains a separate future strand.
+- ✅ Deployed to Streamlit Community Cloud —
+  <https://parkrun-and-brunch.streamlit.app/> (serves the bundled read-only
+  snapshot; auto-redeploys on push to the deployed branch).
 - ⏳ Scheduler (Saturday ~14:00) + manual Refresh button — not wired up.
 - 🧪 Local dev/test workflow: work on the `dev` branch, `./run_local.sh` serves
   the app against an isolated `data/parkrun_dev.duckdb` (gitignored copy of the
