@@ -65,6 +65,19 @@ project brief + data-pipeline spec); this file is the **sequenced work plan**.
 - **Stage 7** — upload is parkrun-only (per-object copies, never a whole-DB
   dump); MotherDuck DB named `parkrun_snapshot` (catalog ≠ the `parkrun` schema);
   run explicitly via the `motherduck` command, not by bootstrap/refresh.
+- **Stage 8** (locked 2026-07-05):
+  - **8.0/8.1 probes passed** — GitHub Actions can scrape parkrun; the pipeline's
+    write path (`ON CONFLICT`, `INSERT OR REPLACE`, txns, `register()+INSERT`) runs
+    on `md:`. Caveat: the `md:` schema must carry PKs (via `ensure_schema`, not CTAS).
+  - **Migration = re-seed preserving history** (decision 1): fix `build_motherduck`
+    to build a constrained schema (`ensure_schema`) + `INSERT … SELECT` from the
+    local dev DB, run once → `md:` becomes source of truth with `current_targets`
+    history intact. Thereafter `refresh` targets `md:` directly.
+  - **Scheduler commits the audit CSV back** (decision 2): the Action re-commits
+    `data/parkrun_results.csv` after each cloud refresh (snapshot optional).
+  - **Cron = 14:00 UK year-round** (decision 3): GitHub cron is UTC/DST-blind, so
+    two entries (`13:00` + `14:00 UTC` Sat) + a `TZ=Europe/London` guard that runs
+    only when London-local is 14:xx.
 
 **Stages 1–7 shipped.** Remaining: Stage 8 (scheduled auto-refresh +
 auto-reload), which needs the GitHub Actions scraping spike to pass first and
@@ -184,12 +197,14 @@ can't be validated from the local dev loop alone.
      GitHub Actions (cron)         Mac / laptop (ad-hoc)      Streamlit app
   ```
 
-- **8.0 — Spike (gates everything).** A throwaway GitHub Actions workflow that
-  fetches **one** athlete page and reports the HTTP status. parkrun sits behind
-  Cloudflare and is known to block datacenter IPs, so a runner may get `403`.
-  - **Pass** → proceed with GitHub Actions as the scheduler.
-  - **Fail** → pivot the schedule to the Mac (launchd) or add a scraping proxy;
-    8.1/8.3 still apply.
+- **8.0 — Spike (gates everything).** ✅ **PASS (2026-07-05).** A throwaway
+  GitHub Actions workflow (`.github/workflows/scrape-spike.yml`) fetched all
+  three athlete pages: HTTP 200, `server: Apache` (**not** Cloudflare — the
+  `/parkrunner/` endpoint isn't behind the challenge), no challenge markers,
+  results tables parsed (310 / 167 / 341 rows). The datacenter-IP worry didn't
+  materialise → **GitHub Actions is a green light for 8.2**; launchd fallback not
+  needed. The spike workflow is throwaway — delete it when 8.2's real scheduled
+  workflow supersedes it.
 
 - **8.1 — MotherDuck as the pipeline's source of truth.** Today `refresh`
   operates on the **local file DB** and `motherduck` pushes a fresh copy (drops +
@@ -198,10 +213,17 @@ can't be validated from the local dev loop alone.
   accumulating regardless of where the job runs — see note below).
   - Parameterise the target DB (a `PARKRUN_PIPELINE_DB` env / arg) so `bootstrap`
     / `refresh` / `status` can point at either the local dev DB **or** `md:`.
-  - **Compatibility check** first: run the upsert path (temp tables, `COPY`,
-    multi-statement transactions, `median`, `generate_series`) against MotherDuck
-    and confirm each behaves — MotherDuck is DuckDB SQL but some DDL/txn semantics
-    differ. This is the real risk in 8.1.
+  - **Compatibility check** — ✅ **done (2026-07-05).** A throwaway probe ran the
+    exact write shapes against `md:` — composite `PRIMARY KEY` DDL, `register()`
+    a DataFrame + `INSERT ... SELECT`, `BEGIN/COMMIT`, `INSERT ... ON CONFLICT DO
+    UPDATE`, `INSERT OR REPLACE`, `median()`/`CURRENT_DATE`, `generate_series` —
+    **7/7 passed.** The write path is MotherDuck-compatible.
+  - **⚠ Key finding:** `ON CONFLICT` / `INSERT OR REPLACE` need the table's
+    `PRIMARY KEY` as their arbiter, but `build_motherduck()` copies tables via
+    `CREATE TABLE AS SELECT`, which **drops constraints** — so the *current* cloud
+    tables have no PK. The refactor must create the `md:` schema with
+    `ensure_schema()` (constraint-carrying DDL), then load data — **not** CTAS.
+    This is the concrete change 8.1 turns on.
   - Keep `personal_finance` unreachable: the pipeline only ever touches the
     `parkrun` schema, so operating on `md:` directly stays parkrun-only by
     construction (no `personal_finance` catalog is ever attached to `md:`).
