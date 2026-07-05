@@ -36,9 +36,10 @@ project brief + data-pipeline spec); this file is the **sequenced work plan**.
 > source-of-truth ✅** (refresh upserts into `md:` directly). **NEXT: 8.3
 > version-marker auto-reload** in `app.py` (small, independent), then **8.2 GitHub
 > Actions cron scheduler**. Final flip: point the hosted app at MotherDuck (the
-> `PARKRUN_DB` + `motherduck_token` secrets). **8.3 auto-reload ✅ done too;**
-> only **8.2 (GitHub Actions scheduler)** + the hosted-app secret flip remain.
-> See Step 8 below.
+> `PARKRUN_DB` + `motherduck_token` secrets). **8.0/8.1/8.2/8.3 all ✅ done** —
+> the pipeline refreshes MotherDuck on a schedule and the app auto-reloads. The
+> only remaining item is the **hosted-app secret flip** (a Streamlit dashboard
+> step, yours) to point the live app at MotherDuck. See Step 8 below.
 
 | # | Change | Status | Why here | Depends on |
 |---|--------|--------|----------|------------|
@@ -49,7 +50,10 @@ project brief + data-pipeline spec); this file is the **sequenced work plan**.
 | 5 | Target time by Saturday | ✅ done | Independent visual; reuses 91-day target logic | 1 |
 | 6 | Head-to-head map | ✅ done | Independent visual; joins to event coordinates | 1 |
 | 7 | MotherDuck migration | ✅ done | Go-live step — migrated once, verified parkrun-only + free | all |
-| 8 | Scheduled auto-refresh + auto-reload | ⏳ next | Keeps the live app current with no manual step | 7 |
+| 8 | Scheduled auto-refresh + auto-reload | ✅ done¹ | Keeps the live app current with no manual step | 7 |
+
+¹ Pipeline + app work all shipped (8.0–8.3). Remaining: the hosted-app secret
+flip (Streamlit dashboard) to point the live site at MotherDuck.
 
 **Decisions locked while building:**
 - **Stage 2** — Winter = `YYYY/YY Winter` spanning Dec–Feb; Year/Season are two
@@ -233,11 +237,14 @@ can't be validated from the local dev loop alone.
     `parkrun` schema, so operating on `md:` directly stays parkrun-only by
     construction (no `personal_finance` catalog is ever attached to `md:`).
 
-- **8.2 — Scheduler.** GitHub Actions cron, Saturday ~14:00 UK (after results
-  post). Runs `refresh` against `md:`; `motherduck_token` stored as a **GitHub
-  Actions secret**. Optionally also commit the refreshed `parkrun_results.csv`
-  back to the repo to keep the audit trail. (If 8.0 fails, this becomes a launchd
-  job on the Mac instead.)
+- **8.2 — Scheduler.** ✅ **done (2026-07-05).** `.github/workflows/refresh.yml`:
+  two Saturday cron entries (`13:00` + `14:00 UTC`) + a `Europe/London` guard →
+  fires at **14:00 UK year-round**; `workflow_dispatch` skips the guard for ad-hoc
+  cloud refreshes. Runs `PARKRUN_PIPELINE_DB=md:parkrun_snapshot … refresh`
+  (`MOTHERDUCK_TOKEN` repo secret) and commits `data/parkrun_results.csv` back
+  (decision 2). Validated by a manual dispatch: refreshed `md:` (818 upserted)
+  and pushed `data: scheduled refresh …` to `main`. The throwaway 8.0 spike
+  workflow was removed. First scheduled fire: Sat 2026-07-11 14:00 UK.
 
 - **8.3 — Version-marker auto-reload (`app.py`).** ✅ **done (2026-07-05).**
   `data_version()` (60s TTL) reads `max(scrape_timestamp)` and is threaded as a
