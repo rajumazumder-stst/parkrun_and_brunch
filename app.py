@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import math
 import os
+from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import duckdb
 import folium
@@ -107,17 +109,37 @@ def data_version() -> str:
 
 
 @st.cache_data(show_spinner=False)
+def load_data_meta(version) -> pd.Series:
+    """Update markers from the data: the latest parkrun date and when the
+    pipeline last wrote (max scrape_timestamp — a server-side fact, advanced on
+    every refresh). Keyed on `version` so it refetches when a refresh lands."""
+    df = _read_sql(
+        """
+        SELECT max(run_date)         AS latest_parkrun,
+               max(scrape_timestamp)  AS pipeline_last_run
+        FROM parkrun.results
+        """
+    )
+    return df.iloc[0]
+
+
+@st.cache_data(show_spinner=False)
+def data_fetched_at(version) -> datetime:
+    """When this app last actually pulled fresh data from the backend. Cached on
+    `version`, so the timestamp is stamped when a new version triggers a refetch
+    (or the Reload button clears the cache) and otherwise stays put — i.e. the
+    age of the data currently on screen, not merely 'now'."""
+    return datetime.now(timezone.utc)
+
+
+@st.cache_data(show_spinner=False)
 def load_overlap(version) -> pd.DataFrame:
     return _read_sql("SELECT * FROM parkrun.v_overlap")
 
 
 @st.cache_data(show_spinner=False)
 def load_h2h(version) -> pd.DataFrame:
-    df = _read_sql("SELECT * FROM parkrun.v_head_to_head")
-    df["run_date"] = pd.to_datetime(df["run_date"])
-    df["year"] = df["run_date"].dt.year
-    df["season_label"] = df["run_date"].map(_season_label)
-    return df
+    return _with_date_cols(_read_sql("SELECT * FROM parkrun.v_head_to_head"))
 
 
 @st.cache_data(show_spinner=False)
@@ -133,12 +155,29 @@ def load_targets(version) -> pd.DataFrame:
 
 
 @st.cache_data(show_spinner=False)
-def load_saturday_targets(version) -> pd.DataFrame:
-    df = _read_sql("SELECT * FROM parkrun.v_saturday_targets")
+def load_target_window_runs(version) -> pd.DataFrame:
+    """The individual runs behind each athlete's current-form target: their runs
+    in the window [latest refresh_date − 91, − 1] (the same window the target
+    median is taken over). Drives the per-athlete 'runs in window' popover."""
+    df = _read_sql(
+        """
+        WITH latest AS (SELECT max(refresh_date) AS d FROM parkrun.current_targets)
+        SELECT a.athlete_name, r.run_date, e.short_name, r.time_seconds
+        FROM parkrun.results r
+        JOIN parkrun.athletes a USING (athlete_id)
+        JOIN parkrun.events e USING (event_id)
+        CROSS JOIN latest
+        WHERE r.run_date BETWEEN latest.d - 91 AND latest.d - 1
+        ORDER BY a.athlete_name, r.run_date DESC
+        """
+    )
     df["run_date"] = pd.to_datetime(df["run_date"])
-    df["year"] = df["run_date"].dt.year
-    df["season_label"] = df["run_date"].map(_season_label)
     return df
+
+
+@st.cache_data(show_spinner=False)
+def load_saturday_targets(version) -> pd.DataFrame:
+    return _with_date_cols(_read_sql("SELECT * FROM parkrun.v_saturday_targets"))
 
 
 @st.cache_data(show_spinner=False)
@@ -166,6 +205,14 @@ def _season_label(ts) -> str:
         return f"{y} Autumn"
     y1, y2 = (y, y + 1) if m == 12 else (y - 1, y)
     return f"{y1}/{str(y2)[-2:]} Winter"
+
+
+def _with_date_cols(df: pd.DataFrame) -> pd.DataFrame:
+    """Add the run_date/year/season_label columns the date-filtered tabs share."""
+    df["run_date"] = pd.to_datetime(df["run_date"])
+    df["year"] = df["run_date"].dt.year
+    df["season_label"] = df["run_date"].map(_season_label)
+    return df
 
 
 def _ordered_seasons(df: pd.DataFrame) -> list:
@@ -219,6 +266,65 @@ def fmt_time(sec) -> str:
     h, rem = divmod(sec, 3600)
     m, s = divmod(rem, 60)
     return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
+
+
+UK_TZ = ZoneInfo("Europe/London")
+
+
+def _fmt_uk_dt(ts) -> str:
+    """A timestamp shown in UK local time (DST-aware), e.g. '05 Jul 2026, 15:41'.
+    Naive timestamps are assumed UTC (how scrape_timestamp is stored)."""
+    if ts is None or pd.isna(ts):
+        return "—"
+    ts = pd.Timestamp(ts)
+    if ts.tzinfo is None:
+        ts = ts.tz_localize("UTC")
+    return ts.tz_convert(UK_TZ).strftime("%d %b %Y, %H:%M")
+
+
+def _fmt_uk_date(d) -> str:
+    """A date shown as e.g. 'Sat 04 Jul 2026'."""
+    if d is None or pd.isna(d):
+        return "—"
+    return pd.Timestamp(d).strftime("%a %d %b %Y")
+
+
+def _render_window_runs(runs: pd.DataFrame, athlete_name: str) -> None:
+    """Table of an athlete's target-window runs (date desc), with the median
+    time(s) highlighted. The target is median(time_seconds); for an even number
+    of runs the two middle runs are both highlighted (they are averaged to form
+    the target)."""
+    g = (
+        runs[runs["athlete_name"] == athlete_name]
+        .sort_values("run_date", ascending=False)
+        .reset_index(drop=True)
+    )
+    if g.empty:
+        st.caption("No runs in the window.")
+        return
+    # Median by *time*: the middle 1 (odd) or 2 (even) rows when sorted by time.
+    by_time = g["time_seconds"].sort_values().index.tolist()
+    n = len(by_time)
+    med = {by_time[n // 2]} if n % 2 else {by_time[n // 2 - 1], by_time[n // 2]}
+    disp = pd.DataFrame(
+        {
+            "Date": g["run_date"].dt.strftime("%d %b %Y"),
+            "parkrun": g["short_name"],
+            "Time": g["time_seconds"].map(fmt_time),
+        }
+    )
+
+    def _hl(row):
+        on = row.name in med
+        return ["background-color:#ffe08a;color:#111" if on else "" for _ in row]
+
+    st.dataframe(
+        disp.style.apply(_hl, axis=1),
+        hide_index=True,
+        width="stretch",
+    )
+    kind = "median (= the target)" if n % 2 else "the two runs averaged for the target"
+    st.caption(f"🟨 Highlighted = {kind}.")
 
 
 def _gap_filled_saturdays(sat: pd.DataFrame) -> pd.DataFrame:
@@ -395,6 +501,8 @@ try:
     overlap = load_overlap(_ver)
     h2h = load_h2h(_ver)
     targets = load_targets(_ver)
+    target_runs = load_target_window_runs(_ver)
+    meta = load_data_meta(_ver)
 except duckdb.IOException:
     st.error(
         "Couldn't open the database (is DBeaver or a refresh holding the lock?). "
@@ -406,8 +514,16 @@ CLASS_OPTS = ["All"] + sorted(h2h["classification"].unique())
 
 with st.sidebar:
     st.markdown("### 🏃 parkrun & brunch")
-    if not targets.empty:
-        st.caption(f"Data as of {targets['refresh_date'].max():%d %b %Y}")
+    st.markdown(
+        f"**Latest parkrun:** {_fmt_uk_date(meta['latest_parkrun'])}  \n"
+        f"**Pipeline last run:** {_fmt_uk_dt(meta['pipeline_last_run'])}  \n"
+        f"**App last refreshed:** {_fmt_uk_dt(data_fetched_at(_ver))}"
+    )
+    st.caption(
+        "Latest parkrun = most recent run in the data · Pipeline last run = when "
+        "the data was last scraped (UK) · App last refreshed = when this view last "
+        "pulled it in."
+    )
     if st.button("🔄 Reload data"):
         st.cache_data.clear()
         st.rerun()
@@ -532,11 +648,19 @@ A 3-way where someone has no recent form becomes a 2-way between the other two.
     else:
         cols = st.columns(len(targets))
         for col, (_, row) in zip(cols, targets.sort_values("target_seconds").iterrows()):
+            n = int(row["n_window"])
             col.metric(
                 row["athlete_name"],
-                fmt_time(row["target_seconds"]) if row["n_window"] else "—",
-                f"{int(row['n_window'])} runs in window",
+                fmt_time(row["target_seconds"]) if n else "—",
             )
+            if n:
+                with col.popover(f"{n} runs in window", width="stretch"):
+                    st.markdown(
+                        f"**{row['athlete_name']} — {n} runs in the 91-day window**"
+                    )
+                    _render_window_runs(target_runs, row["athlete_name"])
+            else:
+                col.caption("no runs in window")
 
     st.divider()
     st.subheader("Latest head-to-head")

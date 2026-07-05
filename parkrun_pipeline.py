@@ -100,6 +100,10 @@ def log(msg: str) -> None:
     print(f"[{datetime.now():%H:%M:%S}] {msg}")
 
 
+def _count(con: duckdb.DuckDBPyConnection, table: str) -> int:
+    return con.execute(f"SELECT count(*) FROM {SCHEMA}.{table}").fetchone()[0]
+
+
 def time_to_seconds(t: str) -> int | None:
     """Parse a parkrun time string (MM:SS or H:MM:SS) to total seconds."""
     if not isinstance(t, str) or ":" not in t:
@@ -296,8 +300,7 @@ def ensure_views(con: duckdb.DuckDBPyConnection) -> None:
 
 
 def is_bootstrapped(con: duckdb.DuckDBPyConnection) -> bool:
-    n = con.execute(f"SELECT count(*) FROM {SCHEMA}.events").fetchone()[0]
-    return n > 0
+    return _count(con, "events") > 0
 
 
 # --------------------------------------------------------------------------- #
@@ -334,8 +337,7 @@ def seed_events_from_csv(con: duckdb.DuckDBPyConnection) -> None:
         FROM read_csv_auto('{DATA_DIR / 'parkrun_events.csv'}', header=true);
         """
     )
-    n = con.execute(f"SELECT count(*) FROM {SCHEMA}.events").fetchone()[0]
-    log(f"  seeded {n} events from CSV")
+    log(f"  seeded {_count(con, 'events')} events from CSV")
 
 
 # --------------------------------------------------------------------------- #
@@ -758,14 +760,20 @@ def build_motherduck(con: duckdb.DuckDBPyConnection) -> None:
 # --------------------------------------------------------------------------- #
 # Orchestration
 # --------------------------------------------------------------------------- #
+def _finalize(con: duckdb.DuckDBPyConnection) -> None:
+    """Post-write steps shared by bootstrap and refresh: snapshot current-form
+    targets, export the results CSV, and rebuild the deploy snapshot."""
+    update_current_targets(con)
+    export_results_snapshot(con)
+    build_snapshot(con)
+
+
 def bootstrap(con: duckdb.DuckDBPyConnection) -> None:
     log("BOOTSTRAP: empty DB")
     seed_static_tables(con)
     seed_events_from_csv(con)
     upsert_results(con)
-    update_current_targets(con)
-    export_results_snapshot(con)
-    build_snapshot(con)
+    _finalize(con)
 
 
 def refresh(con: duckdb.DuckDBPyConnection) -> None:
@@ -774,15 +782,12 @@ def refresh(con: duckdb.DuckDBPyConnection) -> None:
         return
     reconcile_events(con)  # Path A (independent)
     upsert_results(con)  # Path B (runs regardless of Path A)
-    update_current_targets(con)
-    export_results_snapshot(con)
-    build_snapshot(con)
+    _finalize(con)
 
 
 def status(con: duckdb.DuckDBPyConnection) -> None:
     for t in ("events", "results", "country_lookup", "athletes", "current_targets"):
-        n = con.execute(f"SELECT count(*) FROM {SCHEMA}.{t}").fetchone()[0]
-        print(f"  {SCHEMA}.{t:<14} {n:>6} rows")
+        print(f"  {SCHEMA}.{t:<14} {_count(con, t):>6} rows")
     live = con.execute(
         f"SELECT count(*) FROM {SCHEMA}.events WHERE live"
     ).fetchone()[0]

@@ -366,10 +366,12 @@ Streamlit · plotly · matplotlib-venn · folium/streamlit-folium (map).
 **Built (local Streamlit, `app.py`, 5 tabs)**:
 - **Tab 1** participation overlap / Venn (`v_overlap`) + per-athlete company.
 - **Tab 2** form-adjusted head-to-head summary (`v_head_to_head`,
-  `current_targets`): current-form targets, latest head-to-head, record
-  leaderboard (3rd place shown only for the 3-way / All), and a **cumulative
-  1st-place finishes** trend (requires a head-to-head; year/season filterable;
-  hover names the winning parkrun).
+  `current_targets`): current-form targets — each a `st.popover` (**click "N runs
+  in window"** to list that athlete's window runs, date desc, with the median
+  time(s) highlighted; the two middle runs for an even count) — latest
+  head-to-head, record leaderboard (3rd place shown only for the 3-way / All),
+  and a **cumulative 1st-place finishes** trend (requires a head-to-head;
+  year/season filterable; hover names the winning parkrun).
 - **Tab 3** head-to-head detail (drill into a single contest).
 - **Tab 4** **form — target time by Saturday** (`v_saturday_targets`): per-athlete
   target line, mm:ss axis, year/season filter, line breaks across >91-day gaps,
@@ -380,7 +382,13 @@ Streamlit · plotly · matplotlib-venn · folium/streamlit-folium (map).
 
 All date-filtered tabs share one mutually-exclusive Year/Season control
 (`year_season_filters`); "Season" is year-qualified (e.g. `2018/19 Winter`,
-Dec–Feb). Hosting online is a separate future strand.
+Dec–Feb).
+
+The **sidebar** shows three update markers (UK local time) above the 🔄 Reload
+button: **Latest parkrun** (most recent `run_date`), **Pipeline last run** (when
+the data was last scraped, `max(scrape_timestamp)` — a server-side fact), and
+**App last refreshed** (when this session last pulled data — `data_fetched_at`,
+stamped on each version-keyed refetch).
 
 Future ideas: attendance timeline · fastest times · PB progression · age-grade
 progression · event frequency · form (target) over refreshes.
