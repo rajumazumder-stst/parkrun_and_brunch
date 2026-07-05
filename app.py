@@ -94,13 +94,25 @@ def _read_sql(sql: str) -> pd.DataFrame:
         con.close()
 
 
+@st.cache_data(ttl=60, show_spinner=False)
+def data_version() -> str:
+    """Cheap change-detector: the latest scrape timestamp, re-checked at most
+    once a minute. Passed as a *hashed* cache-key arg into the heavy loaders
+    below, so they auto-refetch exactly when a refresh writes new data and serve
+    cache otherwise (an out-of-band pipeline refresh updates the backend; this is
+    how the running app notices without a manual reload). Must NOT start with an
+    underscore — Streamlit skips underscore-prefixed args when hashing the key."""
+    df = _read_sql("SELECT max(scrape_timestamp) AS v FROM parkrun.results")
+    return str(df["v"].iloc[0])
+
+
 @st.cache_data(show_spinner=False)
-def load_overlap() -> pd.DataFrame:
+def load_overlap(version) -> pd.DataFrame:
     return _read_sql("SELECT * FROM parkrun.v_overlap")
 
 
 @st.cache_data(show_spinner=False)
-def load_h2h() -> pd.DataFrame:
+def load_h2h(version) -> pd.DataFrame:
     df = _read_sql("SELECT * FROM parkrun.v_head_to_head")
     df["run_date"] = pd.to_datetime(df["run_date"])
     df["year"] = df["run_date"].dt.year
@@ -109,7 +121,7 @@ def load_h2h() -> pd.DataFrame:
 
 
 @st.cache_data(show_spinner=False)
-def load_targets() -> pd.DataFrame:
+def load_targets(version) -> pd.DataFrame:
     return _read_sql(
         """
         SELECT a.athlete_name, t.target_seconds, t.n_window, t.refresh_date
@@ -121,7 +133,7 @@ def load_targets() -> pd.DataFrame:
 
 
 @st.cache_data(show_spinner=False)
-def load_saturday_targets() -> pd.DataFrame:
+def load_saturday_targets(version) -> pd.DataFrame:
     df = _read_sql("SELECT * FROM parkrun.v_saturday_targets")
     df["run_date"] = pd.to_datetime(df["run_date"])
     df["year"] = df["run_date"].dt.year
@@ -130,7 +142,7 @@ def load_saturday_targets() -> pd.DataFrame:
 
 
 @st.cache_data(show_spinner=False)
-def load_event_coords() -> pd.DataFrame:
+def load_event_coords(version) -> pd.DataFrame:
     return _read_sql(
         "SELECT event_id, short_name, latitude, longitude FROM parkrun.events"
     )
@@ -377,9 +389,12 @@ def _nice_dtick(maxv: int) -> int:
 # Load
 # --------------------------------------------------------------------------- #
 try:
-    overlap = load_overlap()
-    h2h = load_h2h()
-    targets = load_targets()
+    # One cheap version read per rerun; drives the loaders' cache keys so the app
+    # auto-picks-up a new pipeline refresh (see data_version).
+    _ver = data_version()
+    overlap = load_overlap(_ver)
+    h2h = load_h2h(_ver)
+    targets = load_targets(_ver)
 except duckdb.IOException:
     st.error(
         "Couldn't open the database (is DBeaver or a refresh holding the lock?). "
@@ -678,7 +693,7 @@ with tab4:
         "window; the same target used for head-to-heads). Lower is faster. A broken "
         "line marks Saturdays with no runs in the preceding 91 days."
     )
-    sat = load_saturday_targets()
+    sat = load_saturday_targets(_ver)
     if sat.empty:
         st.info("No Saturday targets available.")
     else:
@@ -745,7 +760,7 @@ with tab5:
         )
     else:
         mh = apply_filters(h2h, cls=pick5, yr=yr5, se=se5)
-        fmap = build_h2h_map(mh, load_event_coords())
+        fmap = build_h2h_map(mh, load_event_coords(_ver))
         if fmap is None:
             st.info("No head-to-heads match those filters.")
         else:

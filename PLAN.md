@@ -36,7 +36,9 @@ project brief + data-pipeline spec); this file is the **sequenced work plan**.
 > source-of-truth ✅** (refresh upserts into `md:` directly). **NEXT: 8.3
 > version-marker auto-reload** in `app.py` (small, independent), then **8.2 GitHub
 > Actions cron scheduler**. Final flip: point the hosted app at MotherDuck (the
-> `PARKRUN_DB` + `motherduck_token` secrets). See Step 8 below.
+> `PARKRUN_DB` + `motherduck_token` secrets). **8.3 auto-reload ✅ done too;**
+> only **8.2 (GitHub Actions scheduler)** + the hosted-app secret flip remain.
+> See Step 8 below.
 
 | # | Change | Status | Why here | Depends on |
 |---|--------|--------|----------|------------|
@@ -237,8 +239,13 @@ can't be validated from the local dev loop alone.
   back to the repo to keep the audit trail. (If 8.0 fails, this becomes a launchd
   job on the Mac instead.)
 
-- **8.3 — Version-marker auto-reload (`app.py`).** Make the app pick up new data
-  on its own, cheaply:
+- **8.3 — Version-marker auto-reload (`app.py`).** ✅ **done (2026-07-05).**
+  `data_version()` (60s TTL) reads `max(scrape_timestamp)` and is threaded as a
+  hashed `version` arg into all five loaders, so they auto-refetch exactly when a
+  refresh writes new data (upsert re-stamps every row, so the version advances
+  each refresh). Verified against `md:`: version reflects the last refresh and
+  the loaders serve correct data. The 🔄 Reload button (`cache_data.clear()`)
+  stays as a manual override. Mechanism (for reference):
   - A small cached function with a **short TTL** (~60s) reads just a **data
     version** — e.g. `SELECT max(scrape_timestamp) FROM parkrun.results` (one
     scalar, negligible compute).

@@ -329,7 +329,7 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | Path | Purpose |
 |---|---|
 | `parkrun_pipeline.py` | Loader: `bootstrap` / `refresh` / `status` / `snapshot` / `motherduck` (Path A/B, DuckDB) + analytics views/targets + deploy-snapshot build + parkrun-only MotherDuck upload (`build_motherduck`). Also owns scraping (`scrape_athlete`) and time parsing (`time_to_seconds`). |
-| `app.py` | Streamlit front end (5 tabs: overlap · head-to-head summary · head-to-head detail · form/target-time · head-to-head map) reading the `parkrun` schema read-only; DB path resolved via `PARKRUN_DB` env/secret, else the bundled snapshot |
+| `app.py` | Streamlit front end (5 tabs: overlap · head-to-head summary · head-to-head detail · form/target-time · head-to-head map) reading the `parkrun` schema read-only; DB path resolved via `PARKRUN_DB` env/secret (incl. `md:` MotherDuck), else the bundled snapshot. Auto-reloads on new data via a `data_version()` (`max(scrape_timestamp)`, 60s TTL) cache key; 🔄 Reload button clears the cache manually |
 | `run_local.sh` | Local dev launcher: venv + isolated `data/parkrun_dev.duckdb` + `streamlit run` (see `DEV.md`) |
 | `DEV.md` / `PLAN.md` | Local dev workflow / sequenced change plan |
 | `requirements.txt` | Pinned runtime deps for hosting (Streamlit Cloud etc.) |
