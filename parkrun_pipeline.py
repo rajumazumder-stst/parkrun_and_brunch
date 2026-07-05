@@ -18,8 +18,17 @@ Usage:
 
 bootstrap and refresh rebuild the deploy snapshot (data/parkrun_snapshot.duckdb)
 automatically; `snapshot` rebuilds just that file from the current DB.
-`motherduck` uploads the parkrun-only tables + views to the cloud (needs the
-`motherduck_token` env var); it is run explicitly, not by bootstrap/refresh.
+`motherduck` (re)seeds the parkrun-only cloud DB FROM the local DB with a
+constrained schema (needs the `motherduck_token` env var); run explicitly.
+
+Target DB (env `PARKRUN_PIPELINE_DB`):
+    unset            -> local dev DB (~/Documents/duckdb/my_database.duckdb)
+    md:parkrun_snapshot -> operate directly on MotherDuck (source of truth)
+
+e.g. `PARKRUN_PIPELINE_DB=md:parkrun_snapshot python parkrun_pipeline.py refresh`
+upserts straight into the cloud (used by the scheduled GitHub Action). Run
+`motherduck` once against the local DB to seed the cloud, then point refresh at
+`md:` thereafter.
 """
 
 from __future__ import annotations
@@ -686,7 +695,7 @@ def build_snapshot(con: duckdb.DuckDBPyConnection) -> None:
 
 
 def build_motherduck(con: duckdb.DuckDBPyConnection) -> None:
-    """Push the parkrun-ONLY tables + views to a MotherDuck database.
+    """(Re)seed the parkrun-ONLY MotherDuck database from the local `con`.
 
     Same discipline as build_snapshot(): built from scratch (per-object copies,
     never a whole-DB upload) so the personal_finance schema that shares the dev
@@ -694,9 +703,15 @@ def build_motherduck(con: duckdb.DuckDBPyConnection) -> None:
     (`parkrun_snapshot`), deliberately != the `parkrun` schema, so the app's
     `parkrun.v_overlap` queries stay unambiguous.
 
+    Unlike a plain CTAS copy, the cloud schema is built with `ensure_schema()`
+    so it keeps its PRIMARY KEYs — required for the in-place `refresh` upserts
+    once MotherDuck is the source of truth (Stage 8.1). Data crosses via pandas
+    (read from local `con`, register + INSERT into `md:`), with explicit column
+    lists so physical column order can differ safely. Existing rows are carried,
+    so `current_targets` history is preserved.
+
     Requires the `motherduck_token` env var (never hard-coded / committed).
-    Idempotent: the `parkrun` schema is dropped and rebuilt on every run, so the
-    cloud copy is a clean mirror of the current dev DB.
+    Idempotent: the `parkrun` schema is dropped and rebuilt on every run.
     """
     token = os.environ.get("motherduck_token") or os.environ.get("MOTHERDUCK_TOKEN")
     if not token:
@@ -706,35 +721,38 @@ def build_motherduck(con: duckdb.DuckDBPyConnection) -> None:
             "into source or chat)."
         )
 
-    con.execute("INSTALL motherduck; LOAD motherduck;")
-    # ATTACH won't create a MotherDuck database, so ensure it exists first via a
-    # bare `md:` connection (idempotent).
+    # Read the source tables out of the local DB first (small; held in memory).
+    frames = {
+        t: con.execute(f"SELECT * FROM {SCHEMA}.{t}").fetchdf() for t in SNAPSHOT_TABLES
+    }
+
+    # Ensure the MotherDuck database exists, then build a constrained schema and
+    # load the data on a direct `md:` connection (its default catalog is
+    # MD_DATABASE, so ensure_schema's views bind to the local `parkrun` schema).
     boot = duckdb.connect("md:")
     try:
         boot.execute(f"CREATE DATABASE IF NOT EXISTS {MD_DATABASE};")
     finally:
         boot.close()
-    con.execute(f"ATTACH 'md:{MD_DATABASE}' AS md;")
-    try:
-        # Fresh mirror: drop the whole schema (tables + views) then repopulate.
-        con.execute(f"DROP SCHEMA IF EXISTS md.{SCHEMA} CASCADE;")
-        con.execute(f"CREATE SCHEMA md.{SCHEMA};")
-        for t in SNAPSHOT_TABLES:
-            con.execute(
-                f"CREATE TABLE md.{SCHEMA}.{t} AS SELECT * FROM {SCHEMA}.{t};"
-            )
-    finally:
-        con.execute("DETACH md;")
 
-    # Rebuild views with the MotherDuck database as the default catalog, so the
-    # stored definitions bind to its own `parkrun` schema (mirrors build_snapshot).
     md = duckdb.connect(f"md:{MD_DATABASE}")
     try:
         md.execute(f"USE {MD_DATABASE};")
-        ensure_views(md)
+        md.execute(f"DROP SCHEMA IF EXISTS {SCHEMA} CASCADE;")
+        ensure_schema(md)  # constrained tables + views, parkrun-only
+        for t in SNAPSHOT_TABLES:
+            df = frames[t]
+            cols = ", ".join(f'"{c}"' for c in df.columns)
+            md.register("md_stage", df)
+            try:
+                md.execute(
+                    f"INSERT INTO {SCHEMA}.{t} ({cols}) SELECT {cols} FROM md_stage;"
+                )
+            finally:
+                md.unregister("md_stage")
     finally:
         md.close()
-    log(f"  pushed parkrun data to MotherDuck -> md:{MD_DATABASE}")
+    log(f"  (re)seeded MotherDuck -> md:{MD_DATABASE} (constrained schema)")
 
 
 # --------------------------------------------------------------------------- #
@@ -773,7 +791,14 @@ def status(con: duckdb.DuckDBPyConnection) -> None:
 
 def main() -> None:
     cmd = sys.argv[1] if len(sys.argv) > 1 else "refresh"
-    con = duckdb.connect(str(DB_PATH))
+    # Target DB: local dev file by default, or a MotherDuck connection string
+    # (e.g. md:parkrun_snapshot) when MotherDuck is the source of truth. All
+    # pipeline SQL is `parkrun.`-schema-qualified, so it operates on whichever
+    # catalog is the connection default.
+    target = os.environ.get("PARKRUN_PIPELINE_DB", str(DB_PATH))
+    is_md = target.startswith("md:")
+    log(f"target DB: {target}")
+    con = duckdb.connect(target)
     try:
         ensure_schema(con)
         if cmd == "bootstrap":
@@ -791,7 +816,12 @@ def main() -> None:
             else:
                 log("nothing to snapshot; bootstrap/refresh first")
         elif cmd == "motherduck":
-            if is_bootstrapped(con):
+            # (Re)seed the cloud FROM a local DB; sourcing from md: is nonsensical.
+            if is_md:
+                log("refusing 'motherduck' with an md: target — run it against "
+                    "the local DB (unset PARKRUN_PIPELINE_DB)")
+                sys.exit(1)
+            elif is_bootstrapped(con):
                 build_motherduck(con)
             else:
                 log("nothing to upload; bootstrap/refresh first")
