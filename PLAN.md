@@ -29,16 +29,14 @@ project brief + data-pipeline spec); this file is the **sequenced work plan**.
 > views executing server-side. Needs the `motherduck_token` env var (never
 > committed).
 >
-> **▶ NEXT: Stage 8 — scheduled auto-refresh + auto-reloading app.** Goal: the
-> pipeline runs on a schedule **off the Mac** (and ad-hoc from anywhere), updates
-> MotherDuck **in place**, and the hosted app reflects new data **on its own** (no
-> manual click). Three parts, gated by a spike: (8.0) prove GitHub Actions can
-> even scrape parkrun through Cloudflare; (8.1) make MotherDuck the pipeline's
-> **source of truth** (refresh upserts into `md:` directly, so any runner is
-> stateful and `current_targets` keeps accumulating); (8.2) GitHub Actions cron
-> scheduler; (8.3) **version-marker auto-reload** in `app.py`. Also flips the
-> hosted app onto MotherDuck (the `PARKRUN_DB` + `motherduck_token` secrets). See
-> Step 8 below.
+> **▶ Stage 8 — scheduled auto-refresh + auto-reloading app (in progress).**
+> Goal: the pipeline runs on a schedule **off the Mac** (and ad-hoc from
+> anywhere), updates MotherDuck **in place**, and the hosted app reflects new data
+> **on its own** (no manual click). Progress: **8.0 spike ✅**, **8.1 MotherDuck
+> source-of-truth ✅** (refresh upserts into `md:` directly). **NEXT: 8.3
+> version-marker auto-reload** in `app.py` (small, independent), then **8.2 GitHub
+> Actions cron scheduler**. Final flip: point the hosted app at MotherDuck (the
+> `PARKRUN_DB` + `motherduck_token` secrets). See Step 8 below.
 
 | # | Change | Status | Why here | Depends on |
 |---|--------|--------|----------|------------|
@@ -206,11 +204,16 @@ can't be validated from the local dev loop alone.
   needed. The spike workflow is throwaway — delete it when 8.2's real scheduled
   workflow supersedes it.
 
-- **8.1 — MotherDuck as the pipeline's source of truth.** Today `refresh`
-  operates on the **local file DB** and `motherduck` pushes a fresh copy (drops +
-  recreates the cloud schema). Refactor so the pipeline can **upsert directly into
-  `md:parkrun_snapshot`**, making any runner stateful (so `current_targets` keeps
-  accumulating regardless of where the job runs — see note below).
+- **8.1 — MotherDuck as the pipeline's source of truth.** ✅ **done (2026-07-05).**
+  `PARKRUN_PIPELINE_DB` selects the target (unset = local dev DB; `md:` = cloud);
+  all `parkrun.`-qualified SQL runs unchanged against either. `build_motherduck`
+  now (re)seeds a **constrained** schema (via `ensure_schema`, PKs intact) by
+  reading local tables into pandas and `register()+INSERT`-ing into `md:` with
+  explicit column lists — preserving existing rows incl. `current_targets`
+  history. Verified live: re-seed kept both refresh dates + installed all 5 PKs;
+  a full `refresh` **directly against `md:`** scraped, upserted 818 rows, appended
+  today's `current_targets` (6→9), and rebuilt the local CSV/snapshot from the
+  `md:` connection. Commit `f048f63`.
   - Parameterise the target DB (a `PARKRUN_PIPELINE_DB` env / arg) so `bootstrap`
     / `refresh` / `status` can point at either the local dev DB **or** `md:`.
   - **Compatibility check** — ✅ **done (2026-07-05).** A throwaway probe ran the
