@@ -32,11 +32,22 @@ where they differ from the original brief, **the spec wins**.
   map). Deployable: `app.py` resolves its DB via `PARKRUN_DB` env var > Streamlit
   secret > a bundled read-only snapshot (`data/parkrun_snapshot.duckdb`), so it
   can be hosted (e.g. Streamlit Community Cloud) from the repo alone.
-  `requirements.txt` pins the runtime deps. A live MotherDuck backend + scheduled
-  refresh remains a separate future strand.
+  `requirements.txt` pins the runtime deps. Scheduled refresh remains a separate
+  future strand.
 - ✅ Deployed to Streamlit Community Cloud —
   <https://parkrun-and-brunch.streamlit.app/> (serves the bundled read-only
   snapshot; auto-redeploys on push to the deployed branch).
+- ✅ MotherDuck migration — `python parkrun_pipeline.py motherduck` pushes the
+  **parkrun-only** tables + views (same discipline as `build_snapshot()`) to a
+  free-tier (Lite: 10 GB / 10 hrs-compute) MotherDuck database named
+  `parkrun_snapshot` (catalog name ≠ the `parkrun` schema, so `parkrun.v_overlap`
+  stays unambiguous). Needs the `motherduck_token` env var (never committed). The
+  app reads it by setting `PARKRUN_DB=md:parkrun_snapshot` (+ token via env or a
+  Streamlit secret); `app.py` skips the `read_only` flag for `md:` connections.
+  Verified parkrun-only (no `personal_finance` leak) with views executing
+  server-side. To point the **hosted** app at MotherDuck, set the `PARKRUN_DB`
+  and `motherduck_token` Streamlit secrets in the Cloud dashboard; the bundled
+  snapshot stays the default fallback.
 - ⏳ Scheduler (Saturday ~14:00) + manual Refresh button — not wired up.
 - 🧪 Local dev/test workflow: work on the `dev` branch, `./run_local.sh` serves
   the app against an isolated `data/parkrun_dev.duckdb` (gitignored copy of the
@@ -317,7 +328,7 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 
 | Path | Purpose |
 |---|---|
-| `parkrun_pipeline.py` | Loader: `bootstrap` / `refresh` / `status` / `snapshot` (Path A/B, DuckDB) + analytics views/targets + deploy-snapshot build. Also owns scraping (`scrape_athlete`) and time parsing (`time_to_seconds`). |
+| `parkrun_pipeline.py` | Loader: `bootstrap` / `refresh` / `status` / `snapshot` / `motherduck` (Path A/B, DuckDB) + analytics views/targets + deploy-snapshot build + parkrun-only MotherDuck upload (`build_motherduck`). Also owns scraping (`scrape_athlete`) and time parsing (`time_to_seconds`). |
 | `app.py` | Streamlit front end (5 tabs: overlap · head-to-head summary · head-to-head detail · form/target-time · head-to-head map) reading the `parkrun` schema read-only; DB path resolved via `PARKRUN_DB` env/secret, else the bundled snapshot |
 | `run_local.sh` | Local dev launcher: venv + isolated `data/parkrun_dev.duckdb` + `streamlit run` (see `DEV.md`) |
 | `DEV.md` / `PLAN.md` | Local dev workflow / sequenced change plan |

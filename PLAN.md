@@ -22,13 +22,15 @@ project brief + data-pipeline spec); this file is the **sequenced work plan**.
 
 ## Execution order
 
-> **▶ NEXT: Stage 7 — push the parkrun data to MotherDuck.** Stages 1–6 are
-> shipped, refactored, and committed. This is the only remaining step. It needs
-> your MotherDuck token (set locally as the `motherduck_token` env var — never
-> pasted into chat) and a database name (default `parkrun`), plus a free-tier /
-> pricing check before any upload. Upload is **parkrun-only** (tables + views,
-> same discipline as `build_snapshot()`) so `personal_finance` can never reach
-> the cloud. See Step 7 below.
+> **✅ Stage 7 — parkrun data pushed to MotherDuck (done 2026-07-05).** Stages
+> 1–7 are shipped. `python parkrun_pipeline.py motherduck` uploads the
+> parkrun-only tables + views to a free-tier (Lite: 10 GB / 10 hrs-compute)
+> MotherDuck database named `parkrun_snapshot`; verified parkrun-only (no
+> `personal_finance` leak) with views executing server-side. Needs the
+> `motherduck_token` env var (never committed). Remaining follow-ups are
+> optional: (a) point the **hosted** Streamlit app at MotherDuck by setting the
+> `PARKRUN_DB` (`md:parkrun_snapshot`) + `motherduck_token` secrets in the Cloud
+> dashboard; (b) scheduler + manual Refresh button. See Step 7 below.
 
 | # | Change | Status | Why here | Depends on |
 |---|--------|--------|----------|------------|
@@ -38,7 +40,7 @@ project brief + data-pipeline spec); this file is the **sequenced work plan**.
 | 4 | Cumulative 1sts trend | ✅ done | Scoped by year/season from change 2 | 2 |
 | 5 | Target time by Saturday | ✅ done | Independent visual; reuses 91-day target logic | 1 |
 | 6 | Head-to-head map | ✅ done | Independent visual; joins to event coordinates | 1 |
-| 7 | MotherDuck migration | ⏳ next | Go-live step — migrate once, verified parkrun-only + free | all |
+| 7 | MotherDuck migration | ✅ done | Go-live step — migrated once, verified parkrun-only + free | all |
 
 **Decisions locked while building:**
 - **Stage 2** — Winter = `YYYY/YY Winter` spanning Dec–Feb; Year/Season are two

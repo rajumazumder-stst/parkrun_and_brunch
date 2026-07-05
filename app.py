@@ -33,7 +33,7 @@ def _resolve_db_path() -> str:
     """Locate the DuckDB to read, in priority order:
 
     1. ``PARKRUN_DB`` env var (local dev against the full personal DB, or a
-       MotherDuck connection string later).
+       MotherDuck connection string, e.g. ``md:parkrun_snapshot``).
     2. A ``PARKRUN_DB`` Streamlit secret (set in the hosting dashboard).
     3. The read-only ``parkrun``-only snapshot bundled with the repo — what a
        deployed/shared instance uses by default.
@@ -50,7 +50,26 @@ def _resolve_db_path() -> str:
     return str(Path(__file__).resolve().parent / "data" / "parkrun_snapshot.duckdb")
 
 
+def _ensure_motherduck_token() -> None:
+    """Make the MotherDuck token available to DuckDB when serving from ``md:``.
+
+    DuckDB reads ``motherduck_token`` from the environment. On a hosted deploy
+    the token lives in a Streamlit secret instead, so mirror it into the env.
+    """
+    if os.environ.get("motherduck_token") or os.environ.get("MOTHERDUCK_TOKEN"):
+        return
+    try:
+        tok = st.secrets.get("motherduck_token") or st.secrets.get("MOTHERDUCK_TOKEN")
+    except Exception:
+        tok = None
+    if tok:
+        os.environ["motherduck_token"] = str(tok)
+
+
 DB_PATH = _resolve_db_path()
+IS_MOTHERDUCK = DB_PATH.startswith("md:")
+if IS_MOTHERDUCK:
+    _ensure_motherduck_token()
 
 # Fixed per-athlete colours, used consistently everywhere (Dark2 palette).
 ATHLETE_COLORS = {"George": "#1b9e77", "Raju": "#d95f02", "Duncan": "#7570b3"}
@@ -64,7 +83,11 @@ st.set_page_config(page_title="parkrun & brunch", page_icon="🏃", layout="wide
 # Data access (read-only; cached so the DB lock is held only briefly)
 # --------------------------------------------------------------------------- #
 def _read_sql(sql: str) -> pd.DataFrame:
-    con = duckdb.connect(DB_PATH, read_only=True)
+    # MotherDuck connections don't take the read_only flag; the local snapshot
+    # (and dev DB) open read-only so the app never holds a write lock.
+    con = duckdb.connect(DB_PATH) if IS_MOTHERDUCK else duckdb.connect(
+        DB_PATH, read_only=True
+    )
     try:
         return con.execute(sql).fetchdf()
     finally:
