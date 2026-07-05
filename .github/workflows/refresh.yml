@@ -1,0 +1,78 @@
+# Stage 8.2 — scheduled parkrun refresh straight into MotherDuck.
+# Runs the pipeline against md:parkrun_snapshot (the source of truth) and commits
+# the regenerated audit CSV back. The hosted app auto-reloads via the app's
+# version-marker (data_version) shortly after.
+#
+# Cron is UTC and DST-blind, so we fire at BOTH 13:00 and 14:00 UTC on Saturdays
+# and a guard proceeds only when Europe/London local time is 14:xx — i.e. 14:00
+# UK year-round (13:00 UTC in BST, 14:00 UTC in GMT). Manual runs (workflow_dispatch)
+# skip the guard so you can refresh on demand.
+name: refresh
+
+on:
+  schedule:
+    - cron: "0 13 * * 6"   # 14:00 UK during BST (summer)
+    - cron: "0 14 * * 6"   # 14:00 UK during GMT (winter)
+  workflow_dispatch: {}
+
+# Only push the audit CSV commit; nothing else is written back.
+permissions:
+  contents: write
+
+concurrency:
+  group: scheduled-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gate to 14:00 Europe/London (schedule only)
+        id: gate
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "manual run — proceeding"
+            echo "proceed=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          hour=$(TZ=Europe/London date +%H)
+          echo "London local hour: $hour"
+          if [ "$hour" = "14" ]; then
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "not 14:00 London — this cron entry stands down"
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.gate.outputs.proceed == 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        if: steps.gate.outputs.proceed == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pipeline deps
+        if: steps.gate.outputs.proceed == 'true'
+        run: pip install --quiet requests pandas duckdb beautifulsoup4 lxml html5lib
+
+      - name: Refresh MotherDuck (source of truth)
+        if: steps.gate.outputs.proceed == 'true'
+        env:
+          PARKRUN_PIPELINE_DB: md:parkrun_snapshot
+          motherduck_token: ${{ secrets.MOTHERDUCK_TOKEN }}
+        run: python parkrun_pipeline.py refresh
+
+      - name: Commit refreshed audit CSV
+        if: steps.gate.outputs.proceed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/parkrun_results.csv
+          if git diff --cached --quiet; then
+            echo "no CSV changes to commit"
+          else
+            git commit -m "data: scheduled refresh $(TZ=Europe/London date +%F)"
+            git push
+          fi
