@@ -22,15 +22,23 @@ project brief + data-pipeline spec); this file is the **sequenced work plan**.
 
 ## Execution order
 
-> **✅ Stage 7 — parkrun data pushed to MotherDuck (done 2026-07-05).** Stages
-> 1–7 are shipped. `python parkrun_pipeline.py motherduck` uploads the
-> parkrun-only tables + views to a free-tier (Lite: 10 GB / 10 hrs-compute)
-> MotherDuck database named `parkrun_snapshot`; verified parkrun-only (no
-> `personal_finance` leak) with views executing server-side. Needs the
-> `motherduck_token` env var (never committed). Remaining follow-ups are
-> optional: (a) point the **hosted** Streamlit app at MotherDuck by setting the
-> `PARKRUN_DB` (`md:parkrun_snapshot`) + `motherduck_token` secrets in the Cloud
-> dashboard; (b) scheduler + manual Refresh button. See Step 7 below.
+> **✅ Stage 7 — parkrun data pushed to MotherDuck (done 2026-07-05).**
+> `python parkrun_pipeline.py motherduck` uploads the parkrun-only tables + views
+> to a free-tier (Lite: 10 GB / 10 hrs-compute) MotherDuck database named
+> `parkrun_snapshot`; verified parkrun-only (no `personal_finance` leak) with
+> views executing server-side. Needs the `motherduck_token` env var (never
+> committed).
+>
+> **▶ NEXT: Stage 8 — scheduled auto-refresh + auto-reloading app.** Goal: the
+> pipeline runs on a schedule **off the Mac** (and ad-hoc from anywhere), updates
+> MotherDuck **in place**, and the hosted app reflects new data **on its own** (no
+> manual click). Three parts, gated by a spike: (8.0) prove GitHub Actions can
+> even scrape parkrun through Cloudflare; (8.1) make MotherDuck the pipeline's
+> **source of truth** (refresh upserts into `md:` directly, so any runner is
+> stateful and `current_targets` keeps accumulating); (8.2) GitHub Actions cron
+> scheduler; (8.3) **version-marker auto-reload** in `app.py`. Also flips the
+> hosted app onto MotherDuck (the `PARKRUN_DB` + `motherduck_token` secrets). See
+> Step 8 below.
 
 | # | Change | Status | Why here | Depends on |
 |---|--------|--------|----------|------------|
@@ -41,6 +49,7 @@ project brief + data-pipeline spec); this file is the **sequenced work plan**.
 | 5 | Target time by Saturday | ✅ done | Independent visual; reuses 91-day target logic | 1 |
 | 6 | Head-to-head map | ✅ done | Independent visual; joins to event coordinates | 1 |
 | 7 | MotherDuck migration | ✅ done | Go-live step — migrated once, verified parkrun-only + free | all |
+| 8 | Scheduled auto-refresh + auto-reload | ⏳ next | Keeps the live app current with no manual step | 7 |
 
 **Decisions locked while building:**
 - **Stage 2** — Winter = `YYYY/YY Winter` spanning Dec–Feb; Year/Season are two
@@ -53,11 +62,13 @@ project brief + data-pipeline spec); this file is the **sequenced work plan**.
   legend-driven axis rescale.
 - **Stage 6** — Folium + OpenStreetMap; one pie marker per venue (size = count,
   slices = wins per athlete); shown only once a head-to-head is selected.
+- **Stage 7** — upload is parkrun-only (per-object copies, never a whole-DB
+  dump); MotherDuck DB named `parkrun_snapshot` (catalog ≠ the `parkrun` schema);
+  run explicitly via the `motherduck` command, not by bootstrap/refresh.
 
-**Stages 1–6 shipped and refactored** (Dec–Feb filter logic DRY'd into
-`year_season_filters`; module docstring + docs updated). Remaining: Stage 7
-(MotherDuck), which needs the MotherDuck account/token and can't be done from
-the dev loop alone.
+**Stages 1–7 shipped.** Remaining: Stage 8 (scheduled auto-refresh +
+auto-reload), which needs the GitHub Actions scraping spike to pass first and
+can't be validated from the local dev loop alone.
 
 > Numbering above is **execution order**. In brackets below, the original change
 > label from the conversation is given so nothing is lost.
@@ -157,6 +168,70 @@ the dev loop alone.
   `md:` connection string / token).
 - **Open decisions:** dev vs prod database split (only relevant if a hosted
   preview is later added).
+- **Status:** ✅ done 2026-07-05 — parkrun-only upload verified against the live
+  account. Pointing the *hosted* app at MotherDuck is folded into Step 8.
+
+### Step 8 — Scheduled auto-refresh + auto-reloading app  *(orig. change 2, cont.)*
+- **Goal:** the pipeline runs on a schedule **off the Mac** (and ad-hoc from
+  anywhere — Mac, laptop, cloud), updates MotherDuck **in place**, and the hosted
+  app reflects new data **automatically** (no manual "Reload data" click).
+- **Shape:**
+  ```
+          ┌──────────── MotherDuck (persistent parkrun DB) ────────────┐
+          │  results · events · current_targets · views                 │
+          └──▲──────────────────────▲──────────────────────────▲───────┘
+             │ refresh (upsert)      │ refresh (upsert)         │ read
+     GitHub Actions (cron)         Mac / laptop (ad-hoc)      Streamlit app
+  ```
+
+- **8.0 — Spike (gates everything).** A throwaway GitHub Actions workflow that
+  fetches **one** athlete page and reports the HTTP status. parkrun sits behind
+  Cloudflare and is known to block datacenter IPs, so a runner may get `403`.
+  - **Pass** → proceed with GitHub Actions as the scheduler.
+  - **Fail** → pivot the schedule to the Mac (launchd) or add a scraping proxy;
+    8.1/8.3 still apply.
+
+- **8.1 — MotherDuck as the pipeline's source of truth.** Today `refresh`
+  operates on the **local file DB** and `motherduck` pushes a fresh copy (drops +
+  recreates the cloud schema). Refactor so the pipeline can **upsert directly into
+  `md:parkrun_snapshot`**, making any runner stateful (so `current_targets` keeps
+  accumulating regardless of where the job runs — see note below).
+  - Parameterise the target DB (a `PARKRUN_PIPELINE_DB` env / arg) so `bootstrap`
+    / `refresh` / `status` can point at either the local dev DB **or** `md:`.
+  - **Compatibility check** first: run the upsert path (temp tables, `COPY`,
+    multi-statement transactions, `median`, `generate_series`) against MotherDuck
+    and confirm each behaves — MotherDuck is DuckDB SQL but some DDL/txn semantics
+    differ. This is the real risk in 8.1.
+  - Keep `personal_finance` unreachable: the pipeline only ever touches the
+    `parkrun` schema, so operating on `md:` directly stays parkrun-only by
+    construction (no `personal_finance` catalog is ever attached to `md:`).
+
+- **8.2 — Scheduler.** GitHub Actions cron, Saturday ~14:00 UK (after results
+  post). Runs `refresh` against `md:`; `motherduck_token` stored as a **GitHub
+  Actions secret**. Optionally also commit the refreshed `parkrun_results.csv`
+  back to the repo to keep the audit trail. (If 8.0 fails, this becomes a launchd
+  job on the Mac instead.)
+
+- **8.3 — Version-marker auto-reload (`app.py`).** Make the app pick up new data
+  on its own, cheaply:
+  - A small cached function with a **short TTL** (~60s) reads just a **data
+    version** — e.g. `SELECT max(scrape_timestamp) FROM parkrun.results` (one
+    scalar, negligible compute).
+  - Feed that version value **as a cache key** into the heavy `load_*` loaders
+    (an argument they ignore except for cache identity). When the pipeline writes
+    new data the version changes → the heavy queries **auto-refetch exactly when
+    data changes**, and stay cached otherwise.
+  - Keep the existing **"🔄 Reload data"** button ([app.py:396](app.py#L396)) for
+    a manual override. Note the button is a *reload* (re-reads the backend), not a
+    pipeline *refresh* (does not scrape) — the two must not be conflated.
+  - Flip the **hosted** app onto MotherDuck by setting the `PARKRUN_DB`
+    (`md:parkrun_snapshot`) + `motherduck_token` Streamlit secrets — the go-live
+    toggle. The bundled snapshot stays as the fallback.
+
+- **Done when:** a scheduled run (off the Mac, or launchd if 8.0 fails) refreshes
+  MotherDuck in place, and an open hosted app shows the new data within the
+  version-marker window without anyone clicking anything.
+- **Open decisions:** see Parked decisions below.
 
 ---
 
@@ -166,6 +241,19 @@ the dev loop alone.
 - **Step 4:** do tied 1sts each increment the cumulative count?
 - **Step 5:** confirm Saturday target definition matches the head-to-head target.
 - **Step 6:** map library, marker semantics, filter interaction.
+- **Step 8.0:** does GitHub Actions' IP get past parkrun/Cloudflare? (spike answers it)
+- **Step 8.1:** operate on `md:` directly, or pull→refresh-local→push? (leaning
+  direct-`md:` for simplicity, pending the compatibility check)
+- **Step 8.3:** version-marker TTL (~60s?) and the exact version column
+  (`max(scrape_timestamp)` from `results` vs a dedicated meta row).
+
+**Note — "losing `current_targets` accumulation" (clarified 2026-07-05):** a
+stateless runner would only ever hold *today's* `current_targets` row, but those
+targets are **recomputable from `results`** (and `v_saturday_targets` already
+reconstructs a target per Saturday), so the only genuine loss is point-in-time
+fidelity against a retroactive parkrun time correction — cosmetic here. Making
+MotherDuck the source of truth (8.1) removes the concern entirely by keeping the
+DB persistent across runs.
 
 ---
 
@@ -177,3 +265,8 @@ the dev loop alone.
 - Snapshot discipline unchanged: any new view must be copied into
   `data/parkrun_snapshot.duckdb` by `build_snapshot()` so the deployable app
   keeps working.
+- **Step 8 is the first change that isn't read-only UI work:** it adds a pipeline
+  **write path to `md:`** (8.1) and a cache-key tweak in `app.py` (8.3). The
+  read-only invariant for the *app* still holds — the app only ever reads; the
+  writes live in `parkrun_pipeline.py`, which runs out-of-band (schedule / ad-hoc),
+  never from the Streamlit process.
