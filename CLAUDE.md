@@ -32,23 +32,22 @@ where they differ from the original brief, **the spec wins**.
   map). Deployable: `app.py` resolves its DB via `PARKRUN_DB` env var > Streamlit
   secret > a bundled read-only snapshot (`data/parkrun_snapshot.duckdb`), so it
   can be hosted (e.g. Streamlit Community Cloud) from the repo alone.
-  `requirements.txt` pins the runtime deps. Scheduled refresh remains a separate
-  future strand.
+  `requirements.txt` pins the runtime deps.
 - ✅ Deployed to Streamlit Community Cloud —
   <https://parkrun-and-brunch.streamlit.app/> (serves the bundled read-only
   snapshot; auto-redeploys on push to the deployed branch).
-- ✅ MotherDuck migration — `python parkrun_pipeline.py motherduck` pushes the
-  **parkrun-only** tables + views (same discipline as `build_snapshot()`) to a
-  free-tier (Lite: 10 GB / 10 hrs-compute) MotherDuck database named
-  `parkrun_snapshot` (catalog name ≠ the `parkrun` schema, so `parkrun.v_overlap`
-  stays unambiguous). Needs the `motherduck_token` env var (never committed). The
-  app reads it by setting `PARKRUN_DB=md:parkrun_snapshot` (+ token via env or a
-  Streamlit secret); `app.py` skips the `read_only` flag for `md:` connections.
-  Verified parkrun-only (no `personal_finance` leak) with views executing
-  server-side. To point the **hosted** app at MotherDuck, set the `PARKRUN_DB`
-  and `motherduck_token` Streamlit secrets in the Cloud dashboard; the bundled
-  snapshot stays the default fallback.
-- ⏳ Scheduler (Saturday ~14:00) + manual Refresh button — not wired up.
+- ✅ MotherDuck migration — `python parkrun_pipeline.py motherduck` (re)seeds a
+  **parkrun-only** cloud DB (`md:parkrun_snapshot`; catalog name ≠ the `parkrun`
+  schema so `parkrun.v_overlap` stays unambiguous). MotherDuck is the runtime
+  source of truth. Backends, tokens, the hosted-app secret flip and verification
+  are documented in `DEPLOY.md`.
+- ✅ Scheduled refresh — GitHub Actions (`.github/workflows/refresh.yml`)
+  refreshes MotherDuck at **Sat 14:00 UK** and **Sun 01:00 UK** (DST-proof
+  London-time guard) and commits the audit CSV back; ad-hoc runs via
+  `workflow_dispatch`. ⚠️ Reliability being proven: the first ad-hoc run
+  succeeded but later ad-hoc runs were blocked by parkrun's bot protection
+  (HTTP 405); watching the first scheduled weekend — see `DEPLOY.md`
+  § Operational status.
 - 🧪 Local dev/test workflow: work on the `dev` branch, `./run_local.sh` serves
   the app against an isolated `data/parkrun_dev.duckdb` (gitignored copy of the
   snapshot) so previews never touch `main` or the deploy snapshot. See `DEV.md`.
@@ -240,8 +239,9 @@ shared athlete/date pairs (verified).
 
 ## Refresh pipeline spec
 
-Triggered automatically (Saturday ~14:00 UK) **and** via a manual **Refresh
-Data** button — both run the identical process. The two paths are independent.
+Triggered on a schedule (**Sat 14:00 UK** and **Sun 01:00 UK**, via GitHub
+Actions) **and** ad-hoc (`workflow_dispatch`, or the CLI locally) — every
+trigger runs the identical process. The two paths are independent.
 
 ### Path A — events reconcile (Transaction A)
 
@@ -333,7 +333,7 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | `run_local.sh` | Local dev launcher: venv + isolated `data/parkrun_dev.duckdb` + `streamlit run` (see `DEV.md`) |
 | `DEV.md` / `PLAN.md` | Local dev workflow / sequenced change plan |
 | `DEPLOY.md` | Deploy/ops: MotherDuck backend, scheduled refresh, hosted-app secret flip, tokens, verifying, re-seed |
-| `.github/workflows/refresh.yml` | Scheduled (Sat 14:00 UK) + manual MotherDuck refresh; commits the audit CSV back |
+| `.github/workflows/refresh.yml` | Scheduled (Sat 14:00 + Sun 01:00 UK) + manual MotherDuck refresh; commits the audit CSV back |
 | `requirements.txt` | Pinned runtime deps for hosting (Streamlit Cloud etc.) |
 | `data/parkrun_events.csv` | Event catalogue (events.json dump + Victoria Dock) |
 | `data/country_lookup.csv` | country_code → country_name |
@@ -372,7 +372,12 @@ Streamlit · plotly · matplotlib-venn · folium/streamlit-folium (map).
   head-to-head, record leaderboard (3rd place shown only for the 3-way / All),
   and a **cumulative 1st-place finishes** trend (requires a head-to-head;
   year/season filterable; hover names the winning parkrun).
-- **Tab 3** head-to-head detail (drill into a single contest).
+- **Tab 3** head-to-head detail (drill into a single contest): a scoreline
+  one-liner (winner, % vs form, winning margin, note on any 3rd-placed
+  finisher — all 2 dp), a **victory lollipop chart** (raw `pct_diff` per
+  athlete from the on-form baseline, x-axis reversed so faster-than-form
+  points right, 1st–2nd winning margin bracketed, winner on top), then the
+  results table.
 - **Tab 4** **form — target time by Saturday** (`v_saturday_targets`): per-athlete
   target line, mm:ss axis, year/season filter, line breaks across >91-day gaps,
   axes rescale when an athlete is hidden via the legend.
@@ -401,7 +406,9 @@ progression · event frequency · form (target) over refreshes.
 2. Extract the All Results tables. ✅
 3. Load into DuckDB with the reconcile pipeline above. ✅
 4. Prevent duplicates via `(athlete_id, run_date, event_id)`. ✅ (UPSERT verified)
-5. Support scheduled + manual refreshes. ⏳ (`refresh` command exists; scheduler/button pending)
+5. Support scheduled + manual refreshes. ✅ (GitHub Actions cron Sat/Sun +
+   `workflow_dispatch`; reliability being proven — see `DEPLOY.md`)
 
-The MVP data pipeline is complete. Next: scheduler + manual refresh trigger, then
-the visual analytics layer.
+The MVP is complete end-to-end (pipeline, scheduler, analytics, front end).
+Remaining ops items: prove the scheduled refresh against parkrun's bot
+protection, then flip the hosted app's secrets to MotherDuck (`DEPLOY.md`).

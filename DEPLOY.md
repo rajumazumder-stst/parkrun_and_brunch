@@ -8,8 +8,9 @@ How the live app is served, refreshed, and kept current. Complements `DEV.md`
 ## Architecture
 
 ```
-Sat 14:00 UK ─► GitHub Actions ─► refresh ─► MotherDuck (parkrun_snapshot)
- (refresh.yml)                                       │  source of truth
+Sat 14:00 UK ──┐
+Sun 01:00 UK ──┴► GitHub Actions ─► refresh ─► MotherDuck (parkrun_snapshot)
+  (refresh.yml)                                      │  source of truth
                                                      │
                           app's data_version() sees a new scrape_timestamp
                                                      ▼
@@ -79,9 +80,11 @@ bundled snapshot (no redeploy needed beyond the auto-reboot).
 
 ## Scheduled refresh (`.github/workflows/refresh.yml`)
 
-- Fires **Saturday 14:00 UK year-round**. GitHub cron is UTC/DST-blind, so two
-  entries (`13:00` + `14:00 UTC`) run and a `TZ=Europe/London` guard proceeds
-  only when London-local is 14:xx — exactly one fires each week.
+- Fires at **two UK slots year-round: Sat 14:00 and Sun 01:00** (the Sunday
+  slot catches Saturday results that post late). GitHub cron is UTC/DST-blind,
+  so each slot has two cron entries (the BST and GMT UTC-hours) and a
+  `TZ=Europe/London` guard proceeds only at the intended local time — exactly
+  one firing per slot per week.
 - Runs `PARKRUN_PIPELINE_DB=md:parkrun_snapshot python parkrun_pipeline.py refresh`
   (upserts straight into MotherDuck), then commits the regenerated
   `data/parkrun_results.csv` back to `main` as the audit trail.
@@ -92,6 +95,49 @@ bundled snapshot (no redeploy needed beyond the auto-reboot).
   ```
 - The workflow must live on the **default branch** (`main`) for the schedule and
   `workflow_dispatch` to be active.
+
+### Operational status (as of 7 Jul 2026)
+
+The scheduled refresh is **configured and live**; reliability is still being
+proven. Run history so far (all `workflow_dispatch`, i.e. ad-hoc):
+
+| Run (UK time) | Outcome |
+|---|---|
+| Sat 5 Jul, 15:19 | ✅ success — scraped, upserted into MotherDuck, audit CSV committed |
+| Tue 7 Jul, 18:45 / 18:53 / 19:58 | ❌ all failed — **HTTP 405** on the athlete page |
+
+**The 405 failures in detail.** Each failed run died in Path B's first fetch:
+
+```
+requests.exceptions.HTTPError: 405 Client Error: Not Allowed
+for url: https://www.parkrun.org.uk/parkrunner/5672/all/
+```
+
+405 nominally means "method not allowed", but the pipeline sends an ordinary
+GET — the same request that works from a home connection and that worked from
+the runner on 5 Jul. What is actually happening: **parkrun fronts
+`www.parkrun.org.uk` with bot protection (a WAF), and it answers requests it
+scores as automated — e.g. from well-known cloud/datacentre IP ranges like
+GitHub-hosted runners' — with a 405 block** rather than a 403/429. Two
+observations support this reading:
+
+1. In the *same* failed runs, Path A fetched `images.parkrun.com/events.json`
+   fine (a CDN asset host, not behind the athlete-page WAF) — only the
+   `www.parkrun.org.uk` fetch was rejected.
+2. The 5 Jul run succeeded from a different runner IP, and the three 7 Jul
+   failures came in a burst — the block looks IP-/reputation-dependent (and
+   possibly rate-sensitive), not deterministic.
+
+The failure mode is **safe**: `scrape_athlete` raises before anything is
+written (Path B is all-or-nothing), so MotherDuck keeps its previous
+consistent state and no audit CSV is committed; the run simply reports failure.
+
+**Current plan: continue as-is** and see how the first *scheduled* slots fare
+— Sat 11 Jul 14:00 UK and Sun 12 Jul 01:00 UK. A once-weekly request pattern
+may not trip the WAF the way the 7 Jul ad-hoc burst did. If the scheduled runs
+also 405: add a polite retry-with-backoff in `scrape_athlete`, and failing
+that, run the refresh from a machine parkrun already serves (e.g. a
+self-hosted runner / launchd job on the Mac) instead of GitHub-hosted runners.
 
 ---
 

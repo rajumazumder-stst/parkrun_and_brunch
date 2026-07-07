@@ -322,7 +322,7 @@ def seed_static_tables(con: duckdb.DuckDBPyConnection) -> None:
                       dateformat='%d/%m/%Y');
         """
     )
-    log(f"  seeded country_lookup + athletes")
+    log("  seeded country_lookup + athletes")
 
 
 def seed_events_from_csv(con: duckdb.DuckDBPyConnection) -> None:
@@ -786,7 +786,7 @@ def refresh(con: duckdb.DuckDBPyConnection) -> None:
 
 
 def status(con: duckdb.DuckDBPyConnection) -> None:
-    for t in ("events", "results", "country_lookup", "athletes", "current_targets"):
+    for t in SNAPSHOT_TABLES:
         print(f"  {SCHEMA}.{t:<14} {_count(con, t):>6} rows")
     live = con.execute(
         f"SELECT count(*) FROM {SCHEMA}.events WHERE live"

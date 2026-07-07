@@ -29,17 +29,16 @@ project brief + data-pipeline spec); this file is the **sequenced work plan**.
 > views executing server-side. Needs the `motherduck_token` env var (never
 > committed).
 >
-> **▶ Stage 8 — scheduled auto-refresh + auto-reloading app (in progress).**
-> Goal: the pipeline runs on a schedule **off the Mac** (and ad-hoc from
-> anywhere), updates MotherDuck **in place**, and the hosted app reflects new data
-> **on its own** (no manual click). Progress: **8.0 spike ✅**, **8.1 MotherDuck
-> source-of-truth ✅** (refresh upserts into `md:` directly). **NEXT: 8.3
-> version-marker auto-reload** in `app.py` (small, independent), then **8.2 GitHub
-> Actions cron scheduler**. Final flip: point the hosted app at MotherDuck (the
-> `PARKRUN_DB` + `motherduck_token` secrets). **8.0/8.1/8.2/8.3 all ✅ done** —
-> the pipeline refreshes MotherDuck on a schedule and the app auto-reloads. The
-> only remaining item is the **hosted-app secret flip** (a Streamlit dashboard
-> step, yours) to point the live app at MotherDuck. See Step 8 below.
+> **▶ Stage 8 — scheduled auto-refresh + auto-reloading app (built; being
+> proven).** Goal: the pipeline runs on a schedule **off the Mac** (and ad-hoc
+> from anywhere), updates MotherDuck **in place**, and the hosted app reflects
+> new data **on its own** (no manual click). **8.0/8.1/8.2/8.3 all ✅ done** —
+> the pipeline refreshes MotherDuck on a schedule (Sat 14:00 UK + Sun 01:00 UK)
+> and the app auto-reloads. Outstanding: (a) the **hosted-app secret flip** (a
+> Streamlit dashboard step, yours) to point the live app at MotherDuck, and
+> (b) **proving the scheduler in production** — ad-hoc runs after the first hit
+> parkrun's bot protection (HTTP 405); watching the first scheduled weekend.
+> See Step 8 below and `DEPLOY.md` § Operational status.
 
 | # | Change | Status | Why here | Depends on |
 |---|--------|--------|----------|------------|
@@ -79,13 +78,15 @@ flip (Streamlit dashboard) to point the live site at MotherDuck.
     history intact. Thereafter `refresh` targets `md:` directly.
   - **Scheduler commits the audit CSV back** (decision 2): the Action re-commits
     `data/parkrun_results.csv` after each cloud refresh (snapshot optional).
-  - **Cron = 14:00 UK year-round** (decision 3): GitHub cron is UTC/DST-blind, so
-    two entries (`13:00` + `14:00 UTC` Sat) + a `TZ=Europe/London` guard that runs
-    only when London-local is 14:xx.
+  - **Cron = UK wall-clock slots year-round** (decision 3): GitHub cron is
+    UTC/DST-blind, so each UK slot gets two entries (its BST and GMT UTC-hours)
+    + a `TZ=Europe/London` guard that proceeds only at the intended local time.
+    Slots: **Sat 14:00 UK**, plus **Sun 01:00 UK** (added 2026-07-07) to catch
+    Saturday results that post late.
 
-**Stages 1–7 shipped.** Remaining: Stage 8 (scheduled auto-refresh +
-auto-reload), which needs the GitHub Actions scraping spike to pass first and
-can't be validated from the local dev loop alone.
+**Stages 1–8 shipped.** Remaining: the hosted-app secret flip, and proving the
+scheduled refresh in production (ad-hoc runs hit parkrun's HTTP 405 bot
+protection on 7 Jul — see `DEPLOY.md` § Operational status).
 
 > Numbering above is **execution order**. In brackets below, the original change
 > label from the conversation is given so nothing is lost.
@@ -208,7 +209,8 @@ can't be validated from the local dev loop alone.
   results tables parsed (310 / 167 / 341 rows). The datacenter-IP worry didn't
   materialise → **GitHub Actions is a green light for 8.2**; launchd fallback not
   needed. The spike workflow is throwaway — delete it when 8.2's real scheduled
-  workflow supersedes it.
+  workflow supersedes it. *(Superseded 2026-07-07: the worry did materialise —
+  intermittent HTTP 405 bot-protection blocks; see the 8.2 update below.)*
 
 - **8.1 — MotherDuck as the pipeline's source of truth.** ✅ **done (2026-07-05).**
   `PARKRUN_PIPELINE_DB` selects the target (unset = local dev DB; `md:` = cloud);
@@ -245,6 +247,14 @@ can't be validated from the local dev loop alone.
   (decision 2). Validated by a manual dispatch: refreshed `md:` (818 upserted)
   and pushed `data: scheduled refresh …` to `main`. The throwaway 8.0 spike
   workflow was removed. First scheduled fire: Sat 2026-07-11 14:00 UK.
+  **Update (2026-07-07):** a second slot — **Sun 01:00 UK** — added (same
+  two-cron + London-guard pattern) to catch late-posting Saturday results.
+  Reliability caveat: after the first successful dispatch (5 Jul), three ad-hoc
+  dispatches on 7 Jul all failed with **HTTP 405** from `www.parkrun.org.uk`
+  (bot protection rejecting GitHub-runner traffic; `events.json` unaffected;
+  no writes occur on failure). Plan: continue as-is and watch the Sat/Sun
+  scheduled fires — full analysis + fallbacks in `DEPLOY.md` § Operational
+  status.
 
 - **8.3 — Version-marker auto-reload (`app.py`).** ✅ **done (2026-07-05).**
   `data_version()` (60s TTL) reads `max(scrape_timestamp)` and is threaded as a
