@@ -3,7 +3,8 @@
 Reads the `parkrun` schema (read-only) from the local DuckDB and presents:
   Tab 1  intro + participation overlap (Venn) + per-athlete company
   Tab 2  head-to-head summary (targets, latest result, record, cumulative 1sts)
-  Tab 3  head-to-head detail (drill into a single contest)
+  Tab 3  head-to-head detail (drill into a single contest: scoreline one-liner
+         + victory lollipop chart + results table)
   Tab 4  form — target time by Saturday
   Tab 5  map — where the head-to-heads happen
 
@@ -77,6 +78,7 @@ if IS_MOTHERDUCK:
 ATHLETE_COLORS = {"George": "#1b9e77", "Raju": "#d95f02", "Duncan": "#7570b3"}
 PLACE_COLORS = {"1st": "#FFB300", "2nd": "#B0B0B0", "3rd": "#C77B30"}
 PLACE_LABEL = {1: "🥇 1st", 2: "🥈 2nd", 3: "🥉 3rd"}
+MEDAL = {p: label.split()[0] for p, label in PLACE_LABEL.items()}
 
 st.set_page_config(page_title="parkrun & brunch", page_icon="🏃", layout="wide")
 
@@ -427,12 +429,117 @@ def build_h2h_map(mh: pd.DataFrame, coords: pd.DataFrame):
     return fmap
 
 
-def render_occasion(rows: pd.DataFrame) -> None:
-    """Render the detail block for a single head-to-head occasion."""
+def _surface_color() -> str:
+    """The app's current chart surface, for surface-coloured marker rings."""
+    try:
+        return "#0e1117" if st.context.theme.type == "dark" else "#ffffff"
+    except Exception:
+        return "#ffffff"
+
+
+def _h2h_headline(rows: pd.DataFrame) -> str:
+    """One-line scoreline for an occasion (percentages/margins to 2 dp), with
+    a comment on the third-placed finisher when there is one."""
+    d = rows.sort_values(["place_rank", "pct_diff"])
+    winners = d[d["place_rank"] == 1]
+    w = winners.iloc[0]
+    speed = (f"{abs(w['pct_diff']):.2f}% "
+             f"{'faster' if w['pct_diff'] <= 0 else 'slower'} than form")
+    if len(winners) > 1:
+        names = " & ".join(winners["athlete_name"])
+        line = f"🥇 **{names}** share 1st — both {speed}"
+    else:
+        ru = d[d["place_rank"] > 1].iloc[0]
+        line = (f"🥇 **{w['athlete_name']}** takes it — {speed}, "
+                f"{ru['pct_diff'] - w['pct_diff']:.2f} points clear of "
+                f"{ru['athlete_name']}")
+    third = d[d["place_rank"] >= 3]
+    if not third.empty:
+        t = third.iloc[0]
+        if t["pct_diff"] <= 0:
+            line += (f"; **{t['athlete_name']}** still beat their form in 3rd "
+                     f"({t['pct_diff']:+.2f}%)")
+        else:
+            line += (f"; **{t['athlete_name']}** trails in 3rd, "
+                     f"{t['pct_diff']:.2f}% off form")
+        if len(winners) > 1:    # 1st-place tie: one gap covers both
+            line += (f" — {t['pct_diff'] - w['pct_diff']:.2f} pts behind the "
+                     f"joint winners")
+        else:
+            gap2 = t["pct_diff"] - d.iloc[1]["pct_diff"]
+            gap1 = t["pct_diff"] - w["pct_diff"]
+            line += (f" — {gap2:.2f} pts behind 2nd, "
+                     f"{gap1:.2f} pts behind 1st")
+    return line
+
+
+def _victory_fig(rows: pd.DataFrame) -> go.Figure:
+    """Victory lollipops for one occasion: each athlete's raw % vs form from
+    the on-form baseline, x-axis reversed (positive/slower left, negative/
+    faster right) so beating your form reads in the winning direction, with
+    the 1st–2nd winning margin bracketed. Winner on top."""
+    d = rows.sort_values(["place_rank", "pct_diff"]).copy()
+    d["medal_name"] = d.apply(
+        lambda r: f"{MEDAL[int(r['place_rank'])]} {r['athlete_name']}", axis=1)
+    surface = _surface_color()
+    fig = go.Figure()
+    for _, r in d.iterrows():
+        pct = r["pct_diff"]
+        fig.add_trace(go.Scatter(   # stem
+            x=[0, pct], y=[r["medal_name"]] * 2, mode="lines",
+            line=dict(color=ATHLETE_COLORS[r["athlete_name"]], width=3),
+            hoverinfo="skip", showlegend=False))
+        fig.add_trace(go.Scatter(   # head, labelled with the raw % vs form
+            x=[pct], y=[r["medal_name"]], mode="markers+text",
+            marker=dict(size=13, color=ATHLETE_COLORS[r["athlete_name"]],
+                        line=dict(width=2, color=surface)),
+            text=[f"{pct:+.2f}%"],
+            # Reversed axis: negative (faster) sits on the right of screen.
+            textposition="middle right" if pct <= 0 else "middle left",
+            cliponaxis=False,
+            hovertemplate=(f"<b>{r['athlete_name']}</b><br>"
+                           f"Target: {fmt_time(r['target_seconds'])}<br>"
+                           f"Actual: {fmt_time(r['actual_seconds'])}<br>"
+                           f"{pct:+.2f}% vs form<extra></extra>"),
+            showlegend=False))
+    lo, hi = min(0.0, d["pct_diff"].min()), max(0.0, d["pct_diff"].max())
+    pad = max(1.0, (hi - lo) * 0.30)
+    fig.add_vline(x=0, line_width=1, line_color="#999999")
+    # Winning-margin bracket between 1st and 2nd (skip on a shared 1st).
+    if (d["place_rank"] == 1).sum() == 1 and len(d) > 1:
+        w, ru = d.iloc[0], d.iloc[1]
+        fig.add_shape(type="line", x0=ru["pct_diff"], x1=w["pct_diff"],
+                      y0=-0.45, y1=-0.45, line=dict(color="#808080", width=1))
+        for x in (ru["pct_diff"], w["pct_diff"]):
+            fig.add_shape(type="line", x0=x, x1=x, y0=-0.45, y1=-0.28,
+                          line=dict(color="#808080", width=1))
+        fig.add_annotation(x=(w["pct_diff"] + ru["pct_diff"]) / 2, y=-0.75,
+                           text=(f"winning margin "
+                                 f"{ru['pct_diff'] - w['pct_diff']:.2f} pts"),
+                           showarrow=False,
+                           font=dict(size=11.5, color="#808080"))
+    fig.update_layout(
+        height=120 + 52 * len(d),
+        margin=dict(t=16, b=8, l=0, r=0),
+        xaxis=dict(range=[hi + pad, lo - pad], ticksuffix="%",
+                   title=dict(text="← slower than form · faster than form →",
+                              font=dict(size=12, color="#808080"))),
+        yaxis=dict(title=None,
+                   range=[len(d) - 0.5, -1.1]),  # winner top + bracket headroom
+    )
+    return fig
+
+
+def render_occasion(rows: pd.DataFrame, victory: bool = False) -> None:
+    """Render the detail block for a single head-to-head occasion; `victory`
+    adds the scoreline one-liner + victory lollipops above the table."""
     first = rows.iloc[0]
     date_str = pd.to_datetime(first["run_date"]).strftime("%A %d %B %Y")
     st.markdown(f"#### {first['short_name']} — {date_str}")
     st.caption(f"Classification: **{first['classification']}**")
+    if victory:
+        st.markdown(_h2h_headline(rows))
+        st.plotly_chart(_victory_fig(rows), width="stretch")
     disp = (
         rows.sort_values("place_rank")
         .assign(
@@ -455,6 +562,17 @@ def apply_filters(df: pd.DataFrame, cls: str = "All", yr: str = "All",
     if se != "All":
         df = df[df["season_label"] == se]
     return df
+
+
+def h2h_filter_row(prefix: str):
+    """The classification + Year/Season filter row shared by the detail and map
+    tabs: three columns, date options scoped to the picked classification.
+    Returns the (classification, year, season) selections."""
+    c1, c2, c3 = st.columns(3)
+    cls = c1.selectbox("Head-to-head classification", CLASS_OPTS,
+                       key=f"{prefix}_class")
+    yr, se = year_season_filters(apply_filters(h2h, cls=cls), prefix, c2, c3)
+    return cls, yr, se
 
 
 def cumulative_firsts(df: pd.DataFrame) -> pd.DataFrame:
@@ -782,9 +900,7 @@ A 3-way where someone has no recent form becomes a 2-way between the other two.
 # =========================================================================== #
 with tab3:
     st.header("🔎 Head-to-head detail")
-    d1, d2, d3 = st.columns(3)
-    pick3 = d1.selectbox("Head-to-head classification", CLASS_OPTS, key="t3_class")
-    yr3, se3 = year_season_filters(apply_filters(h2h, cls=pick3), "t3", d2, d3)
+    pick3, yr3, se3 = h2h_filter_row("t3")
     pool = apply_filters(h2h, pick3, yr3, se3)
 
     if pool.empty:
@@ -804,7 +920,7 @@ with tab3:
         sel_date, sel_event = labels[choice]
         occ = pool[(pool["run_date"] == sel_date) & (pool["event_id"] == sel_event)]
         st.divider()
-        render_occasion(occ)
+        render_occasion(occ, victory=True)
 
 # =========================================================================== #
 # TAB 4 — form (target time by Saturday)
@@ -874,9 +990,7 @@ with tab5:
         "sized by the number of head-to-heads there and split by who won "
         "(form-adjusted 1sts), in their colours. Hover a venue for the breakdown."
     )
-    d1, d2, d3 = st.columns(3)
-    pick5 = d1.selectbox("Head-to-head classification", CLASS_OPTS, key="t5_class")
-    yr5, se5 = year_season_filters(apply_filters(h2h, cls=pick5), "t5", d2, d3)
+    pick5, yr5, se5 = h2h_filter_row("t5")
 
     if pick5 == "All":
         st.info(
