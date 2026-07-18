@@ -333,6 +333,8 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | `parkrun_pipeline.py` | Loader: `bootstrap` / `refresh` / `status` / `snapshot` / `motherduck` (Path A/B, DuckDB) + analytics views/targets + deploy-snapshot build + parkrun-only MotherDuck upload (`build_motherduck`). Also owns scraping (`scrape_athlete`) and time parsing (`time_to_seconds`). |
 | `app.py` | Streamlit front end (5 tabs: overlap · head-to-head summary · head-to-head detail · form/target-time · head-to-head map) reading the `parkrun` schema read-only; DB path resolved via `PARKRUN_DB` env/secret (incl. `md:` MotherDuck), else the bundled snapshot. Auto-reloads on new data via a `data_version()` (`max(scrape_timestamp)`, 60s TTL) cache key; 🔄 Reload button clears the cache manually |
 | `scripts/run_local.sh` | Local dev launcher: venv + isolated `data/parkrun_dev.duckdb` + `streamlit run` (see `docs/DEV.md`) |
+| `scripts/parkrun_refresh.sh` | Master MotherDuck refresh from this Mac (manual or scheduled — the one code path): token file → pipeline → freshness stamp → audit-file push → notification |
+| `scripts/parkrun_autorefresh.sh` | Scheduling policy calling the master (launchd agents run deployed copies at `~/.config/parkrun/`, Sat 14:30 + Sun 11:00 + missed-weekend login prompt — see `docs/DEPLOY.md` § Local scheduled refresh) |
 | `docs/DEV.md` / `docs/PLAN.md` | Local dev workflow / sequenced change plan |
 | `docs/DEPLOY.md` | Deploy/ops: MotherDuck backend, scheduled refresh, hosted-app secret flip, tokens, verifying, re-seed |
 | `.github/workflows/refresh.yml` | Scheduled (Sat 14:00 + Sun 01:00 UK) + manual MotherDuck refresh; commits the audit CSV back |

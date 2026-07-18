@@ -110,7 +110,13 @@ proven. Run history so far:
 | Sat 5 Jul, 15:19 (ad-hoc) | ✅ success — scraped, upserted into MotherDuck, audit CSV committed |
 | Tue 7 Jul, 18:45 / 18:53 / 19:58 (ad-hoc) | ❌ all failed — **HTTP 405** on the athlete page |
 | Sat 11 – Sat 18 Jul, all *scheduled* slots | ⚪ **no-ops** — green in Actions, but every one was a guard skip (see below); none reached the scrape |
-| Fri 18 Jul, 16:13 (ad-hoc) | ❌ failed — HTTP 405 again |
+| Sat 18 Jul, 16:13 (ad-hoc) | ❌ failed — HTTP 405 again |
+| Sat 18 Jul, 16:26 (ad-hoc, first run **with** the browser-session headers + retries) | ❌ failed — 405 on all 3 attempts (15 s/30 s backoff). Headers/cookies/retries don't beat the block |
+
+In short: **every ad-hoc GitHub run since 5 Jul has been 405-blocked, and no
+scheduled GitHub run has ever reached the scrape** (guard bug below, fixed
+18 Jul). The first *genuine* scheduled attempt is the **Sun 19 Jul 01:00–04:00
+UK window** — that run decides whether GitHub-hosted runners are viable at all.
 
 **The guard-skip bug (fixed 18 Jul).** Every "successful" scheduled run
 completed in 6–10 s: GitHub cron fires late (observed 15 min – 3.4 h), and the
@@ -153,27 +159,65 @@ parkrun homepage (so any WAF cookies are held), and retries 403/405/429/5xx
 with backoff (15 s then 30 s) — see `HEADERS` / `http_session()` /
 `get_with_retry()` in `parkrun_pipeline.py`.
 
-**Current plan:** with the guard fixed, the next scheduled slots (Sat 14:00 /
-Sun 01:00 UK) are the first *real* test of whether GitHub-hosted runners can
-scrape at all — a once-weekly pattern from a fresh runner IP may not trip the
-WAF the way ad-hoc bursts do. If the scheduled runs still 405, GitHub-hosted
-runners are likely a dead end (the block looks IP-range-based, which headers
-can't fix): move the scrape to a machine parkrun already serves — a
-self-hosted runner on the Mac (keeps this workflow), or a launchd job running
-`PARKRUN_PIPELINE_DB=md:parkrun_snapshot python parkrun_pipeline.py refresh`.
+**Current plan — the weekend A/B (19 Jul).** Two refresh paths run
+independently against the same MotherDuck DB (harmless — the UPSERT is
+idempotent), differing only in network origin:
+
+- **Arm A, GitHub Actions (datacentre IP):** first genuine scheduled attempt
+  in the Sun 01:00–04:00 UK window. A once-weekly pattern from a fresh runner
+  IP *might* not trip the WAF the way ad-hoc bursts do — but the 16:26 test
+  showed headers alone don't help, so expectation is ❌.
+- **Arm B, launchd on the Mac (residential IP, § below):** Sun 11:00 slot.
+  Expectation ✅ (the same code succeeds from this connection).
+
+If Arm A 405s, GitHub-hosted runners are confirmed a dead end (IP-range
+block): the launchd scheduler becomes the primary refresh path and the cron
+entries here get removed (keeping `workflow_dispatch` as a spare / canary).
+
+---
+
+## Local scheduled refresh (launchd on the Mac)
+
+Because parkrun's WAF serves residential IPs happily, the Mac runs the same
+refresh on a schedule via two launchd agents (installed 18 Jul 2026,
+`~/Library/LaunchAgents/com.raju.parkrun-refresh-{scheduled,login}.plist`):
+
+- **scheduled** — Sat 14:30 + Sun 11:00 local. Mac asleep at slot time →
+  launchd fires the job on next wake; Mac powered off → slot missed, handled
+  by:
+- **login** — runs at every login/agent load; if the last successful refresh
+  predates the most recent slot (laptop was off all weekend), it shows a
+  **"Refresh now?" dialog** — otherwise exits silently.
+
+Two scripts, deployed as copies to `~/.config/parkrun/` (macOS TCC blocks
+launchd from reading `~/Documents`, so the job is fully self-contained there:
+its own repo clone, pulled to `origin/main` before each run, and its own venv):
+
+- **`parkrun_refresh.sh`** — the master refresh, and the ONE code path for
+  refreshing MotherDuck from this Mac (run it manually any time). Token → pull
+  clone → pipeline → stamp `~/.config/parkrun/last_refresh_epoch` (manual runs
+  count toward weekend freshness) → auto-commit + push the audit CSV/snapshot
+  from its own clone → macOS notification either way.
+- **`parkrun_autorefresh.sh`** — scheduling policy only (the agents call it);
+  it invokes the master.
+
+Everything logs to `~/Library/Logs/parkrun_refresh.log` (manual runs also
+print to the terminal). Needs the MotherDuck token at
+`~/.config/motherduck/token` (chmod 600). Diagnostics:
+`~/.config/parkrun/parkrun_autorefresh.sh status`. After editing the tracked
+scripts: `cp scripts/parkrun_refresh.sh scripts/parkrun_autorefresh.sh ~/.config/parkrun/`.
 
 ---
 
 ## Ad-hoc refresh from your Mac
 
 ```bash
-source ~/Documents/Python\ scripts/env/bin/activate
-
-# Refresh the cloud directly (same as the scheduler does):
-PARKRUN_PIPELINE_DB=md:parkrun_snapshot motherduck_token=$(cat tokenfile) \
-  python parkrun_pipeline.py refresh
+# Refresh the cloud (identical to what the scheduler runs — token from
+# ~/.config/motherduck/token, stamps freshness, pushes the audit files):
+scripts/parkrun_refresh.sh
 
 # Or refresh the local dev DB only (does not touch the cloud):
+source ~/Documents/Python\ scripts/env/bin/activate
 python parkrun_pipeline.py refresh
 ```
 
