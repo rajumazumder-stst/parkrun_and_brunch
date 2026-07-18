@@ -76,13 +76,34 @@ TARGET_WINDOW_DAYS = 91  # head-to-head / current-form lookback
 ATHLETE_URL = "https://www.parkrun.org.uk/parkrunner/{athlete_id}/all/"
 EVENTS_JSON_URL = "https://images.parkrun.com/events.json"
 
+# Full Chrome-like header set (not just the UA): parkrun's WAF started
+# rejecting bare-UA requests from GitHub runners with HTTP 405 (Jul 2026).
+# No Accept-Encoding — requests' default (gzip, deflate) avoids advertising
+# brotli, which it can't decode without an extra dependency.
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    )
+    ),
+    "Accept": (
+        "text/html,application/xhtml+xml,application/xml;q=0.9,"
+        "image/avif,image/webp,*/*;q=0.8"
+    ),
+    "Accept-Language": "en-GB,en;q=0.9",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "sec-ch-ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"macOS"',
 }
+WARMUP_URL = "https://www.parkrun.org.uk/"
 REQUEST_DELAY_SECONDS = 2
+RETRY_STATUSES = {403, 405, 429, 500, 502, 503, 504}
+RETRY_ATTEMPTS = 3
+RETRY_BACKOFF_SECONDS = 15  # wait 15s, then 30s
 CORRUPTION_GATE_MIN_RATIO = 0.95  # new count must be >= 95% of stored count
 
 RESULT_COLUMN_MAP = {
@@ -341,11 +362,45 @@ def seed_events_from_csv(con: duckdb.DuckDBPyConnection) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# HTTP: shared session + retry
+# --------------------------------------------------------------------------- #
+_session: requests.Session | None = None
+
+
+def http_session() -> requests.Session:
+    """Shared session with browser headers. First use warms up on the parkrun
+    homepage so any WAF cookies are set before an athlete page is fetched."""
+    global _session
+    if _session is None:
+        s = requests.Session()
+        s.headers.update(HEADERS)
+        try:
+            s.get(WARMUP_URL, timeout=30)
+        except requests.RequestException as e:
+            log(f"  WARN: warm-up request failed ({e}) - continuing without cookies")
+        _session = s
+    return _session
+
+
+def get_with_retry(url: str, timeout: int) -> requests.Response:
+    """GET with backoff on WAF/transient statuses (403/405/429/5xx). Raises on
+    the final failure like raise_for_status."""
+    for attempt in range(1, RETRY_ATTEMPTS + 1):
+        r = http_session().get(url, timeout=timeout)
+        if r.status_code not in RETRY_STATUSES or attempt == RETRY_ATTEMPTS:
+            r.raise_for_status()
+            return r
+        wait = RETRY_BACKOFF_SECONDS * attempt
+        log(f"  HTTP {r.status_code} for {url} - retry {attempt}/{RETRY_ATTEMPTS - 1} in {wait}s")
+        time.sleep(wait)
+    raise AssertionError("unreachable")
+
+
+# --------------------------------------------------------------------------- #
 # Path A: events reconcile
 # --------------------------------------------------------------------------- #
 def fetch_events_json() -> dict:
-    r = requests.get(EVENTS_JSON_URL, headers=HEADERS, timeout=60)
-    r.raise_for_status()
+    r = get_with_retry(EVENTS_JSON_URL, timeout=60)
     return r.json()
 
 
@@ -495,8 +550,7 @@ def reconcile_events(con: duckdb.DuckDBPyConnection) -> None:
 # --------------------------------------------------------------------------- #
 def scrape_athlete(athlete_id: int) -> pd.DataFrame:
     url = ATHLETE_URL.format(athlete_id=athlete_id)
-    r = requests.get(url, headers=HEADERS, timeout=30)
-    r.raise_for_status()
+    r = get_with_retry(url, timeout=30)
     soup = BeautifulSoup(r.text, "html5lib")
     tables = soup.find_all("table")
     if not tables:

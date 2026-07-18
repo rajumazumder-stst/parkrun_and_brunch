@@ -44,10 +44,12 @@ where they differ from the original brief, **the spec wins**.
 - ✅ Scheduled refresh — GitHub Actions (`.github/workflows/refresh.yml`)
   refreshes MotherDuck at **Sat 14:00 UK** and **Sun 01:00 UK** (DST-proof
   London-time guard) and commits the audit CSV back; ad-hoc runs via
-  `workflow_dispatch`. ⚠️ Reliability being proven: the first ad-hoc run
-  succeeded but later ad-hoc runs were blocked by parkrun's bot protection
-  (HTTP 405); watching the first scheduled weekend — see `DEPLOY.md`
-  § Operational status.
+  `workflow_dispatch`. ⚠️ Reliability being proven: ad-hoc runs are blocked by
+  parkrun's bot protection (HTTP 405), and until 18 Jul 2026 an exact-hour
+  guard bug meant no scheduled run ever actually scraped (all were green
+  no-op skips). Guard widened to a window + browser-like headers / warm-up
+  session / retry added; the next scheduled weekend is the first real test —
+  see `DEPLOY.md` § Operational status.
 - 🧪 Local dev/test workflow: work on the `dev` branch, `./run_local.sh` serves
   the app against an isolated `data/parkrun_dev.duckdb` (gitignored copy of the
   snapshot) so previews never touch `main` or the deploy snapshot. See `DEV.md`.

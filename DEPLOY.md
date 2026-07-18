@@ -96,15 +96,26 @@ bundled snapshot (no redeploy needed beyond the auto-reboot).
 - The workflow must live on the **default branch** (`main`) for the schedule and
   `workflow_dispatch` to be active.
 
-### Operational status (as of 7 Jul 2026)
+### Operational status (as of 18 Jul 2026)
 
 The scheduled refresh is **configured and live**; reliability is still being
-proven. Run history so far (all `workflow_dispatch`, i.e. ad-hoc):
+proven. Run history so far:
 
 | Run (UK time) | Outcome |
 |---|---|
-| Sat 5 Jul, 15:19 | ✅ success — scraped, upserted into MotherDuck, audit CSV committed |
-| Tue 7 Jul, 18:45 / 18:53 / 19:58 | ❌ all failed — **HTTP 405** on the athlete page |
+| Sat 5 Jul, 15:19 (ad-hoc) | ✅ success — scraped, upserted into MotherDuck, audit CSV committed |
+| Tue 7 Jul, 18:45 / 18:53 / 19:58 (ad-hoc) | ❌ all failed — **HTTP 405** on the athlete page |
+| Sat 11 – Sat 18 Jul, all *scheduled* slots | ⚪ **no-ops** — green in Actions, but every one was a guard skip (see below); none reached the scrape |
+| Fri 18 Jul, 16:13 (ad-hoc) | ❌ failed — HTTP 405 again |
+
+**The guard-skip bug (fixed 18 Jul).** Every "successful" scheduled run
+completed in 6–10 s: GitHub cron fires late (observed 15 min – 3.4 h), and the
+guard required the London hour to equal the slot hour *exactly*, so every
+delayed firing stood down. Net effect: **no scheduled run ever scraped** —
+the only real MotherDuck refresh remains the 5 Jul ad-hoc one. Fix: the guard
+now accepts a window (Sat 14–17 / Sun 01–04 London). Both cron entries for a
+slot can now both proceed; the second is a harmless idempotent UPSERT and the
+workflow's `concurrency` group serialises them.
 
 **The 405 failures in detail.** Each failed run died in Path B's first fetch:
 
@@ -132,12 +143,20 @@ The failure mode is **safe**: `scrape_athlete` raises before anything is
 written (Path B is all-or-nothing), so MotherDuck keeps its previous
 consistent state and no audit CSV is committed; the run simply reports failure.
 
-**Current plan: continue as-is** and see how the first *scheduled* slots fare
-— Sat 11 Jul 14:00 UK and Sun 12 Jul 01:00 UK. A once-weekly request pattern
-may not trip the WAF the way the 7 Jul ad-hoc burst did. If the scheduled runs
-also 405: add a polite retry-with-backoff in `scrape_athlete`, and failing
-that, run the refresh from a machine parkrun already serves (e.g. a
-self-hosted runner / launchd job on the Mac) instead of GitHub-hosted runners.
+**Mitigations in place (18 Jul):** the pipeline now sends a full Chrome-like
+header set (not just a UA), uses a shared `requests.Session` warmed up on the
+parkrun homepage (so any WAF cookies are held), and retries 403/405/429/5xx
+with backoff (15 s then 30 s) — see `HEADERS` / `http_session()` /
+`get_with_retry()` in `parkrun_pipeline.py`.
+
+**Current plan:** with the guard fixed, the next scheduled slots (Sat 14:00 /
+Sun 01:00 UK) are the first *real* test of whether GitHub-hosted runners can
+scrape at all — a once-weekly pattern from a fresh runner IP may not trip the
+WAF the way ad-hoc bursts do. If the scheduled runs still 405, GitHub-hosted
+runners are likely a dead end (the block looks IP-range-based, which headers
+can't fix): move the scrape to a machine parkrun already serves — a
+self-hosted runner on the Mac (keeps this workflow), or a launchd job running
+`PARKRUN_PIPELINE_DB=md:parkrun_snapshot python parkrun_pipeline.py refresh`.
 
 ---
 

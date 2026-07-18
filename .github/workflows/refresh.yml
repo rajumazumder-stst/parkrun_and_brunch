@@ -4,10 +4,15 @@
 # version-marker (data_version) shortly after.
 #
 # Cron is UTC and DST-blind, so for each UK slot we fire the two surrounding UTC
-# hours and a guard proceeds only at the intended Europe/London local time — so
-# each slot lands at the same UK wall-clock time year-round (BST vs GMT):
+# hours and a guard proceeds only inside the intended Europe/London window — so
+# each slot lands at the same UK wall-clock slot year-round (BST vs GMT):
 #   - Sat 14:00 UK  (13:00 UTC in BST, 14:00 UTC in GMT)
 #   - Sun 01:00 UK  (00:00 UTC in BST, 01:00 UTC in GMT)
+# The guard accepts a 4-hour window (Sat 14–17 / Sun 01–04 London), not the exact
+# hour: GitHub cron fires late — observed 15 min to 3.4 h — and an exact-hour
+# check made every scheduled run stand down (green but a no-op). Both cron
+# entries for a slot can land in the window; the second refresh is a harmless
+# idempotent UPSERT and the concurrency group serialises them.
 # Manual runs (workflow_dispatch) skip the guard so you can refresh on demand.
 name: refresh
 
@@ -31,20 +36,21 @@ jobs:
   refresh:
     runs-on: ubuntu-latest
     steps:
-      - name: Gate to 14:00 Europe/London (schedule only)
+      - name: Gate to UK slot window (schedule only)
         id: gate
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "manual run — proceeding"
             echo "proceed=true" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          hour=$(TZ=Europe/London date +%H)
-          dow=$(TZ=Europe/London date +%u)   # 1=Mon … 6=Sat, 7=Sun
+          hour=$(TZ=Europe/London date +%-H)  # no zero-padding
+          dow=$(TZ=Europe/London date +%u)    # 1=Mon … 6=Sat, 7=Sun
           echo "London local: day-of-week $dow, hour $hour"
-          if { [ "$dow" = "6" ] && [ "$hour" = "14" ]; } || { [ "$dow" = "7" ] && [ "$hour" = "01" ]; }; then
+          if { [ "$dow" = "6" ] && [ "$hour" -ge 14 ] && [ "$hour" -le 17 ]; } \
+             || { [ "$dow" = "7" ] && [ "$hour" -ge 1 ] && [ "$hour" -le 4 ]; }; then
             echo "proceed=true" >> "$GITHUB_OUTPUT"
           else
-            echo "not a scheduled UK slot (Sat 14:00 / Sun 01:00) — this cron entry stands down"
+            echo "outside the UK slot windows (Sat 14–17 / Sun 01–04 London) — this cron entry stands down"
             echo "proceed=false" >> "$GITHUB_OUTPUT"
           fi
 
