@@ -43,8 +43,12 @@ the environment, falling back to a `motherduck_token` Streamlit secret
 
 ## Go-live: point the hosted app at MotherDuck
 
-The scheduler already keeps `md:` current, but the **hosted app serves the
-bundled snapshot until you flip it**. In the Streamlit Community Cloud dashboard
+> ✅ **Flipped 18 Jul 2026** — the secrets below are set, so the hosted app
+> reads `md:parkrun_snapshot` (verification via the sidebar marker or the
+> distinguishing-edit procedure below). The bundled snapshot remains the
+> fallback if the secrets are ever removed.
+
+To (re)do the flip: in the Streamlit Community Cloud dashboard
 (share.streamlit.io) → your app → **Settings → Secrets**, add:
 
 ```toml

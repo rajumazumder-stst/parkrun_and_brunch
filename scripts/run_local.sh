@@ -16,7 +16,7 @@
 #
 set -euo pipefail
 
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEV_DB="$REPO/data/parkrun_dev.duckdb"
 SNAPSHOT="$REPO/data/parkrun_snapshot.duckdb"
 

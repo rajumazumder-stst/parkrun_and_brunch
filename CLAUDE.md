@@ -40,7 +40,7 @@ where they differ from the original brief, **the spec wins**.
   **parkrun-only** cloud DB (`md:parkrun_snapshot`; catalog name ≠ the `parkrun`
   schema so `parkrun.v_overlap` stays unambiguous). MotherDuck is the runtime
   source of truth. Backends, tokens, the hosted-app secret flip and verification
-  are documented in `DEPLOY.md`.
+  are documented in `docs/DEPLOY.md`.
 - ✅ Scheduled refresh — GitHub Actions (`.github/workflows/refresh.yml`)
   refreshes MotherDuck at **Sat 14:00 UK** and **Sun 01:00 UK** (DST-proof
   London-time guard) and commits the audit CSV back; ad-hoc runs via
@@ -49,10 +49,10 @@ where they differ from the original brief, **the spec wins**.
   guard bug meant no scheduled run ever actually scraped (all were green
   no-op skips). Guard widened to a window + browser-like headers / warm-up
   session / retry added; the next scheduled weekend is the first real test —
-  see `DEPLOY.md` § Operational status.
-- 🧪 Local dev/test workflow: work on the `dev` branch, `./run_local.sh` serves
+  see `docs/DEPLOY.md` § Operational status.
+- 🧪 Local dev/test workflow: work on the `dev` branch, `./scripts/run_local.sh` serves
   the app against an isolated `data/parkrun_dev.duckdb` (gitignored copy of the
-  snapshot) so previews never touch `main` or the deploy snapshot. See `DEV.md`.
+  snapshot) so previews never touch `main` or the deploy snapshot. See `docs/DEV.md`.
 
 ---
 
@@ -332,9 +332,9 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 |---|---|
 | `parkrun_pipeline.py` | Loader: `bootstrap` / `refresh` / `status` / `snapshot` / `motherduck` (Path A/B, DuckDB) + analytics views/targets + deploy-snapshot build + parkrun-only MotherDuck upload (`build_motherduck`). Also owns scraping (`scrape_athlete`) and time parsing (`time_to_seconds`). |
 | `app.py` | Streamlit front end (5 tabs: overlap · head-to-head summary · head-to-head detail · form/target-time · head-to-head map) reading the `parkrun` schema read-only; DB path resolved via `PARKRUN_DB` env/secret (incl. `md:` MotherDuck), else the bundled snapshot. Auto-reloads on new data via a `data_version()` (`max(scrape_timestamp)`, 60s TTL) cache key; 🔄 Reload button clears the cache manually |
-| `run_local.sh` | Local dev launcher: venv + isolated `data/parkrun_dev.duckdb` + `streamlit run` (see `DEV.md`) |
-| `DEV.md` / `PLAN.md` | Local dev workflow / sequenced change plan |
-| `DEPLOY.md` | Deploy/ops: MotherDuck backend, scheduled refresh, hosted-app secret flip, tokens, verifying, re-seed |
+| `scripts/run_local.sh` | Local dev launcher: venv + isolated `data/parkrun_dev.duckdb` + `streamlit run` (see `docs/DEV.md`) |
+| `docs/DEV.md` / `docs/PLAN.md` | Local dev workflow / sequenced change plan |
+| `docs/DEPLOY.md` | Deploy/ops: MotherDuck backend, scheduled refresh, hosted-app secret flip, tokens, verifying, re-seed |
 | `.github/workflows/refresh.yml` | Scheduled (Sat 14:00 + Sun 01:00 UK) + manual MotherDuck refresh; commits the audit CSV back |
 | `requirements.txt` | Pinned runtime deps for hosting (Streamlit Cloud etc.) |
 | `data/parkrun_events.csv` | Event catalogue (events.json dump + Victoria Dock) |
@@ -409,8 +409,10 @@ progression · event frequency · form (target) over refreshes.
 3. Load into DuckDB with the reconcile pipeline above. ✅
 4. Prevent duplicates via `(athlete_id, run_date, event_id)`. ✅ (UPSERT verified)
 5. Support scheduled + manual refreshes. ✅ (GitHub Actions cron Sat/Sun +
-   `workflow_dispatch`; reliability being proven — see `DEPLOY.md`)
+   `workflow_dispatch`; reliability being proven — see `docs/DEPLOY.md`)
 
 The MVP is complete end-to-end (pipeline, scheduler, analytics, front end).
-Remaining ops items: prove the scheduled refresh against parkrun's bot
-protection, then flip the hosted app's secrets to MotherDuck (`DEPLOY.md`).
+The hosted app's secrets were flipped to MotherDuck on 18 Jul 2026 — the live
+app now reads `md:parkrun_snapshot` directly, so a MotherDuck refresh goes
+live without a git push. Remaining ops item: prove the scheduled refresh
+against parkrun's bot protection (`docs/DEPLOY.md` § Operational status).

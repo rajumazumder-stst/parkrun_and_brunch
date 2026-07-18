@@ -67,6 +67,8 @@ data/events.json
 .env.*
 *.key
 secrets.toml
+# Manual MotherDuck refresh command (paste into Terminal) — holds the token.
+scripts/refresh_motherduck.txt
 
 # ---- OS ----
 .DS_Store

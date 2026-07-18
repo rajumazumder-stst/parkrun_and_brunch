@@ -17,7 +17,7 @@ Local development is isolated from both:
 ## Run it
 
 ```bash
-./run_local.sh
+./scripts/run_local.sh
 ```
 
 On first run this creates `data/parkrun_dev.duckdb` from the snapshot, activates
@@ -28,13 +28,13 @@ To point at a different DB (e.g. the full dev DB for the freshest data — it ho
 `personal_finance` too, but the app only reads the `parkrun` schema):
 
 ```bash
-PARKRUN_DB=~/Documents/duckdb/my_database.duckdb ./run_local.sh
+PARKRUN_DB=~/Documents/duckdb/my_database.duckdb ./scripts/run_local.sh
 ```
 
 ## Refreshing the dev data
 
 `data/parkrun_dev.duckdb` is a throwaway copy. To reset it to the current
-snapshot, just delete it — the next `./run_local.sh` recreates it:
+snapshot, just delete it — the next `./scripts/run_local.sh` recreates it:
 
 ```bash
 rm data/parkrun_dev.duckdb
