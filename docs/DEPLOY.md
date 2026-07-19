@@ -17,13 +17,46 @@ login catch-up  ──┘  (parkrun_refresh.sh)                  │  source of 
                                     hosted Streamlit app auto-reloads (≤ 60s)
 ```
 
-- **MotherDuck (`md:parkrun_snapshot`) is the runtime source of truth.** It holds
-  the parkrun-only tables + views (no `personal_finance` — enforced by
-  construction; the pipeline only ever touches the `parkrun` schema).
+- **MotherDuck (`md:parkrun_snapshot`) is the runtime source of truth** (planned
+  to change — see § Direction below). It holds the parkrun-only tables + views
+  (no `personal_finance` — enforced by construction; the pipeline only ever
+  touches the `parkrun` schema).
 - The **local dev DB** (`~/Documents/duckdb/my_database.duckdb`) is still where
   ad-hoc local work happens; it is *not* what the live app reads.
 - The **bundled snapshot** (`data/parkrun_snapshot.duckdb`) is the zero-cost
   fallback the app serves when no `PARKRUN_DB` is configured.
+
+---
+
+## Direction: local DuckDB as the planned source of truth
+
+MotherDuck was adopted to serve a world where the refresh ran **off the Mac** —
+a GitHub Actions scheduler updating a cloud DB no laptop needed to touch. That
+premise died with the WAF 405-block (§ below): the refresh now runs from this
+Mac via launchd, so the laptop is in the loop regardless and the cloud hop no
+longer buys machine-independence.
+
+**The plan is therefore to consolidate on local DuckDB as the source of
+truth**, with the committed `data/parkrun_snapshot.duckdb` populating the live
+app (the app's existing fallback path). The delivery mechanism already runs
+today — every refresh rebuilds and pushes the snapshot, and Streamlit
+auto-redeploys on push — so the migration is small:
+
+1. Point `parkrun_refresh.sh` at a persistent local DB under
+   `~/.config/parkrun`, seeded from the committed snapshot (which carries the
+   full `current_targets` history — nothing is lost).
+2. Make the audit-file push **fatal on failure** instead of best-effort — under
+   local source of truth the push *is* the delivery step.
+3. Remove the two Streamlit secrets (`PARKRUN_DB` + `motherduck_token`) so the
+   app serves the bundled snapshot.
+
+A non-laptop-dependent refresh host — the only thing that would again require
+an online-accessible source of truth — is considered **unlikely**: it would
+need a residential IP that parkrun's WAF accepts (a home server / Raspberry Pi
+class of solution). **The MotherDuck sections below are deliberately kept for
+reference** in case such a host is ever found: `python parkrun_pipeline.py
+motherduck` re-seeds the cloud DB from local, and the secret flip (§ Go-live)
+re-points the hosted app at it.
 
 ---
 

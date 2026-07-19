@@ -45,6 +45,12 @@ where they differ from the original brief, **the spec wins**.
   GitHub Actions was tried first and abandoned: parkrun's WAF 405-blocks
   GitHub-hosted runner IPs (the workflow was deleted 19 Jul 2026; history and
   rationale in `docs/DEPLOY.md`).
+- 📌 Planned: **local DuckDB as source of truth**. MotherDuck was chosen for
+  off-Mac (GitHub Actions) refreshes; with launchd on the Mac as the scheduler
+  that rationale is gone, so the plan is to refresh a local DB and let the
+  committed snapshot populate the live app. The MotherDuck setup stays
+  documented as the fallback if a non-laptop refresh host is ever found
+  (`docs/DEPLOY.md` § Direction).
 - 🧪 Local dev/test workflow: work on the `dev` branch, `./scripts/run_local.sh` serves
   the app against an isolated `data/parkrun_dev.duckdb` (gitignored copy of the
   snapshot) so previews never touch `main` or the deploy snapshot. See `docs/DEV.md`.
@@ -414,4 +420,8 @@ The hosted app's secrets were flipped to MotherDuck on 18 Jul 2026 — the live
 app now reads `md:parkrun_snapshot` directly, so a MotherDuck refresh goes
 live without a git push. The scheduled-refresh ops question is settled:
 GitHub-hosted runners are 405-blocked by parkrun's WAF, so launchd on the Mac
-is the scheduler of record (`docs/DEPLOY.md`).
+is the scheduler of record (`docs/DEPLOY.md`). That in turn removed
+MotherDuck's original rationale (off-Mac refreshes), so the plan is to move
+the source of truth back to **local DuckDB**, with the committed snapshot
+serving the live app; the MotherDuck setup remains documented in
+`docs/DEPLOY.md` should a non-laptop refresh host ever emerge.
