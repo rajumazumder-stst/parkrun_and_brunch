@@ -39,16 +39,12 @@ where they differ from the original brief, **the spec wins**.
 - ✅ MotherDuck migration — `python parkrun_pipeline.py motherduck` (re)seeds a
   **parkrun-only** cloud DB (`md:parkrun_snapshot`; catalog name ≠ the `parkrun`
   schema so `parkrun.v_overlap` stays unambiguous). MotherDuck is the runtime
-  source of truth. Backends, tokens, the hosted-app secret flip and verification
-  are documented in `docs/DEPLOY.md`.
+  source of truth — ops details in `docs/DEPLOY.md`.
 - ✅ Scheduled refresh — **launchd on the Mac** (Sat 14:30 + Sun 11:00 local,
   plus a missed-weekend login prompt), proven end-to-end on 19 Jul 2026.
-  GitHub Actions was **retired as the scheduler the same day**: the weekend
-  A/B confirmed parkrun's WAF 405-blocks GitHub-hosted runner IPs (the first
-  genuine scheduled attempt, Sun 19 Jul 03:39 UK, passed the widened guard
-  and still 405'd) while the identical code succeeds from the Mac's
-  residential IP. `.github/workflows/refresh.yml` keeps `workflow_dispatch`
-  only, as a canary for whether the block ever lifts — see `docs/DEPLOY.md`.
+  GitHub Actions was tried first and abandoned: parkrun's WAF 405-blocks
+  GitHub-hosted runner IPs (the workflow was deleted 19 Jul 2026; history and
+  rationale in `docs/DEPLOY.md`).
 - 🧪 Local dev/test workflow: work on the `dev` branch, `./scripts/run_local.sh` serves
   the app against an isolated `data/parkrun_dev.duckdb` (gitignored copy of the
   snapshot) so previews never touch `main` or the deploy snapshot. See `docs/DEV.md`.
@@ -242,9 +238,8 @@ shared athlete/date pairs (verified).
 
 Triggered on a schedule (**Sat 14:30** and **Sun 11:00** Mac-local, via the
 launchd agents, plus a missed-weekend login prompt) **and** ad-hoc
-(`scripts/parkrun_refresh.sh`, the CLI locally, or the `workflow_dispatch`
-canary) — every trigger runs the identical process. The two paths are
-independent.
+(`scripts/parkrun_refresh.sh`, or the pipeline CLI directly) — every trigger
+runs the identical process. The two paths are independent.
 
 ### Path A — events reconcile (Transaction A)
 
@@ -335,10 +330,9 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | `app.py` | Streamlit front end (5 tabs: overlap · head-to-head summary · head-to-head detail · form/target-time · head-to-head map) reading the `parkrun` schema read-only; DB path resolved via `PARKRUN_DB` env/secret (incl. `md:` MotherDuck), else the bundled snapshot. Auto-reloads on new data via a `data_version()` (`max(scrape_timestamp)`, 60s TTL) cache key; 🔄 Reload button clears the cache manually |
 | `scripts/run_local.sh` | Local dev launcher: venv + isolated `data/parkrun_dev.duckdb` + `streamlit run` (see `docs/DEV.md`) |
 | `scripts/parkrun_refresh.sh` | Master MotherDuck refresh from this Mac (manual or scheduled — the one code path): token file → pipeline → freshness stamp → audit-file push → notification |
-| `scripts/parkrun_autorefresh.sh` | Scheduling policy calling the master (launchd agents run deployed copies at `~/.config/parkrun/`, Sat 14:30 + Sun 11:00 + missed-weekend login prompt — see `docs/DEPLOY.md` § Local scheduled refresh) |
-| `docs/DEV.md` / `docs/PLAN.md` | Local dev workflow / sequenced change plan |
+| `scripts/parkrun_autorefresh.sh` | Scheduling policy calling the master (launchd agents run self-syncing deployed copies at `~/.config/parkrun/`, Sat 14:30 + Sun 11:00 + missed-weekend login prompt — see `docs/DEPLOY.md` § Scheduled refresh) |
+| `docs/DEV.md` | Local dev workflow |
 | `docs/DEPLOY.md` | Deploy/ops: MotherDuck backend, scheduled refresh, hosted-app secret flip, tokens, verifying, re-seed |
-| `.github/workflows/refresh.yml` | **Manual-only** (`workflow_dispatch`) MotherDuck refresh — a canary for parkrun's 405 IP block; schedule removed 19 Jul 2026 (launchd is the scheduler) |
 | `requirements.txt` | Pinned runtime deps for hosting (Streamlit Cloud etc.) |
 | `data/parkrun_events.csv` | Event catalogue (events.json dump + Victoria Dock) |
 | `data/country_lookup.csv` | country_code → country_name |
@@ -413,7 +407,7 @@ progression · event frequency · form (target) over refreshes.
 4. Prevent duplicates via `(athlete_id, run_date, event_id)`. ✅ (UPSERT verified)
 5. Support scheduled + manual refreshes. ✅ (launchd on the Mac Sat/Sun +
    login catch-up, proven 19 Jul 2026; manual via `scripts/parkrun_refresh.sh`
-   or the `workflow_dispatch` canary — see `docs/DEPLOY.md`)
+   — see `docs/DEPLOY.md`)
 
 The MVP is complete end-to-end (pipeline, scheduler, analytics, front end).
 The hosted app's secrets were flipped to MotherDuck on 18 Jul 2026 — the live

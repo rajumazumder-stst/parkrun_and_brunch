@@ -71,12 +71,6 @@ bundled snapshot (no redeploy needed beyond the auto-reboot).
   it or paste it into code/chat.
 - **The launchd scheduler** (and manual `scripts/parkrun_refresh.sh` runs) reads
   it from `~/.config/motherduck/token` (chmod 600).
-- **GitHub Actions** (manual canary only) reads it from the `MOTHERDUCK_TOKEN`
-  repo secret:
-  ```bash
-  gh secret set MOTHERDUCK_TOKEN            # paste when prompted, or:
-  gh secret set MOTHERDUCK_TOKEN < tokenfile
-  ```
 - **Local `md:` runs** read it from the `motherduck_token` env var:
   ```bash
   motherduck_token=$(cat /path/to/tokenfile) python parkrun_pipeline.py ...
@@ -84,87 +78,32 @@ bundled snapshot (no redeploy needed beyond the auto-reboot).
 
 ---
 
-## GitHub Actions refresh (`.github/workflows/refresh.yml`) — manual canary only
+## Why the refresh does NOT run on GitHub Actions
 
-> ❌ **Retired as the scheduler on 19 Jul 2026.** The weekend A/B (below)
-> confirmed GitHub-hosted runners are IP-blocked by parkrun's WAF, so the cron
-> schedule + London-window guard were removed from the workflow (recoverable
-> from git history). **Scheduled refreshes now run via launchd on the Mac**
-> (§ next section). The workflow keeps `workflow_dispatch` as a spare/canary:
-> a manual run that *succeeds* means the block has lifted and GitHub-hosted
-> scheduling is viable again.
+A GitHub Actions scheduler (`refresh.yml`, Jul 2026) was tried first and
+**deleted on 19 Jul 2026** — retrieve it from git history if ever needed. The
+short version, kept here so nobody re-treads this path:
 
-- **Ad-hoc cloud refresh / canary run** (expect HTTP 405 while the block holds):
-  ```bash
-  gh workflow run refresh.yml --ref main
-  gh run watch "$(gh run list --workflow=refresh.yml --limit 1 --json databaseId -q '.[0].databaseId')"
-  ```
-- Runs `PARKRUN_PIPELINE_DB=md:parkrun_snapshot python parkrun_pipeline.py refresh`
-  (upserts straight into MotherDuck), then commits the regenerated
-  `data/parkrun_results.csv` back to `main` as the audit trail.
-- The workflow must live on the **default branch** (`main`) for
-  `workflow_dispatch` to be active.
+- **parkrun fronts `www.parkrun.org.uk` with a WAF that 405-blocks
+  cloud/datacentre IPs**, including GitHub-hosted runners. Every Actions run
+  after 5 Jul 2026 failed with `HTTP 405: Not Allowed` on the first athlete
+  page (`/parkrunner/5672/all/`), while `images.parkrun.com/events.json` (a
+  CDN host, not behind the WAF) fetched fine in the same runs.
+- **It's the IP range, not the request.** The decisive A/B (19 Jul): the
+  identical pipeline code 405'd from a GitHub runner at Sun 03:39 UK but
+  succeeded in full from this Mac's residential IP at 11:12. Chrome-like
+  headers, a warmed-up cookie session, and 15 s/30 s retries (all still in
+  `parkrun_pipeline.py` — they benefit the launchd path) made no difference
+  from the runner.
+- The failure mode was safe throughout: Path B is all-or-nothing, so a blocked
+  scrape wrote nothing and MotherDuck kept its previous consistent state.
+- Also fixed along the way: GitHub cron fires late (15 min – 3.4 h observed),
+  so an exact-hour London-time guard made every scheduled run a silent no-op —
+  any future cron guard must accept a window, not an hour.
 
-### Why it was retired (run history)
-
-| Run (UK time) | Outcome |
-|---|---|
-| Sat 5 Jul, 15:19 (ad-hoc) | ✅ success — scraped, upserted into MotherDuck, audit CSV committed |
-| Tue 7 Jul, 18:45 / 18:53 / 19:58 (ad-hoc) | ❌ all failed — **HTTP 405** on the athlete page |
-| Sat 11 – Sat 18 Jul, all *scheduled* slots | ⚪ **no-ops** — green in Actions, but every one was a guard skip (see below); none reached the scrape |
-| Sat 18 Jul, 16:13 (ad-hoc) | ❌ failed — HTTP 405 again |
-| Sat 18 Jul, 16:26 (ad-hoc, first run **with** the browser-session headers + retries) | ❌ failed — 405 on all 3 attempts (15 s/30 s backoff). Headers/cookies/retries don't beat the block |
-| **Sun 19 Jul, 03:39 (scheduled — the decider)** | ❌ failed — the widened guard worked (proceeded inside the Sun 01–04 window), Path A reconciled fine, then **HTTP 405** on the first athlete page after all retries |
-| Sun 19 Jul, 12:31 (ad-hoc) | ❌ failed — HTTP 405 |
-
-**The weekend A/B verdict (19 Jul).** Two arms ran the identical code against
-the same MotherDuck DB, differing only in network origin: **Arm A** (GitHub
-runner, datacentre IP, Sun 03:39) → 405-blocked; **Arm B** (launchd on the Mac,
-residential IP, Sun 11:12 via the missed-slot login prompt) → ✅ full success
-(scrape, upsert, audit push, app updated). Conclusion: the block is on the IP
-range, not the request — GitHub-hosted runners are a dead end, launchd is the
-primary refresh path.
-
-**The guard-skip bug (fixed 18 Jul).** Every "successful" scheduled run before
-the fix completed in 6–10 s: GitHub cron fires late (observed 15 min – 3.4 h),
-and the guard required the London hour to equal the slot hour *exactly*, so
-every delayed firing stood down. Net effect: no scheduled run before 19 Jul
-ever scraped. The widened window guard (Sat 14–17 / Sun 01–04 London) was
-proven by the 19 Jul run — which then hit the 405 wall.
-
-**The 405 failures in detail.** Each failed run died in Path B's first fetch:
-
-```
-requests.exceptions.HTTPError: 405 Client Error: Not Allowed
-for url: https://www.parkrun.org.uk/parkrunner/5672/all/
-```
-
-405 nominally means "method not allowed", but the pipeline sends an ordinary
-GET — the same request that works from a home connection and that worked from
-the runner on 5 Jul. What is actually happening: **parkrun fronts
-`www.parkrun.org.uk` with bot protection (a WAF), and it answers requests it
-scores as automated — e.g. from well-known cloud/datacentre IP ranges like
-GitHub-hosted runners' — with a 405 block** rather than a 403/429. Two
-observations support this reading:
-
-1. In the *same* failed runs, Path A fetched `images.parkrun.com/events.json`
-   fine (a CDN asset host, not behind the athlete-page WAF) — only the
-   `www.parkrun.org.uk` fetch was rejected.
-2. The 5 Jul run succeeded from a different runner IP, and the three 7 Jul
-   failures came in a burst — the block looks IP-/reputation-dependent (and
-   possibly rate-sensitive), not deterministic.
-
-The failure mode is **safe**: `scrape_athlete` raises before anything is
-written (Path B is all-or-nothing), so MotherDuck keeps its previous
-consistent state and no audit CSV is committed; the run simply reports failure.
-
-**Mitigations tried (18 Jul):** the pipeline sends a full Chrome-like header
-set (not just a UA), uses a shared `requests.Session` warmed up on the parkrun
-homepage (so any WAF cookies are held), and retries 403/405/429/5xx with
-backoff (15 s then 30 s) — see `HEADERS` / `http_session()` /
-`get_with_retry()` in `parkrun_pipeline.py`. None of it beats the IP-range
-block from GitHub runners; the same code sails through from a residential IP
-(and the retry/header hardening still benefits the launchd path).
+If GitHub-hosted refreshes are ever retried: restore the workflow from history,
+re-create the `MOTHERDUCK_TOKEN` repo secret (`gh secret set MOTHERDUCK_TOKEN`),
+and expect 405 until parkrun's block changes.
 
 ---
 
@@ -197,8 +136,10 @@ its own repo clone, pulled to `origin/main` before each run, and its own venv):
 Everything logs to `~/Library/Logs/parkrun_refresh.log` (manual runs also
 print to the terminal). Needs the MotherDuck token at
 `~/.config/motherduck/token` (chmod 600). Diagnostics:
-`~/.config/parkrun/parkrun_autorefresh.sh status`. After editing the tracked
-scripts: `cp scripts/parkrun_refresh.sh scripts/parkrun_autorefresh.sh ~/.config/parkrun/`.
+`~/.config/parkrun/parkrun_autorefresh.sh status`. The deployed copies
+**self-sync**: each refresh pulls the clone and replaces them from
+`repo/scripts/` if they differ, so a script edit goes live one push + one
+refresh later (or immediately via a manual `scripts/parkrun_refresh.sh` run).
 
 **Status: proven 19 Jul 2026** — first real weekend exercised the hard path:
 the Mac was off through both slots, the login agent detected STALE (last

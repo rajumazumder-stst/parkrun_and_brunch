@@ -1,11 +1,11 @@
 # Local development
 
 How to make changes and preview them in a browser **without touching the live /
-deployable version**. This is stage 1 of `PLAN.md`.
+deployable version**.
 
 ## What "live" means here
 
-There is no hosted preview (a deliberate choice — see `PLAN.md`). "Live" is the
+There is no hosted preview (a deliberate choice). "Live" is the
 **`main` branch** plus the tracked, deployable **`data/parkrun_snapshot.duckdb`**.
 Local development is isolated from both:
 

@@ -20,8 +20,9 @@
 # every successful refresh — manual runs count toward freshness too.
 #
 # Deployed (with the master script) to ~/.config/parkrun/ because macOS TCC
-# blocks launchd agents from reading ~/Documents. After editing:
-#   cp scripts/parkrun_refresh.sh scripts/parkrun_autorefresh.sh ~/.config/parkrun/
+# blocks launchd agents from reading ~/Documents. No manual re-deploy needed:
+# the master script self-syncs both deployed copies from its pulled clone on
+# every run (edits go live one push + one refresh later).
 set -euo pipefail
 
 STATE_DIR="$HOME/.config/parkrun"

@@ -17,8 +17,9 @@
 # ~/.config/motherduck/token (chmod 600). Log: ~/Library/Logs/parkrun_refresh.log
 # (manual runs also print to the terminal).
 #
-# After editing this tracked original, re-deploy:
-#   cp scripts/parkrun_refresh.sh scripts/parkrun_autorefresh.sh ~/.config/parkrun/
+# Self-deploying: each run pulls the clone and re-syncs the ~/.config/parkrun
+# script copies from it, so edits land on the deployed copies one push +
+# one run later — no manual cp step.
 set -euo pipefail
 
 STATE_DIR="$HOME/.config/parkrun"
@@ -85,9 +86,20 @@ if [[ -z "$token" ]]; then
   exit 1
 fi
 
-# Run the deployed pipeline code (origin/main), like CI did. Pull failure
-# (offline etc.) is logged but doesn't block the refresh.
+# Run the deployed pipeline code (origin/main). Pull failure (offline etc.)
+# is logged but doesn't block the refresh.
 git -C "$REPO" pull --ff-only --quiet || log "WARN: git pull failed — refreshing with existing clone"
+
+# Self-deploy: keep the ~/.config/parkrun script copies in step with the
+# freshly pulled clone (effective from the NEXT run — bash already holds this
+# file). Replace via mv, a new inode: never rewrite a running script in place.
+for f in parkrun_refresh.sh parkrun_autorefresh.sh; do
+  src="$REPO/scripts/$f"; dst="$STATE_DIR/$f"
+  if [[ -f "$src" ]] && ! cmp -s "$src" "$dst"; then
+    cp "$src" "$dst.new" && chmod +x "$dst.new" && mv "$dst.new" "$dst"
+    log "self-deploy: updated $f in $STATE_DIR"
+  fi
+done
 
 # shellcheck disable=SC1091
 source "$VENV/bin/activate"

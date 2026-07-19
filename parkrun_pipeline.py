@@ -26,9 +26,9 @@ Target DB (env `PARKRUN_PIPELINE_DB`):
     md:parkrun_snapshot -> operate directly on MotherDuck (source of truth)
 
 e.g. `PARKRUN_PIPELINE_DB=md:parkrun_snapshot python parkrun_pipeline.py refresh`
-upserts straight into the cloud (used by the scheduled GitHub Action). Run
-`motherduck` once against the local DB to seed the cloud, then point refresh at
-`md:` thereafter.
+upserts straight into the cloud (how the launchd scheduler runs it, via
+scripts/parkrun_refresh.sh). Run `motherduck` once against the local DB to seed
+the cloud, then point refresh at `md:` thereafter.
 """
 
 from __future__ import annotations
@@ -429,9 +429,7 @@ def events_json_to_frame(data: dict) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def corruption_gate(
-    live_df: pd.DataFrame, prev_count: int, bootstrap: bool
-) -> tuple[bool, str]:
+def corruption_gate(live_df: pd.DataFrame, prev_count: int) -> tuple[bool, str]:
     """Return (passed, reason). On first run the volume check is skipped."""
     if live_df.empty:
         return False, "events list is empty"
@@ -439,7 +437,7 @@ def corruption_gate(
         return False, "missing expected fields"
     if live_df["short_name"].isna().all():
         return False, "all short_names are null"
-    if bootstrap or prev_count == 0:
+    if prev_count == 0:
         return True, "first run (volume check skipped)"
     ratio = len(live_df) / prev_count
     if ratio < CORRUPTION_GATE_MIN_RATIO:
@@ -464,7 +462,7 @@ def reconcile_events(con: duckdb.DuckDBPyConnection) -> None:
     prev_count = con.execute(
         f"SELECT count(*) FROM {SCHEMA}.events WHERE source = 'events_json'"
     ).fetchone()[0]
-    passed, reason = corruption_gate(live_df, prev_count, bootstrap=False)
+    passed, reason = corruption_gate(live_df, prev_count)
     if not passed:
         log(f"  WARN: corruption gate FAILED - {reason}; reconcile skipped")
         return
