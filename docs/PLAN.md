@@ -88,6 +88,15 @@ flip (Streamlit dashboard) to point the live site at MotherDuck.
 scheduled refresh in production (ad-hoc runs hit parkrun's HTTP 405 bot
 protection on 7 Jul — see `DEPLOY.md` § Operational status).
 
+> **Postscript (2026-07-19):** both closed. The secret flip landed 18 Jul.
+> The GitHub Actions scheduler did **not** survive production: parkrun's WAF
+> 405-blocks GitHub-hosted runner IPs (the 8.0 spike's success was a
+> since-revoked grace — every run after 5 Jul was blocked), so the cron
+> schedule was removed 19 Jul and **launchd on the Mac is the scheduler of
+> record** (Sat 14:30 + Sun 11:00 local + login catch-up, proven the same
+> day). `refresh.yml` survives as a `workflow_dispatch`-only canary. See
+> `DEPLOY.md`.
+
 > Numbering above is **execution order**. In brackets below, the original change
 > label from the conversation is given so nothing is lost.
 

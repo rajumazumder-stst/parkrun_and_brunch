@@ -1,27 +1,20 @@
-# Stage 8.2 — scheduled parkrun refresh straight into MotherDuck.
-# Runs the pipeline against md:parkrun_snapshot (the source of truth) and commits
-# the regenerated audit CSV back. The hosted app auto-reloads via the app's
-# version-marker (data_version) shortly after.
+# Manual (workflow_dispatch-only) parkrun refresh into MotherDuck — a spare /
+# canary, NOT the scheduler. Scheduled refreshes run via launchd on the Mac
+# (see docs/DEPLOY.md § Local scheduled refresh): parkrun's WAF 405-blocks
+# GitHub-hosted runners' datacentre IPs, confirmed by the genuine scheduled
+# attempt on Sun 19 Jul 2026 (03:39 UK, inside the guard window) failing with
+# HTTP 405 while the same code succeeds from a residential IP. The cron
+# schedule + London-window guard were removed then; retrieve them from git
+# history if runner IPs ever stop being blocked.
 #
-# Cron is UTC and DST-blind, so for each UK slot we fire the two surrounding UTC
-# hours and a guard proceeds only inside the intended Europe/London window — so
-# each slot lands at the same UK wall-clock slot year-round (BST vs GMT):
-#   - Sat 14:00 UK  (13:00 UTC in BST, 14:00 UTC in GMT)
-#   - Sun 01:00 UK  (00:00 UTC in BST, 01:00 UTC in GMT)
-# The guard accepts a 4-hour window (Sat 14–17 / Sun 01–04 London), not the exact
-# hour: GitHub cron fires late — observed 15 min to 3.4 h — and an exact-hour
-# check made every scheduled run stand down (green but a no-op). Both cron
-# entries for a slot can land in the window; the second refresh is a harmless
-# idempotent UPSERT and the concurrency group serialises them.
-# Manual runs (workflow_dispatch) skip the guard so you can refresh on demand.
+# Runs the pipeline against md:parkrun_snapshot (the source of truth) and
+# commits the regenerated audit CSV back. The hosted app auto-reloads via the
+# app's version-marker (data_version) shortly after. Expect HTTP 405 unless
+# parkrun's block has lifted — a success here is the signal that GitHub-hosted
+# scheduling is viable again.
 name: refresh
 
 on:
-  schedule:
-    - cron: "0 13 * * 6"   # Sat 14:00 UK during BST (summer)
-    - cron: "0 14 * * 6"   # Sat 14:00 UK during GMT (winter)
-    - cron: "0 0 * * 0"    # Sun 01:00 UK during BST (summer)
-    - cron: "0 1 * * 0"    # Sun 01:00 UK during GMT (winter)
   workflow_dispatch: {}
 
 # Only push the audit CSV commit; nothing else is written back.
@@ -36,47 +29,24 @@ jobs:
   refresh:
     runs-on: ubuntu-latest
     steps:
-      - name: Gate to UK slot window (schedule only)
-        id: gate
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "manual run — proceeding"
-            echo "proceed=true" >> "$GITHUB_OUTPUT"; exit 0
-          fi
-          hour=$(TZ=Europe/London date +%-H)  # no zero-padding
-          dow=$(TZ=Europe/London date +%u)    # 1=Mon … 6=Sat, 7=Sun
-          echo "London local: day-of-week $dow, hour $hour"
-          if { [ "$dow" = "6" ] && [ "$hour" -ge 14 ] && [ "$hour" -le 17 ]; } \
-             || { [ "$dow" = "7" ] && [ "$hour" -ge 1 ] && [ "$hour" -le 4 ]; }; then
-            echo "proceed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "outside the UK slot windows (Sat 14–17 / Sun 01–04 London) — this cron entry stands down"
-            echo "proceed=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Checkout
-        if: steps.gate.outputs.proceed == 'true'
         uses: actions/checkout@v4
 
       - name: Setup Python
-        if: steps.gate.outputs.proceed == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
       - name: Install pipeline deps
-        if: steps.gate.outputs.proceed == 'true'
         run: pip install --quiet requests pandas duckdb beautifulsoup4 lxml html5lib
 
       - name: Refresh MotherDuck (source of truth)
-        if: steps.gate.outputs.proceed == 'true'
         env:
           PARKRUN_PIPELINE_DB: md:parkrun_snapshot
           motherduck_token: ${{ secrets.MOTHERDUCK_TOKEN }}
         run: python parkrun_pipeline.py refresh
 
       - name: Commit refreshed audit CSV
-        if: steps.gate.outputs.proceed == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -84,6 +54,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "no CSV changes to commit"
           else
-            git commit -m "data: scheduled refresh $(TZ=Europe/London date +%F)"
+            git commit -m "data: manual cloud refresh $(TZ=Europe/London date +%F)"
             git push
           fi
