@@ -82,3 +82,10 @@ Thumbs.db
 # ---- Logs ----
 *.log
 logs/
+
+# ---- Ad-hoc topics (adhoc/) ----
+# Each topic tracks its README, CHANGELOG, scripts and small results/ files.
+# Generated artefacts (maps, geometry dumps) and cached third-party API
+# responses are regenerable and far too large for git history.
+adhoc/*/output/
+adhoc/*/.cache/

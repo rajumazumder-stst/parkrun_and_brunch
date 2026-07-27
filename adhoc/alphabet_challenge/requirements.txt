@@ -1,0 +1,6 @@
+# Extra dependencies for this ad-hoc topic only — deliberately NOT merged into
+# the app's root requirements.txt (nothing the Streamlit app serves needs them).
+# duckdb, pandas, folium and branca are already pinned at the repo root.
+numpy>=2.0
+scipy>=1.13
+global-land-mask>=1.0

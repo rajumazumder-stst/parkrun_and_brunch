@@ -345,6 +345,14 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | `data/athletes_lookup.csv` | Athlete names + DOB |
 | `data/parkrun_results.csv` | Results snapshot exported by the pipeline (keyed on event_id) |
 | `data/parkrun_snapshot.duckdb` | Read-only, parkrun-only DuckDB the deployed app serves |
+| `adhoc/` | One-off investigations using the parkrun data but **outside the app** — see `adhoc/README.md` |
+
+**`adhoc/` is not part of the app.** Nothing there is imported by `app.py` or
+`parkrun_pipeline.py`, nothing runs on the scheduled refresh, and its extra
+dependencies stay in per-topic `requirements.txt` files rather than the root one
+— the app must remain deployable if the whole folder is deleted. Each topic
+tracks its README, changelog, scripts and small `results/`; generated artefacts
+(`output/`) and cached API responses (`.cache/`) are gitignored.
 
 Run the pipeline: `python parkrun_pipeline.py refresh` (auto-bootstraps an empty DB).
 Run the app locally against the full dev DB: `PARKRUN_DB=~/Documents/duckdb/my_database.duckdb streamlit run app.py`.

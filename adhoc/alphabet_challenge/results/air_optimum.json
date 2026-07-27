@@ -1,0 +1,468 @@
+{
+ "unconstrained": {
+  "lat": -27.602267101233938,
+  "lon": 153.0189191767646,
+  "air_km": 838.9,
+  "on_land": true,
+  "legs": [
+   {
+    "letter": "A",
+    "short_name": "Ashgrove",
+    "location": "Ashgrove Sportsground",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.442334,
+    "lon": 152.972975,
+    "air_km": 18.35
+   },
+   {
+    "letter": "B",
+    "short_name": "Berrinba",
+    "location": "Berrinba Wetlands",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.665606,
+    "lon": 153.077193,
+    "air_km": 9.09
+   },
+   {
+    "letter": "C",
+    "short_name": "Calamvale",
+    "location": "Calamvale District Park",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.620775,
+    "lon": 153.039287,
+    "air_km": 2.87
+   },
+   {
+    "letter": "D",
+    "short_name": "Dalby",
+    "location": "Dalby",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.188036,
+    "lon": 151.262339,
+    "air_km": 179.43
+   },
+   {
+    "letter": "E",
+    "short_name": "Ecco Ripley",
+    "location": "Ecco Ripley",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.681056,
+    "lon": 152.80014,
+    "air_km": 23.26
+   },
+   {
+    "letter": "F",
+    "short_name": "Forest Lake",
+    "location": "Forest Lake Sports Fields",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.61964,
+    "lon": 152.967745,
+    "air_km": 5.4
+   },
+   {
+    "letter": "G",
+    "short_name": "Greenbank",
+    "location": "Spring Mountain Reserve",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.739202,
+    "lon": 152.922846,
+    "air_km": 17.93
+   },
+   {
+    "letter": "H",
+    "short_name": "Harris Avenue",
+    "location": "Harris Avenue Sports Centre",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.171876,
+    "lon": 152.94537,
+    "air_km": 48.41
+   },
+   {
+    "letter": "I",
+    "short_name": "Ipswich QLD",
+    "location": "Bill Patterson Oval",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.625421,
+    "lon": 152.764292,
+    "air_km": 25.22
+   },
+   {
+    "letter": "J",
+    "short_name": "Jeune Park",
+    "location": "Jeune Park",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.993368,
+    "lon": 152.992548,
+    "air_km": 43.57
+   },
+   {
+    "letter": "K",
+    "short_name": "Kelvin Grove",
+    "location": "Bishop Street Park",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.441334,
+    "lon": 153.009807,
+    "air_km": 17.92
+   },
+   {
+    "letter": "L",
+    "short_name": "Logan River",
+    "location": "Logan River parklands",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.698831,
+    "lon": 153.192024,
+    "air_km": 20.15
+   },
+   {
+    "letter": "M",
+    "short_name": "Mansfield QLD",
+    "location": "Tillack Park",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.522987,
+    "lon": 153.101744,
+    "air_km": 12.02
+   },
+   {
+    "letter": "N",
+    "short_name": "New Farm",
+    "location": "New Farm, Brisbane",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.471134,
+    "lon": 153.051636,
+    "air_km": 14.93
+   },
+   {
+    "letter": "O",
+    "short_name": "Ocean View",
+    "location": "Ocean View Estates",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.121296,
+    "lon": 152.802517,
+    "air_km": 57.59
+   },
+   {
+    "letter": "P",
+    "short_name": "Pallara",
+    "location": "Brookbent Road Park",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.609314,
+    "lon": 153.011071,
+    "air_km": 1.1
+   },
+   {
+    "letter": "Q",
+    "short_name": "Queen Elizabeth, Casino",
+    "location": "Queen Elizabeth Park",
+    "country_url": "www.parkrun.com.au",
+    "lat": -28.867591,
+    "lon": 153.051164,
+    "air_km": 140.73
+   },
+   {
+    "letter": "R",
+    "short_name": "Rocks Riverside",
+    "location": "Rocks Riverside Park",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.542633,
+    "lon": 152.959235,
+    "air_km": 8.86
+   },
+   {
+    "letter": "S",
+    "short_name": "Stones Corner",
+    "location": "Hanlon Park",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.498722,
+    "lon": 153.042469,
+    "air_km": 11.75
+   },
+   {
+    "letter": "T",
+    "short_name": "Tamborine Mountain",
+    "location": "Tamborine Mountain Sports Complex",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.941377,
+    "lon": 153.193434,
+    "air_km": 41.43
+   },
+   {
+    "letter": "U",
+    "short_name": "Underwood Park",
+    "location": "Underwood Park",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.598691,
+    "lon": 153.147211,
+    "air_km": 12.65
+   },
+   {
+    "letter": "V",
+    "short_name": "Varsity Lakes",
+    "location": "Varsity Lakes",
+    "country_url": "www.parkrun.com.au",
+    "lat": -28.084627,
+    "lon": 153.410554,
+    "air_km": 66.03
+   },
+   {
+    "letter": "W",
+    "short_name": "Wishart",
+    "location": "Wishart Community Park",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.560975,
+    "lon": 153.103468,
+    "air_km": 9.51
+   },
+   {
+    "letter": "Y",
+    "short_name": "Yarrabilba",
+    "location": "Darlington Parklands",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.80288,
+    "lon": 153.10409,
+    "air_km": 23.83
+   },
+   {
+    "letter": "Z",
+    "short_name": "Zillmere",
+    "location": "O\u2018Callaghan Park",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.361066,
+    "lon": 153.041015,
+    "air_km": 26.91
+   }
+  ]
+ },
+ "land": {
+  "lat": -27.602000000000075,
+  "lon": 153.01899999999958,
+  "air_km": 838.9,
+  "on_land": true,
+  "legs": [
+   {
+    "letter": "A",
+    "short_name": "Ashgrove",
+    "location": "Ashgrove Sportsground",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.442334,
+    "lon": 152.972975,
+    "air_km": 18.33
+   },
+   {
+    "letter": "B",
+    "short_name": "Berrinba",
+    "location": "Berrinba Wetlands",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.665606,
+    "lon": 153.077193,
+    "air_km": 9.1
+   },
+   {
+    "letter": "C",
+    "short_name": "Calamvale",
+    "location": "Calamvale District Park",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.620775,
+    "lon": 153.039287,
+    "air_km": 2.89
+   },
+   {
+    "letter": "D",
+    "short_name": "Dalby",
+    "location": "Dalby",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.188036,
+    "lon": 151.262339,
+    "air_km": 179.43
+   },
+   {
+    "letter": "E",
+    "short_name": "Ecco Ripley",
+    "location": "Ecco Ripley",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.681056,
+    "lon": 152.80014,
+    "air_km": 23.28
+   },
+   {
+    "letter": "F",
+    "short_name": "Forest Lake",
+    "location": "Forest Lake Sports Fields",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.61964,
+    "lon": 152.967745,
+    "air_km": 5.42
+   },
+   {
+    "letter": "G",
+    "short_name": "Greenbank",
+    "location": "Spring Mountain Reserve",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.739202,
+    "lon": 152.922846,
+    "air_km": 17.96
+   },
+   {
+    "letter": "H",
+    "short_name": "Harris Avenue",
+    "location": "Harris Avenue Sports Centre",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.171876,
+    "lon": 152.94537,
+    "air_km": 48.38
+   },
+   {
+    "letter": "I",
+    "short_name": "Ipswich QLD",
+    "location": "Bill Patterson Oval",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.625421,
+    "lon": 152.764292,
+    "air_km": 25.23
+   },
+   {
+    "letter": "J",
+    "short_name": "Jeune Park",
+    "location": "Jeune Park",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.993368,
+    "lon": 152.992548,
+    "air_km": 43.6
+   },
+   {
+    "letter": "K",
+    "short_name": "Kelvin Grove",
+    "location": "Bishop Street Park",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.441334,
+    "lon": 153.009807,
+    "air_km": 17.89
+   },
+   {
+    "letter": "L",
+    "short_name": "Logan River",
+    "location": "Logan River parklands",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.698831,
+    "lon": 153.192024,
+    "air_km": 20.16
+   },
+   {
+    "letter": "M",
+    "short_name": "Mansfield QLD",
+    "location": "Tillack Park",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.522987,
+    "lon": 153.101744,
+    "air_km": 11.99
+   },
+   {
+    "letter": "N",
+    "short_name": "New Farm",
+    "location": "New Farm, Brisbane",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.471134,
+    "lon": 153.051636,
+    "air_km": 14.9
+   },
+   {
+    "letter": "O",
+    "short_name": "Ocean View",
+    "location": "Ocean View Estates",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.121296,
+    "lon": 152.802517,
+    "air_km": 57.57
+   },
+   {
+    "letter": "P",
+    "short_name": "Pallara",
+    "location": "Brookbent Road Park",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.609314,
+    "lon": 153.011071,
+    "air_km": 1.13
+   },
+   {
+    "letter": "Q",
+    "short_name": "Queen Elizabeth, Casino",
+    "location": "Queen Elizabeth Park",
+    "country_url": "www.parkrun.com.au",
+    "lat": -28.867591,
+    "lon": 153.051164,
+    "air_km": 140.76
+   },
+   {
+    "letter": "R",
+    "short_name": "Rocks Riverside",
+    "location": "Rocks Riverside Park",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.542633,
+    "lon": 152.959235,
+    "air_km": 8.85
+   },
+   {
+    "letter": "S",
+    "short_name": "Stones Corner",
+    "location": "Hanlon Park",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.498722,
+    "lon": 153.042469,
+    "air_km": 11.71
+   },
+   {
+    "letter": "T",
+    "short_name": "Tamborine Mountain",
+    "location": "Tamborine Mountain Sports Complex",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.941377,
+    "lon": 153.193434,
+    "air_km": 41.46
+   },
+   {
+    "letter": "U",
+    "short_name": "Underwood Park",
+    "location": "Underwood Park",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.598691,
+    "lon": 153.147211,
+    "air_km": 12.64
+   },
+   {
+    "letter": "V",
+    "short_name": "Varsity Lakes",
+    "location": "Varsity Lakes",
+    "country_url": "www.parkrun.com.au",
+    "lat": -28.084627,
+    "lon": 153.410554,
+    "air_km": 66.05
+   },
+   {
+    "letter": "W",
+    "short_name": "Wishart",
+    "location": "Wishart Community Park",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.560975,
+    "lon": 153.103468,
+    "air_km": 9.49
+   },
+   {
+    "letter": "Y",
+    "short_name": "Yarrabilba",
+    "location": "Darlington Parklands",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.80288,
+    "lon": 153.10409,
+    "air_km": 23.86
+   },
+   {
+    "letter": "Z",
+    "short_name": "Zillmere",
+    "location": "O\u2018Callaghan Park",
+    "country_url": "www.parkrun.com.au",
+    "lat": -27.361066,
+    "lon": 153.041015,
+    "air_km": 26.88
+   }
+  ]
+ }
+}
