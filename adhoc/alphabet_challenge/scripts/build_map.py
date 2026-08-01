@@ -185,6 +185,24 @@ panel_html = f"""
   body.viz-dark .viz-panel select, body.viz-dark .viz-panel button {{
     background:#252523; color:#fff; border-color:#3a3a37; }}
   body.viz-dark .viz-panel button:hover {{ background:#33332f; }}
+  #viz-legend summary {{ cursor:pointer; font-size:11px; text-transform:uppercase;
+    letter-spacing:.06em; color:#52514e; }}
+  body.viz-dark #viz-legend summary {{ color:#c3c2b7; }}
+  #viz-legend[open] summary {{ margin-bottom:2px; }}
+  /* Phones: the panels are sized for a desktop viewport and otherwise cover the
+     Leaflet controls outright, so stack everything and push the controls clear. */
+  @media (max-width: 640px) {{
+    html, body {{ overflow-x:hidden; }}
+    /* width from the viewport, not the containing block: left+right alone let
+       the panel overflow and push the Leaflet controls off-screen. */
+    .viz-panel {{ box-sizing:border-box; width:calc(100vw - 16px); max-width:calc(100vw - 16px); }}
+    #viz-title {{ top:8px; left:8px; right:auto; padding:10px 12px; }}
+    #viz-title h1 {{ font-size:14px; overflow-wrap:anywhere; }}
+    #viz-title p {{ display:none; }}
+    #viz-legend {{ bottom:34px; left:8px; right:auto; max-height:42vh; overflow-y:auto; }}
+    .viz-panel select {{ min-width:0; }}
+    .leaflet-top.leaflet-left, .leaflet-top.leaflet-right {{ top:104px; }}
+  }}
 </style>
 <div id="viz-title" class="viz-panel">
   <h1>Where to base yourself for the parkrun alphabet challenge</h1>
@@ -200,7 +218,8 @@ panel_html = f"""
     <button onclick="{mv}.setView([10,60],2)">World</button>
   </div>
 </div>
-<div id="viz-legend" class="viz-panel">
+<details id="viz-legend" class="viz-panel" open>
+  <summary>Legend</summary>
   <div class="viz-key"><span class="viz-sw" style="background:{BLUE}"></span>
     Brisbane, Australia &mdash; {n_bne} of {len(routes)}</div>
   <div class="viz-key"><span class="viz-sw" style="background:{ORANGE}"></span>
@@ -220,7 +239,7 @@ panel_html = f"""
        max-width:225px;line-height:1.35">
     Letter = first character of the event's short name. 10 events with accented
     initials are excluded from the letter math, so 2,358 of the 2,368 count.</div>
-</div>
+</details>
 """
 
 # NOTE: folium renders both html and script children BEFORE constructing the map
@@ -267,6 +286,9 @@ panel_js = f"""
     }}
     paint(!!prefersDark);
     vizMap.on('baselayerchange', function (e) {{ paint(e.name === 'Dark basemap'); }});
+
+    var lg = document.getElementById('viz-legend');
+    if (lg && window.innerWidth <= 640) lg.removeAttribute('open');
 
     window.vizShow({INIT_SEL}, {INIT_FIT});
   }});
