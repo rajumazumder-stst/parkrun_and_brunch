@@ -337,6 +337,12 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | `scripts/run_local.sh` | Local dev launcher: venv + isolated `data/parkrun_dev.duckdb` + `streamlit run` (see `docs/DEV.md`) |
 | `scripts/parkrun_refresh.sh` | Master MotherDuck refresh from this Mac (manual or scheduled — the one code path): token file → pipeline → freshness stamp → audit-file push → notification |
 | `scripts/parkrun_autorefresh.sh` | Scheduling policy calling the master (launchd agents run self-syncing deployed copies at `~/.config/parkrun/`, Sat 14:30 + Sun 11:00 + missed-weekend login prompt — see `docs/DEPLOY.md` § Scheduled refresh) |
+| `scripts/build_logo.py` | Builds the app logo — two variants, `ACTIVE` (currently `toast`) is the one rasterised into `static/`. Lettering is converted from DejaVu Sans Bold to SVG paths at build time, so the committed SVG needs no font installed (DejaVu, not a system font like Arial, because its licence permits redistributing outlines). Build-time only; needs `cairosvg` + `fontTools` + `matplotlib`, deliberately **not** in `requirements.txt` |
+| `assets/logo-toast.svg` | Vector source, **active** logo: `PR&B` on a slice of toast, letters in the three athletes' colours (generated — edit `build_logo.py`, not this) |
+| `assets/logo-runners.svg` | Vector source, alternative logo: three runners in `ATHLETE_COLORS` on a fried egg (generated) |
+| `static/logo-512.png` | `page_icon` source: the browser-tab favicon |
+| `static/apple-touch-icon.png` | 180×180 for the iOS "Add to Home Screen" icon, served at `/app/static/` |
+| `.streamlit/config.toml` | `enableStaticServing = true` so `static/` is reachable at `/app/static/` |
 | `docs/DEV.md` | Local dev workflow |
 | `docs/DEPLOY.md` | Deploy/ops: MotherDuck backend, scheduled refresh, hosted-app secret flip, tokens, verifying, re-seed |
 | `requirements.txt` | Pinned runtime deps for hosting (Streamlit Cloud etc.) |

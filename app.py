@@ -80,7 +80,49 @@ PLACE_COLORS = {"1st": "#FFB300", "2nd": "#B0B0B0", "3rd": "#C77B30"}
 PLACE_LABEL = {1: "🥇 1st", 2: "🥈 2nd", 3: "🥉 3rd"}
 MEDAL = {p: label.split()[0] for p, label in PLACE_LABEL.items()}
 
-st.set_page_config(page_title="parkrun & brunch", page_icon="🏃", layout="wide")
+# Logo built by scripts/build_logo.py (three runners in ATHLETE_COLORS on a
+# fried egg). Resolved off __file__, not the CWD, so it survives being launched
+# from anywhere. Falls back to the old emoji if the file is missing, so a bad
+# checkout degrades to a working app rather than a crash on line 1.
+_ICON = Path(__file__).resolve().parent / "static" / "logo-512.png"
+st.set_page_config(page_title="parkrun & brunch",
+                   page_icon=str(_ICON) if _ICON.is_file() else "🏃",
+                   layout="wide")
+
+
+def _inject_apple_touch_icon() -> None:
+    """Give iOS "Add to Home Screen" an icon to find.
+
+    Streamlit's index.html ships one `<link rel="shortcut icon">` and no
+    apple-touch-icon, so iOS falls back to fetching one from the server root and
+    gets the host's default (the Streamlit logo). page_icon only rewrites that
+    one favicon link, so it cannot fix the home screen.
+
+    The component runs in a same-origin iframe, so it can reach the real
+    document head and add the link there. iOS reads the DOM at the moment you
+    tap Add to Home Screen, so a link injected at load time is visible by then.
+    Unsupported by Streamlit and dependent on that iframe staying same-origin,
+    hence the guard: any failure leaves the app untouched.
+    """
+    st.components.v1.html(
+        """<script>
+        try {
+          var d = window.parent.document;
+          if (!d.querySelector('link[rel="apple-touch-icon"]')) {
+            var l = d.createElement('link');
+            l.rel = 'apple-touch-icon';
+            // Served by [server] enableStaticServing in .streamlit/config.toml.
+            // Must be a real URL: iOS ignores data: URIs for this rel.
+            l.href = './app/static/apple-touch-icon.png';
+            d.head.appendChild(l);
+          }
+        } catch (e) { /* cross-origin or no parent: leave the page alone */ }
+        </script>""",
+        height=0,
+    )
+
+
+_inject_apple_touch_icon()
 
 
 # --------------------------------------------------------------------------- #

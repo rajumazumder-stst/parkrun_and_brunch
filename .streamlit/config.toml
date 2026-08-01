@@ -1,0 +1,5 @@
+# Serves files from static/ at /app/static/<name>. Needed so iOS can fetch
+# apple-touch-icon.png for the home-screen shortcut — see
+# _inject_apple_touch_icon() in app.py.
+[server]
+enableStaticServing = true
