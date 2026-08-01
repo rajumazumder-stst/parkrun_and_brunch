@@ -205,13 +205,46 @@ def main(argv: list[str]) -> int:
 
         if name != ACTIVE:
             continue
-        # 180 = what iOS wants for apple-touch-icon; 512 doubles as the
-        # page_icon source and any future PWA/manifest use.
-        for fname, size in (("apple-touch-icon.png", 180), ("logo-512.png", 512)):
+        # 180 = iOS apple-touch-icon; 192 + 512 = what Chrome wants in a web app
+        # manifest; 512 also feeds page_icon.
+        for fname, size in (("apple-touch-icon.png", 180), ("logo-192.png", 192),
+                            ("logo-512.png", 512)):
             cairosvg.svg2png(bytestring=svg.encode(), write_to=str(STATIC / fname),
                              output_width=size, output_height=size)
             print(f"wrote static/{fname} ({size}x{size}) from '{name}'")
+        _write_manifest()
     return 0
+
+
+def _write_manifest() -> None:
+    """The web app manifest Android installs from.
+
+    Streamlit Cloud serves its own manifest, which is why an Android "Add to
+    Home screen" installs an app called "Streamlit" with their logo: a manifest
+    always beats the apple-touch-icon fallback. app.py swaps this one in.
+
+    purpose "any maskable" is safe here because the icon is full-bleed — Android
+    crops maskable icons to a circle, and cropping a solid background just
+    trims the charcoal, leaving the toast centred.
+    """
+    import json
+
+    manifest = {
+        "name": "parkrun & brunch",
+        "short_name": "PR&B",
+        "start_url": ".",
+        "display": "standalone",
+        "background_color": BG,
+        "theme_color": BG,
+        "icons": [
+            {"src": "./logo-192.png", "sizes": "192x192", "type": "image/png",
+             "purpose": "any maskable"},
+            {"src": "./logo-512.png", "sizes": "512x512", "type": "image/png",
+             "purpose": "any maskable"},
+        ],
+    }
+    (STATIC / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    print("wrote static/manifest.json")
 
 
 if __name__ == "__main__":

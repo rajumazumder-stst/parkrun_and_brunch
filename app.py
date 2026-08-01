@@ -90,31 +90,48 @@ st.set_page_config(page_title="parkrun & brunch",
                    layout="wide")
 
 
-def _inject_apple_touch_icon() -> None:
-    """Give iOS "Add to Home Screen" an icon to find.
+def _inject_home_screen_icons() -> None:
+    """Give "Add to Home Screen" our icon on both platforms.
 
-    Streamlit's index.html ships one `<link rel="shortcut icon">` and no
-    apple-touch-icon, so iOS falls back to fetching one from the server root and
-    gets the host's default (the Streamlit logo). page_icon only rewrites that
-    one favicon link, so it cannot fix the home screen.
+    The two platforms read different things, so both are needed:
+
+    * iOS uses `apple-touch-icon`. Streamlit's index.html ships only
+      `<link rel="shortcut icon">`, so iOS falls back to fetching an icon from
+      the server root and gets the host's default. page_icon rewrites just that
+      one favicon href, so it cannot reach the home screen.
+    * Android/Chrome prefers a **web app manifest** and only falls back to
+      apple-touch-icon when there is none. Streamlit Cloud serves its own
+      manifest, which is why installing gave an app called "Streamlit" with
+      their logo. Chrome honours only the *first* `<link rel="manifest">`, so
+      theirs must be removed rather than ours merely appended.
 
     The component runs in a same-origin iframe, so it can reach the real
-    document head and add the link there. iOS reads the DOM at the moment you
-    tap Add to Home Screen, so a link injected at load time is visible by then.
-    Unsupported by Streamlit and dependent on that iframe staying same-origin,
-    hence the guard: any failure leaves the app untouched.
+    document head. Both platforms read the DOM when the user taps install, so
+    links injected at load time are visible by then. None of this is supported
+    by Streamlit, hence the guard: any failure leaves the page untouched.
     """
     st.components.v1.html(
         """<script>
         try {
           var d = window.parent.document;
+          // Served by [server] enableStaticServing in .streamlit/config.toml.
+          // Must be real URLs: iOS ignores data: URIs for apple-touch-icon.
           if (!d.querySelector('link[rel="apple-touch-icon"]')) {
             var l = d.createElement('link');
             l.rel = 'apple-touch-icon';
-            // Served by [server] enableStaticServing in .streamlit/config.toml.
-            // Must be a real URL: iOS ignores data: URIs for this rel.
             l.href = './app/static/apple-touch-icon.png';
             d.head.appendChild(l);
+          }
+          if (!d.querySelector('link[data-prb-manifest]')) {
+            // Drop the host's manifest first - Chrome uses only the first one.
+            d.querySelectorAll('link[rel="manifest"]').forEach(function (n) {
+              n.parentNode.removeChild(n);
+            });
+            var m = d.createElement('link');
+            m.rel = 'manifest';
+            m.setAttribute('data-prb-manifest', '1');
+            m.href = './app/static/manifest.json';
+            d.head.appendChild(m);
           }
         } catch (e) { /* cross-origin or no parent: leave the page alone */ }
         </script>""",
@@ -122,7 +139,7 @@ def _inject_apple_touch_icon() -> None:
     )
 
 
-_inject_apple_touch_icon()
+_inject_home_screen_icons()
 
 
 # --------------------------------------------------------------------------- #
