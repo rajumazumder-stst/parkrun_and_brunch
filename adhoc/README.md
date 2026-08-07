@@ -14,6 +14,7 @@ dev database.
 | Folder | Question | Status |
 |---|---|---|
 | [`alphabet_challenge/`](alphabet_challenge/) | Where should you live to complete the parkrun alphabet (A–Z minus X) with the least travel? | Answered 27 Jul 2026 |
+| [`furthest_pairs/`](furthest_pairs/) | Which two parkruns are furthest apart? (top 10 pairs) | Answered 7 Aug 2026 |
 
 ## Layout convention
 

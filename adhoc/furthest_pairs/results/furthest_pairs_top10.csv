@@ -1,0 +1,11 @@
+rank,distance_km,pct_of_antipodal,event_a_id,event_a_name,event_a_location,event_a_country,event_a_lat,event_a_lon,event_b_id,event_b_name,event_b_location,event_b_country,event_b_lat,event_b_lon
+1,19986.46,99.86,3837,Gibraltar Botanical Gardens,Gibraltar Botanical Gardens,United Kingdom,36.131942,-5.350774,3914,Warkworth Showgrounds,Warkworth Showgrounds,New Zealand,-36.389602,174.654358
+2,19962.683,99.74,651,Millwater,Millwater Parkway,New Zealand,-36.602838,174.679409,3837,Gibraltar Botanical Gardens,Gibraltar Botanical Gardens,United Kingdom,36.131942,-5.350774
+3,19962.64,99.74,1382,Whangarei,Whangarei,New Zealand,-35.734968,174.334078,3837,Gibraltar Botanical Gardens,Gibraltar Botanical Gardens,United Kingdom,36.131942,-5.350774
+4,19961.686,99.73,3837,Gibraltar Botanical Gardens,Gibraltar Botanical Gardens,United Kingdom,36.131942,-5.350774,3880,Raumanga Stream,Raumanga Stream,New Zealand,-35.738171,174.309155
+5,19949.521,99.67,2846,Sherwood Reserve,Sherwood Reserve,New Zealand,-36.717634,174.736541,3837,Gibraltar Botanical Gardens,Gibraltar Botanical Gardens,United Kingdom,36.131942,-5.350774
+6,19948.509,99.67,3388,Northern Pathway,Northern Pathway,New Zealand,-36.728682,174.713764,3837,Gibraltar Botanical Gardens,Gibraltar Botanical Gardens,United Kingdom,36.131942,-5.350774
+7,19941.895,99.63,2329,Hobsonville Point,Hobsonville Point,New Zealand,-36.790147,174.672716,3837,Gibraltar Botanical Gardens,Gibraltar Botanical Gardens,United Kingdom,36.131942,-5.350774
+8,19939.982,99.62,3735,Tuff Crater Reserve,Tuff Crater Reserve,New Zealand,-36.802002,174.757418,3837,Gibraltar Botanical Gardens,Gibraltar Botanical Gardens,United Kingdom,36.131942,-5.350774
+9,19933.339,99.59,1355,Western Springs,Western Springs Park,New Zealand,-36.865137,174.720411,3837,Gibraltar Botanical Gardens,Gibraltar Botanical Gardens,United Kingdom,36.131942,-5.350774
+10,19932.465,99.59,3474,Ōrākei Bay,Ōrākei Bay,New Zealand,-36.863563,174.812349,3837,Gibraltar Botanical Gardens,Gibraltar Botanical Gardens,United Kingdom,36.131942,-5.350774
