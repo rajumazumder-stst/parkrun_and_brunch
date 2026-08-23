@@ -339,7 +339,7 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | Path | Purpose |
 |---|---|
 | `parkrun_pipeline.py` | Loader: `bootstrap` / `refresh` / `status` / `snapshot` / `seed` / `motherduck` (Path A/B, DuckDB) + analytics views/targets + deploy-snapshot build + parkrun-only MotherDuck upload (`build_motherduck`). Also owns scraping (`scrape_athlete`) and time parsing (`time_to_seconds`). |
-| `app.py` | Streamlit front end (5 tabs: overlap · head-to-head summary · head-to-head detail · form/target-time · head-to-head map) reading the `parkrun` schema read-only; DB path resolved via `PARKRUN_DB` env/secret (incl. `md:` MotherDuck), else the bundled snapshot. Auto-reloads on new data via a `data_version()` (`max(scrape_timestamp)`, 60s TTL) cache key; 🔄 Reload button clears the cache manually |
+| `app.py` | Streamlit front end (5 tabs: overlap · personal bests + head-to-head summary · head-to-head detail · form/target-time · head-to-head map) reading the `parkrun` schema read-only; DB path resolved via `PARKRUN_DB` env/secret (incl. `md:` MotherDuck), else the bundled snapshot. Auto-reloads on new data via a `data_version()` (`max(scrape_timestamp)`, 60s TTL) cache key; 🔄 Reload button clears the cache manually |
 | `scripts/run_local.sh` | Local dev launcher: venv + isolated `data/parkrun_dev.duckdb` + `streamlit run` (see `docs/DEV.md`) |
 | `scripts/parkrun_refresh.sh` | Master refresh from this Mac (manual or scheduled — the one code path): pull clone → seed the local source-of-truth DB if absent → pipeline → audit-file push (fatal; this is the deploy) → freshness stamp → notification |
 | `scripts/parkrun_autorefresh.sh` | Scheduling policy calling the master (launchd agents run self-syncing deployed copies at `~/.config/parkrun/`, Sat 14:30 + Sun 11:00 + missed-weekend login prompt — see `docs/DEPLOY.md` § Scheduled refresh) |
@@ -391,9 +391,10 @@ Streamlit · plotly · matplotlib-venn · folium/streamlit-folium (map).
 **Built (local Streamlit, `app.py`, 5 tabs)**:
 - **Tab 1** participation overlap / Venn (`v_overlap`) + per-athlete company.
 - **Tab 2** form-adjusted head-to-head summary (`v_head_to_head`,
-  `current_targets`): current-form targets — each a `st.popover` (**click "N runs
-  in window"** to list that athlete's window runs, date desc, with the median
-  time(s) highlighted; the two middle runs for an even count) — latest
+  `current_targets`): **personal bests** (top of the tab — see below), the
+  head-to-head explainer, current-form targets — each a `st.popover` (**click "N
+  runs in window"** to list that athlete's window runs, date desc, with the
+  median time(s) highlighted; the two middle runs for an even count) — latest
   head-to-head, record leaderboard (3rd place shown only for the 3-way / All),
   and a **cumulative 1st-place finishes** trend (requires a head-to-head;
   year/season filterable; hover names the winning parkrun).
@@ -409,6 +410,25 @@ Streamlit · plotly · matplotlib-venn · folium/streamlit-folium (map).
 - **Tab 5** **map — where the head-to-heads happen** (Folium + OpenStreetMap):
   one pie marker per venue, sized by count and split by wins per athlete; shown
   once a head-to-head classification is selected.
+
+**Personal bests** (Tab 2, `load_personal_bests()` + `render_personal_bests()`
+in `app.py` — no view; the SQL lives in the loader). Each athlete's **fastest**
+run in three scopes — **All time**, **Last 12 months**, **Last 3 months** — with
+the parkrun and the date. Both rolling windows are calendar intervals anchored
+on `max(refresh_date)` and **inclusive of the anchor day**, so a run earlier
+today counts; ties on time break to the earliest date. Note the 3-month window
+is deliberately *not* the head-to-head's 91-day form window — these answer
+different questions (best single run vs. baseline for a contest).
+
+Layout: one bordered box per athlete (ordered by all-time best), the three
+scopes side by side inside it. Every line is fixed-height — the venue block is
+pinned to `PB_VENUE_LINES` (2) lines and clamps a longer name with an ellipsis,
+keeping the full name in the `title` tooltip — so times, venues and dates sit on
+the same levels across all three boxes and the boxes match in height. Scope
+label and venue/date share one type size (`PB_SMALL`); the time is larger
+(`PB_BIG`) with tabular numerals. The block leads the tab because it motivates
+the head-to-head: their bests sit minutes apart, so ranking a shared parkrun by
+finish time would be meaningless — the explainer says so directly.
 
 All date-filtered tabs share one mutually-exclusive Year/Season control
 (`year_season_filters`); "Season" is year-qualified (e.g. `2018/19 Winter`,

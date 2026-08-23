@@ -16,6 +16,7 @@ from __future__ import annotations
 import math
 import os
 from datetime import datetime, timezone
+from html import escape
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -237,6 +238,51 @@ def load_target_window_runs(version) -> pd.DataFrame:
 
 
 @st.cache_data(show_spinner=False)
+def load_personal_bests(version) -> pd.DataFrame:
+    """Each athlete's fastest run in each of three scopes, with where and when.
+
+    Scopes are anchored on the latest ``refresh_date`` (so they move with the
+    data, not the wall clock) and both rolling windows are inclusive of the
+    anchor day — a run earlier today counts. Ties on time break to the EARLIEST
+    date: the first time they ran that fast.
+
+    Note the 3-month window is *calendar* months, so it is a day or two wider
+    than the 91-day form-target window used by the head-to-head — these answer
+    different questions (best single run vs. baseline for a contest)."""
+    return _read_sql(
+        """
+        WITH anchor AS (SELECT max(refresh_date) AS d FROM parkrun.current_targets),
+        runs AS (
+            SELECT a.athlete_name, r.run_date, e.short_name, r.time_seconds
+            FROM parkrun.results r
+            JOIN parkrun.athletes a USING (athlete_id)
+            JOIN parkrun.events e USING (event_id)
+            WHERE r.time_seconds IS NOT NULL
+        ),
+        scoped AS (
+            SELECT 'All time' AS scope, 1 AS scope_ord, runs.* FROM runs
+            UNION ALL
+            SELECT 'Last 12 months', 2, runs.* FROM runs, anchor
+            WHERE runs.run_date BETWEEN anchor.d - INTERVAL 12 MONTH AND anchor.d
+            UNION ALL
+            SELECT 'Last 3 months', 3, runs.* FROM runs, anchor
+            WHERE runs.run_date BETWEEN anchor.d - INTERVAL 3 MONTH AND anchor.d
+        )
+        SELECT scope, scope_ord, athlete_name, run_date, short_name,
+               time_seconds, n_runs
+        FROM (
+            SELECT *, count(*) OVER (PARTITION BY scope, athlete_name) AS n_runs,
+                   row_number() OVER (PARTITION BY scope, athlete_name
+                                      ORDER BY time_seconds, run_date) AS rn
+            FROM scoped
+        )
+        WHERE rn = 1
+        ORDER BY scope_ord, time_seconds
+        """
+    )
+
+
+@st.cache_data(show_spinner=False)
 def load_saturday_targets(version) -> pd.DataFrame:
     return _with_date_cols(_read_sql("SELECT * FROM parkrun.v_saturday_targets"))
 
@@ -386,6 +432,89 @@ def _render_window_runs(runs: pd.DataFrame, athlete_name: str) -> None:
     )
     kind = "median (= the target)" if n % 2 else "the two runs averaged for the target"
     st.caption(f"🟨 Highlighted = {kind}.")
+
+
+# One type size for the scope label and the where/when line, a larger one for
+# the time itself — the block's whole point is that the times read first.
+PB_SMALL = "0.82rem"
+PB_BIG = "1.65rem"
+PB_LINE = 1.35  # line-height of the small type, in em
+PB_VENUE_LINES = 2  # venue block is ALWAYS this tall — see _venue
+# The bordered container pads all four sides equally, but the athlete name's
+# line box adds half-leading at the top that the last (small) line doesn't
+# match — so the box reads tight at the bottom. This spacer squares it up.
+PB_BOTTOM_PAD = "0.45rem"
+PB_SCOPES = ["All time", "Last 12 months", "Last 3 months"]
+
+
+def render_personal_bests(pb: pd.DataFrame) -> None:
+    """One bordered box per athlete; inside it the three scopes side by side.
+
+    Every line is fixed-height (the venue block included), so the times, venues
+    and dates sit on the same levels across all three boxes and the boxes end
+    up identical in height."""
+    if pb.empty:
+        st.info("No results yet — run a refresh.")
+        return
+
+    all_time = pb[pb["scope"] == "All time"].sort_values("time_seconds")
+    order = list(all_time["athlete_name"])
+
+    def _small(text: str, muted: bool = True) -> str:
+        op = "opacity:.72;" if muted else ""
+        return f"<div style='font-size:{PB_SMALL};{op}line-height:1.35'>{text}</div>"
+
+    def _big(text: str) -> str:
+        return (
+            f"<div style='font-size:{PB_BIG};font-weight:600;line-height:1.15;"
+            f"font-variant-numeric:tabular-nums'>{text}</div>"
+        )
+
+    def _venue(text: str) -> str:
+        """The venue on a block of FIXED height (PB_VENUE_LINES lines).
+
+        Venue names vary wildly in length ('Woking' vs 'Holywell King George V
+        Playing Fields'), and a wrapped name used to push that column's date
+        down and stretch its box. Fixing the height keeps every date on one
+        level and every box the same height; a name too long for the block is
+        clamped with an ellipsis and kept in full in the tooltip."""
+        safe = escape(str(text))
+        return (
+            f"<div title='{safe}' style='font-size:{PB_SMALL};opacity:.72;"
+            f"line-height:{PB_LINE};height:{PB_VENUE_LINES * PB_LINE:.2f}em;"
+            "overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;"
+            f"-webkit-line-clamp:{PB_VENUE_LINES}'>{safe}</div>"
+        )
+
+    for col, name in zip(st.columns(len(order)), order):
+        with col, st.container(border=True):
+            st.markdown(
+                f"<div style='font-weight:600;font-size:1.05rem;margin-bottom:.35rem'>"
+                f"<span style='color:{ATHLETE_COLORS[name]}'>●</span> {name}</div>",
+                unsafe_allow_html=True,
+            )
+            for scol, scope in zip(st.columns(len(PB_SCOPES)), PB_SCOPES):
+                m = pb[(pb["athlete_name"] == name) & (pb["scope"] == scope)]
+                with scol:
+                    st.markdown(_small(scope, muted=False), unsafe_allow_html=True)
+                    if m.empty:
+                        st.markdown(_big("—"), unsafe_allow_html=True)
+                        st.markdown(_venue("no runs"), unsafe_allow_html=True)
+                        st.markdown(_small("—"), unsafe_allow_html=True)
+                        continue
+                    r = m.iloc[0]
+                    st.markdown(
+                        _big(fmt_time(r["time_seconds"])), unsafe_allow_html=True
+                    )
+                    st.markdown(_venue(r["short_name"]), unsafe_allow_html=True)
+                    st.markdown(
+                        _small(pd.Timestamp(r["run_date"]).strftime("%d %b %Y")),
+                        unsafe_allow_html=True,
+                    )
+            st.markdown(
+                f"<div style='height:{PB_BOTTOM_PAD}'></div>",
+                unsafe_allow_html=True,
+            )
 
 
 def _gap_filled_saturdays(sat: pd.DataFrame) -> pd.DataFrame:
@@ -679,6 +808,7 @@ try:
     h2h = load_h2h(_ver)
     targets = load_targets(_ver)
     target_runs = load_target_window_runs(_ver)
+    personal_bests = load_personal_bests(_ver)
     meta = load_data_meta(_ver)
 except duckdb.IOException:
     st.error(
@@ -803,12 +933,26 @@ into a friendly, *form-adjusted* head-to-head.
 # =========================================================================== #
 with tab2:
     st.header("⚔️ Head-to-head")
+
+    st.subheader("Personal bests")
+    st.caption(
+        "Their fastest run in each period — all time, and the 12 and 3 months "
+        "up to the latest refresh (both inclusive of the refresh day)."
+    )
+    render_personal_bests(personal_bests)
+
+    st.divider()
     with st.expander("How does a head-to-head work?"):
         st.markdown(
             """
 A **head-to-head** is any occasion where two or more of them ran the same event
-on the same day. Because they run at very different paces, we don't compare raw
-finish times — we compare **performance against recent form**:
+on the same day.
+
+As the **personal bests** above show, they run to very different clocks — their
+best times sit minutes apart. Ranking a shared parkrun by finish time would
+therefore hand the same person the win every week and say nothing about how any
+of them actually ran that day. That is exactly why the head-to-head exists: we
+don't compare raw finish times, we compare **performance against recent form**:
 
 1. Each runner's **target** is the *median* of their times over the **91 days
    before** the event (needs at least one run in that window).
