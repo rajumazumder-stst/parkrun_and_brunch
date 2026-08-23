@@ -9,46 +9,58 @@ How the live app is served, refreshed, and kept current. Complements `DEV.md`
 
 ```
 Sat 14:30 local ──┐
-Sun 11:00 local ──┼► launchd on the Mac ─► refresh ─► MotherDuck (parkrun_snapshot)
-login catch-up  ──┘  (parkrun_refresh.sh)                  │  source of truth
-                                                           │
-                                app's data_version() sees a new scrape_timestamp
-                                                           ▼
-                                    hosted Streamlit app auto-reloads (≤ 60s)
+Sun 11:00 local ──┼► launchd on the Mac ─► refresh ─► ~/.config/parkrun/parkrun_local.duckdb
+login catch-up  ──┘  (parkrun_refresh.sh)                        │  source of truth
+                                                                 │  rebuild + commit + push
+                                                                 ▼
+                                          data/parkrun_snapshot.duckdb on origin/main
+                                                                 │
+                                                                 ▼
+                                     Streamlit Cloud redeploys, app serves the snapshot
 ```
 
-- **MotherDuck (`md:parkrun_snapshot`) is the runtime source of truth** (planned
-  to change — see § Direction below). It holds the parkrun-only tables + views
-  (no `personal_finance` — enforced by construction; the pipeline only ever
-  touches the `parkrun` schema).
+- **The local DuckDB `~/.config/parkrun/parkrun_local.duckdb` is the source of
+  truth** (since 23 Aug 2026 — see § History below). It lives beside the
+  scheduler's clone and venv because macOS TCC blocks launchd agents from
+  reading `~/Documents`.
+- **The push IS the delivery step.** Every refresh rebuilds
+  `data/parkrun_snapshot.duckdb`, commits it from the scheduler's own clone and
+  pushes; Streamlit Cloud redeploys on push. A failed push therefore fails the
+  run (and leaves the freshness stamp unwritten, so the next slot retries).
+- The **bundled snapshot** is what the app serves by default — no `PARKRUN_DB`
+  secret, no cloud DB, no token in the hosted environment.
 - The **local dev DB** (`~/Documents/duckdb/my_database.duckdb`) is still where
-  ad-hoc local work happens; it is *not* what the live app reads.
-- The **bundled snapshot** (`data/parkrun_snapshot.duckdb`) is the zero-cost
-  fallback the app serves when no `PARKRUN_DB` is configured.
+  ad-hoc local work happens; it is *not* the scheduler's DB and *not* what the
+  live app reads.
+- **MotherDuck is retired but kept documented** (§§ below) in case a non-laptop
+  refresh host ever appears.
 
 ---
 
-## Direction: local DuckDB as the planned source of truth
+## History: why the source of truth moved back to local DuckDB
 
 MotherDuck was adopted to serve a world where the refresh ran **off the Mac** —
 a GitHub Actions scheduler updating a cloud DB no laptop needed to touch. That
-premise died with the WAF 405-block (§ below): the refresh now runs from this
-Mac via launchd, so the laptop is in the loop regardless and the cloud hop no
+premise died with the WAF 405-block (§ below): the refresh runs from this Mac
+via launchd, so the laptop is in the loop regardless and the cloud hop no
 longer buys machine-independence.
 
-**The plan is therefore to consolidate on local DuckDB as the source of
-truth**, with the committed `data/parkrun_snapshot.duckdb` populating the live
-app (the app's existing fallback path). The delivery mechanism already runs
-today — every refresh rebuilds and pushes the snapshot, and Streamlit
-auto-redeploys on push — so the migration is small:
+**Migrated 23 Aug 2026.** What changed:
 
-1. Point `parkrun_refresh.sh` at a persistent local DB under
-   `~/.config/parkrun`, seeded from the committed snapshot (which carries the
-   full `current_targets` history — nothing is lost).
-2. Make the audit-file push **fatal on failure** instead of best-effort — under
-   local source of truth the push *is* the delivery step.
-3. Remove the two Streamlit secrets (`PARKRUN_DB` + `motherduck_token`) so the
-   app serves the bundled snapshot.
+1. `parkrun_refresh.sh` targets `~/.config/parkrun/parkrun_local.duckdb`,
+   created on first run from the committed snapshot (which carries the full
+   `current_targets` history — nothing is lost).
+2. The audit-file push is **fatal on failure**, and the freshness stamp is
+   written only after it succeeds — under local source of truth the push is the
+   delivery step, so a silent push failure would freeze the live app.
+3. The two Streamlit secrets (`PARKRUN_DB` + `motherduck_token`) are removed, so
+   the app serves the bundled snapshot.
+
+Note the seed is **not a file copy**: `build_snapshot()` writes its tables with
+`CREATE TABLE AS`, so the snapshot has no primary keys and the results UPSERT
+(`ON CONFLICT` on the natural key) cannot bind against it. `python
+parkrun_pipeline.py seed` fills a proper `ensure_schema()` DB row-for-row
+instead (§ Rebuild the local source-of-truth DB).
 
 A non-laptop-dependent refresh host — the only thing that would again require
 an online-accessible source of truth — is considered **unlikely**: it would
@@ -66,7 +78,8 @@ Priority order:
 
 1. `PARKRUN_DB` env var — e.g. `md:parkrun_snapshot`, or a local file path.
 2. `PARKRUN_DB` **Streamlit secret** (hosting dashboard).
-3. The bundled read-only snapshot `data/parkrun_snapshot.duckdb` (default).
+3. The bundled read-only snapshot `data/parkrun_snapshot.duckdb` (default —
+   **what the hosted app uses today**; no secrets set).
 
 For a `md:` value the app also needs the token: it reads `motherduck_token` from
 the environment, falling back to a `motherduck_token` Streamlit secret
@@ -76,10 +89,10 @@ the environment, falling back to a `motherduck_token` Streamlit secret
 
 ## Go-live: point the hosted app at MotherDuck
 
-> ✅ **Flipped 18 Jul 2026** — the secrets below are set, so the hosted app
-> reads `md:parkrun_snapshot` (verification via the sidebar marker or the
-> distinguishing-edit procedure below). The bundled snapshot remains the
-> fallback if the secrets are ever removed.
+> ⚠️ **Superseded 23 Aug 2026.** The flip below was live from 18 Jul to
+> 23 Aug 2026; both secrets have since been **removed**, so the hosted app
+> serves the bundled snapshot again (§ History). Kept as the procedure to
+> re-point the app at MotherDuck should a non-laptop refresh host appear.
 
 To (re)do the flip: in the Streamlit Community Cloud dashboard
 (share.streamlit.io) → your app → **Settings → Secrets**, add:
@@ -100,10 +113,11 @@ bundled snapshot (no redeploy needed beyond the auto-reboot).
 
 ## Tokens
 
+Only needed for the optional MotherDuck path — the refresh and the hosted app
+no longer use a token at all.
+
 - Get a token from the MotherDuck UI (Settings → Access Tokens). **Never** commit
   it or paste it into code/chat.
-- **The launchd scheduler** (and manual `scripts/parkrun_refresh.sh` runs) reads
-  it from `~/.config/motherduck/token` (chmod 600).
 - **Local `md:` runs** read it from the `motherduck_token` env var:
   ```bash
   motherduck_token=$(cat /path/to/tokenfile) python parkrun_pipeline.py ...
@@ -159,16 +173,18 @@ launchd from reading `~/Documents`, so the job is fully self-contained there:
 its own repo clone, pulled to `origin/main` before each run, and its own venv):
 
 - **`parkrun_refresh.sh`** — the master refresh, and the ONE code path for
-  refreshing MotherDuck from this Mac (run it manually any time). Token → pull
-  clone → pipeline → stamp `~/.config/parkrun/last_refresh_epoch` (manual runs
-  count toward weekend freshness) → auto-commit + push the audit CSV/snapshot
-  from its own clone → macOS notification either way.
+  refreshing the data from this Mac (run it manually any time). Pull clone →
+  seed `~/.config/parkrun/parkrun_local.duckdb` if it doesn't exist yet →
+  pipeline refresh against it → auto-commit + push the audit CSV/snapshot from
+  its own clone → stamp `~/.config/parkrun/last_refresh_epoch` (manual runs
+  count toward weekend freshness) → macOS notification either way. The stamp is
+  written **after** a successful push, so a failed delivery leaves the weekend
+  "uncovered" and the next slot / login catch-up retries it.
 - **`parkrun_autorefresh.sh`** — scheduling policy only (the agents call it);
   it invokes the master.
 
 Everything logs to `~/Library/Logs/parkrun_refresh.log` (manual runs also
-print to the terminal). Needs the MotherDuck token at
-`~/.config/motherduck/token` (chmod 600). Diagnostics:
+print to the terminal). No token or network credential is needed. Diagnostics:
 `~/.config/parkrun/parkrun_autorefresh.sh status`. The deployed copies
 **self-sync**: each refresh pulls the clone and replaces them from
 `repo/scripts/` if they differ, so a script edit goes live one push + one
@@ -177,24 +193,56 @@ refresh later (or immediately via a manual `scripts/parkrun_refresh.sh` run).
 **Status: proven 19 Jul 2026** — first real weekend exercised the hard path:
 the Mac was off through both slots, the login agent detected STALE (last
 refresh Sat 17:58 vs missed Sun 11:00 slot), prompted, and the user-approved
-run scraped, upserted into `md:parkrun_snapshot`, pushed the audit commit
-(`data: local refresh 2026-07-19`), and the hosted app picked it up — no 405.
+run scraped, upserted into the cloud DB (the backend at the time), pushed the
+audit commit (`data: local refresh 2026-07-19`), and the hosted app picked it
+up — no 405. The scheduling behaviour is unchanged by the 23 Aug 2026 move to a
+local source of truth; only the pipeline's target DB and the push's severity
+changed.
 
 ---
 
 ## Ad-hoc refresh from your Mac
 
 ```bash
-# Refresh the cloud (identical to what the scheduler runs — token from
-# ~/.config/motherduck/token, stamps freshness, pushes the audit files):
+# The real thing (identical to what the scheduler runs — refreshes the
+# source-of-truth DB, stamps freshness, pushes the audit files = deploys):
 scripts/parkrun_refresh.sh
 
-# Or refresh the local dev DB only (does not touch the cloud):
+# Or refresh the local dev DB only (does not deploy anything):
 source ~/Documents/Python\ scripts/env/bin/activate
 python parkrun_pipeline.py refresh
 ```
 
-`status` accepts the same `PARKRUN_PIPELINE_DB` to inspect either backend.
+`status` accepts the same `PARKRUN_PIPELINE_DB` to inspect any backend:
+
+```bash
+PARKRUN_PIPELINE_DB=~/.config/parkrun/parkrun_local.duckdb \
+  python parkrun_pipeline.py status
+```
+
+---
+
+## Rebuild the local source-of-truth DB
+
+The scheduler creates it automatically on first run, and the same command
+rebuilds it if it is ever lost or corrupted — the committed snapshot is the
+recovery point, and it carries the full `current_targets` history:
+
+```bash
+source ~/Documents/Python\ scripts/env/bin/activate
+rm -f ~/.config/parkrun/parkrun_local.duckdb          # only if replacing one
+PARKRUN_PIPELINE_DB=~/.config/parkrun/parkrun_local.duckdb \
+  python parkrun_pipeline.py seed                     # defaults to data/parkrun_snapshot.duckdb
+```
+
+`seed` refuses to touch a DB that already holds data, and it is **not** a file
+copy: it creates the tables via `ensure_schema()` (primary keys intact — the
+results UPSERT needs them) and inserts the snapshot's rows with explicit column
+lists. Pass a path argument to seed from a different snapshot file.
+
+Never name a local DB `parkrun.duckdb`: the filename becomes the DuckDB catalog
+name, and `parkrun.v_overlap` would then be ambiguous against the `parkrun`
+schema.
 
 ---
 
@@ -209,12 +257,18 @@ motherduck_token=$(cat tokenfile) python parkrun_pipeline.py motherduck
 
 `motherduck` drops and rebuilds the cloud `parkrun` schema via `ensure_schema`
 (constraints intact) and re-loads the data. It refuses to run against an `md:`
-target — it must source **from** the local DB. After a re-seed, MotherDuck is
-again the source of truth and scheduled/ad-hoc `refresh` upserts into it.
+target — it must source **from** a local DB. Re-seeding does *not* by itself
+make MotherDuck the source of truth again: that also needs the secret flip
+(§ Go-live) and `parkrun_refresh.sh` pointed back at `md:parkrun_snapshot`.
 
 ---
 
 ## Did the flip work? (verifying the hosted app reads MotherDuck)
+
+> Historical — applies only while the MotherDuck secrets are set (they are not,
+> since 23 Aug 2026). To verify a *snapshot*-served deploy instead, check the
+> sidebar's **Pipeline last run** marker against the newest `data: local
+> refresh` commit on `origin/main`.
 
 MotherDuck's query-history views are Business-plan only, so on the free Lite plan
 use a **distinguishing edit**:

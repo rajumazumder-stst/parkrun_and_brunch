@@ -14,21 +14,27 @@ Usage:
     python parkrun_pipeline.py refresh     # normal run (auto-bootstraps if empty)
     python parkrun_pipeline.py status      # row counts
     python parkrun_pipeline.py snapshot    # rebuild the deploy snapshot only
+    python parkrun_pipeline.py seed [FILE] # fill an EMPTY DB from a snapshot
     python parkrun_pipeline.py motherduck  # push parkrun-only data to MotherDuck
 
 bootstrap and refresh rebuild the deploy snapshot (data/parkrun_snapshot.duckdb)
 automatically; `snapshot` rebuilds just that file from the current DB.
+`seed` populates an empty local DB from a deploy snapshot (defaults to the
+committed data/parkrun_snapshot.duckdb) — how a fresh source-of-truth DB is
+created without re-bootstrapping, which would discard current_targets history.
 `motherduck` (re)seeds the parkrun-only cloud DB FROM the local DB with a
 constrained schema (needs the `motherduck_token` env var); run explicitly.
 
 Target DB (env `PARKRUN_PIPELINE_DB`):
-    unset            -> local dev DB (~/Documents/duckdb/my_database.duckdb)
-    md:parkrun_snapshot -> operate directly on MotherDuck (source of truth)
+    unset               -> local dev DB (~/Documents/duckdb/my_database.duckdb)
+    <path>.duckdb       -> that local file — the source of truth; the launchd
+                           scheduler points here (~/.config/parkrun/parkrun_local.duckdb)
+    md:parkrun_snapshot -> operate directly on MotherDuck (kept for reference;
+                           see docs/DEPLOY.md)
 
-e.g. `PARKRUN_PIPELINE_DB=md:parkrun_snapshot python parkrun_pipeline.py refresh`
-upserts straight into the cloud (how the launchd scheduler runs it, via
-scripts/parkrun_refresh.sh). Run `motherduck` once against the local DB to seed
-the cloud, then point refresh at `md:` thereafter.
+The file name becomes the DuckDB catalog name, so never call a local DB
+`parkrun.duckdb`: that makes `parkrun.v_overlap` ambiguous against the
+`parkrun` schema.
 """
 
 from __future__ import annotations
@@ -748,6 +754,63 @@ def build_snapshot(con: duckdb.DuckDBPyConnection) -> None:
     log(f"  built deploy snapshot -> {SNAPSHOT_PATH}")
 
 
+def seed_from_snapshot(con: duckdb.DuckDBPyConnection, src: Path) -> None:
+    """Populate an EMPTY local DB from a committed deploy snapshot.
+
+    build_snapshot() writes its tables with CREATE TABLE AS, so the snapshot
+    file carries no primary keys — simply copying it would give a DB whose
+    results UPSERT (ON CONFLICT on the natural key) cannot bind. So the target
+    keeps its own proper schema (ensure_schema, PKs and all) and is filled
+    row-for-row from the snapshot, preserving the full history — including the
+    current_targets form record, which a re-bootstrap would discard.
+
+    Columns are read from the target BEFORE the ATTACH (both catalogs expose a
+    `parkrun` schema once attached) and listed explicitly, so physical column
+    order in either file is irrelevant.
+    """
+    if not src.exists():
+        raise SystemExit(f"seed source not found: {src}")
+    if is_bootstrapped(con):
+        log("target already holds data; refusing to seed "
+            "(delete the DB file to re-seed from scratch)")
+        return
+
+    cols = {
+        t: [
+            r[0]
+            for r in con.execute(
+                """
+                SELECT column_name FROM information_schema.columns
+                WHERE table_catalog = current_database()
+                  AND table_schema = ? AND table_name = ?
+                ORDER BY ordinal_position
+                """,
+                [SCHEMA, t],
+            ).fetchall()
+        ]
+        for t in SNAPSHOT_TABLES
+    }
+
+    log(f"seeding from snapshot: {src}")
+    con.execute(f"ATTACH '{src}' AS seedsrc (READ_ONLY);")
+    try:
+        con.execute("BEGIN;")
+        try:
+            for t in SNAPSHOT_TABLES:
+                collist = ", ".join(cols[t])
+                con.execute(
+                    f"INSERT INTO {SCHEMA}.{t} ({collist}) "
+                    f"SELECT {collist} FROM seedsrc.{SCHEMA}.{t};"
+                )
+                log(f"  seeded {t}: {_count(con, t)} rows")
+            con.execute("COMMIT;")
+        except Exception:
+            con.execute("ROLLBACK;")
+            raise
+    finally:
+        con.execute("DETACH seedsrc;")
+
+
 def build_motherduck(con: duckdb.DuckDBPyConnection) -> None:
     """(Re)seed the parkrun-ONLY MotherDuck database from the local `con`.
 
@@ -872,6 +935,16 @@ def main() -> None:
                 build_snapshot(con)
             else:
                 log("nothing to snapshot; bootstrap/refresh first")
+        elif cmd == "seed":
+            # Fill an empty local DB from a deploy snapshot (default: the
+            # committed one) instead of re-bootstrapping, which would lose the
+            # accumulated current_targets history.
+            if is_md:
+                log("refusing 'seed' with an md: target — seed a local DB file")
+                sys.exit(1)
+            seed_from_snapshot(
+                con, Path(sys.argv[2]) if len(sys.argv) > 2 else SNAPSHOT_PATH
+            )
         elif cmd == "motherduck":
             # (Re)seed the cloud FROM a local DB; sourcing from md: is nonsensical.
             if is_md:

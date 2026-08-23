@@ -38,19 +38,23 @@ where they differ from the original brief, **the spec wins**.
   snapshot; auto-redeploys on push to the deployed branch).
 - ✅ MotherDuck migration — `python parkrun_pipeline.py motherduck` (re)seeds a
   **parkrun-only** cloud DB (`md:parkrun_snapshot`; catalog name ≠ the `parkrun`
-  schema so `parkrun.v_overlap` stays unambiguous). MotherDuck is the runtime
-  source of truth — ops details in `docs/DEPLOY.md`.
+  schema so `parkrun.v_overlap` stays unambiguous). Was the runtime source of
+  truth 18 Jul – 23 Aug 2026; **retired but kept documented** as the fallback
+  if a non-laptop refresh host ever appears (`docs/DEPLOY.md`).
 - ✅ Scheduled refresh — **launchd on the Mac** (Sat 14:30 + Sun 11:00 local,
   plus a missed-weekend login prompt), proven end-to-end on 19 Jul 2026.
   GitHub Actions was tried first and abandoned: parkrun's WAF 405-blocks
   GitHub-hosted runner IPs (the workflow was deleted 19 Jul 2026; history and
   rationale in `docs/DEPLOY.md`).
-- 📌 Planned: **local DuckDB as source of truth**. MotherDuck was chosen for
-  off-Mac (GitHub Actions) refreshes; with launchd on the Mac as the scheduler
-  that rationale is gone, so the plan is to refresh a local DB and let the
-  committed snapshot populate the live app. The MotherDuck setup stays
-  documented as the fallback if a non-laptop refresh host is ever found
-  (`docs/DEPLOY.md` § Direction).
+- ✅ **Local DuckDB is the source of truth** (23 Aug 2026). The scheduled
+  refresh targets `~/.config/parkrun/parkrun_local.duckdb` — created on first
+  run by `python parkrun_pipeline.py seed` from the committed snapshot (not a
+  file copy: the snapshot has no primary keys, so a proper `ensure_schema()` DB
+  is filled row-for-row, preserving `current_targets` history). The audit-file
+  push is the delivery step, so it is **fatal on failure** and the freshness
+  stamp is written only after it succeeds. The hosted app's `PARKRUN_DB` /
+  `motherduck_token` secrets are removed — it serves the bundled snapshot
+  again (`docs/DEPLOY.md` § History).
 - 🧪 Local dev/test workflow: work on the `dev` branch, `./scripts/run_local.sh` serves
   the app against an isolated `data/parkrun_dev.duckdb` (gitignored copy of the
   snapshot) so previews never touch `main` or the deploy snapshot. See `docs/DEV.md`.
@@ -283,7 +287,9 @@ Saturday" (a skipped gate doesn't advance it).
    roll back all three and retry (results stay internally consistent).
 
 After Path B, the refresh runs `update_current_targets()` (snapshots today's
-current-form targets) then exports the results snapshot CSV. The analytics views
+current-form targets), exports the results snapshot CSV and rebuilds
+`data/parkrun_snapshot.duckdb`; `scripts/parkrun_refresh.sh` then commits and
+pushes both — that push is what deploys the new data. The analytics views
 are (re)created on every connection via `ensure_views()`.
 
 ### Bootstrap (empty DB)
@@ -332,10 +338,10 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 
 | Path | Purpose |
 |---|---|
-| `parkrun_pipeline.py` | Loader: `bootstrap` / `refresh` / `status` / `snapshot` / `motherduck` (Path A/B, DuckDB) + analytics views/targets + deploy-snapshot build + parkrun-only MotherDuck upload (`build_motherduck`). Also owns scraping (`scrape_athlete`) and time parsing (`time_to_seconds`). |
+| `parkrun_pipeline.py` | Loader: `bootstrap` / `refresh` / `status` / `snapshot` / `seed` / `motherduck` (Path A/B, DuckDB) + analytics views/targets + deploy-snapshot build + parkrun-only MotherDuck upload (`build_motherduck`). Also owns scraping (`scrape_athlete`) and time parsing (`time_to_seconds`). |
 | `app.py` | Streamlit front end (5 tabs: overlap · head-to-head summary · head-to-head detail · form/target-time · head-to-head map) reading the `parkrun` schema read-only; DB path resolved via `PARKRUN_DB` env/secret (incl. `md:` MotherDuck), else the bundled snapshot. Auto-reloads on new data via a `data_version()` (`max(scrape_timestamp)`, 60s TTL) cache key; 🔄 Reload button clears the cache manually |
 | `scripts/run_local.sh` | Local dev launcher: venv + isolated `data/parkrun_dev.duckdb` + `streamlit run` (see `docs/DEV.md`) |
-| `scripts/parkrun_refresh.sh` | Master MotherDuck refresh from this Mac (manual or scheduled — the one code path): token file → pipeline → freshness stamp → audit-file push → notification |
+| `scripts/parkrun_refresh.sh` | Master refresh from this Mac (manual or scheduled — the one code path): pull clone → seed the local source-of-truth DB if absent → pipeline → audit-file push (fatal; this is the deploy) → freshness stamp → notification |
 | `scripts/parkrun_autorefresh.sh` | Scheduling policy calling the master (launchd agents run self-syncing deployed copies at `~/.config/parkrun/`, Sat 14:30 + Sun 11:00 + missed-weekend login prompt — see `docs/DEPLOY.md` § Scheduled refresh) |
 | `scripts/build_logo.py` | Builds the app logo — two variants, `ACTIVE` (currently `toast`) is the one rasterised into `static/`. Lettering is converted from DejaVu Sans Bold to SVG paths at build time, so the committed SVG needs no font installed (DejaVu, not a system font like Arial, because its licence permits redistributing outlines). Build-time only; needs `cairosvg` + `fontTools` + `matplotlib`, deliberately **not** in `requirements.txt` |
 | `assets/logo-toast.svg` | Vector source, **active** logo: `PR&B` on a slice of toast, letters in the three athletes' colours (generated — edit `build_logo.py`, not this) |
@@ -344,7 +350,7 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | `static/apple-touch-icon.png` | 180×180 for the iOS "Add to Home Screen" icon, served at `/app/static/` |
 | `.streamlit/config.toml` | `enableStaticServing = true` so `static/` is reachable at `/app/static/` |
 | `docs/DEV.md` | Local dev workflow |
-| `docs/DEPLOY.md` | Deploy/ops: MotherDuck backend, scheduled refresh, hosted-app secret flip, tokens, verifying, re-seed |
+| `docs/DEPLOY.md` | Deploy/ops: local source-of-truth DB + snapshot delivery, scheduled refresh, rebuilding/seeding, retired MotherDuck path (secret flip, tokens, re-seed) |
 | `requirements.txt` | Pinned runtime deps for hosting (Streamlit Cloud etc.) |
 | `data/parkrun_events.csv` | Event catalogue (events.json dump + Victoria Dock) |
 | `data/country_lookup.csv` | country_code → country_name |
@@ -430,12 +436,11 @@ progression · event frequency · form (target) over refreshes.
    — see `docs/DEPLOY.md`)
 
 The MVP is complete end-to-end (pipeline, scheduler, analytics, front end).
-The hosted app's secrets were flipped to MotherDuck on 18 Jul 2026 — the live
-app now reads `md:parkrun_snapshot` directly, so a MotherDuck refresh goes
-live without a git push. The scheduled-refresh ops question is settled:
-GitHub-hosted runners are 405-blocked by parkrun's WAF, so launchd on the Mac
-is the scheduler of record (`docs/DEPLOY.md`). That in turn removed
-MotherDuck's original rationale (off-Mac refreshes), so the plan is to move
-the source of truth back to **local DuckDB**, with the committed snapshot
-serving the live app; the MotherDuck setup remains documented in
-`docs/DEPLOY.md` should a non-laptop refresh host ever emerge.
+The scheduled-refresh ops question is settled: GitHub-hosted runners are
+405-blocked by parkrun's WAF, so launchd on the Mac is the scheduler of record
+(`docs/DEPLOY.md`). That removed MotherDuck's original rationale (off-Mac
+refreshes), so on 23 Aug 2026 the source of truth moved back to **local
+DuckDB**: the refresh updates `~/.config/parkrun/parkrun_local.duckdb`, then
+commits and pushes the rebuilt snapshot, which Streamlit Cloud redeploys. The
+MotherDuck setup remains documented in `docs/DEPLOY.md` should a non-laptop
+refresh host ever emerge.
