@@ -57,37 +57,49 @@ When a change is ready: commit on `dev`, merge to `main`, and (if the change
 touched the data model/views) regenerate `data/parkrun_snapshot.duckdb` via
 `python parkrun_pipeline.py snapshot` so the deployable snapshot matches.
 
-## The label-impact tab (dev only)
+## The label-impact app (dev only)
 
 ```bash
 PARKRUN_LABEL_AUDIT=1 ./scripts/run_local.sh
 ```
 
-Adds a sixth tab comparing the live head-to-head against
-`v_head_to_head_legacy` — the frozen pre-buggy method (a single pooled 91-day
-median, no mode split, no handicap bridge). It reports, per occasion, whether
-the winner, the places, the ranked roster or just the margin moved, and lets you
-put the old and new victory charts side by side for any one contest.
+Starts **two** apps: the real one on `:8501` and the comparison on `:8502`
+(`PARKRUN_PORT` / `PARKRUN_LABEL_PORT` to move them). It is a separate app
+rather than a sixth tab because it is a development instrument, not part of the
+product — and keeping it out of `app.py` means there is no gate to get wrong at
+deploy time.
 
-Two independent gates: the env var, and the legacy views actually existing.
-`run_local.sh` builds them into the dev DB when the var is set; nothing builds
-them into the source of truth or the deploy snapshot, so the hosted app can
-never show the tab.
+`label_impact.py` compares the live head-to-head against
+`v_head_to_head_legacy` — the frozen pre-buggy method (a single pooled 91-day
+median, no mode split, no handicap bridge). Per occasion it reports whether the
+winner, the places, the ranked roster or just the margin moved, and draws the
+old and new victory charts stacked on a shared x-axis for whichever contest you
+pick. The dropdown is in date order, most recent first, matching the table.
+
+`run_local.sh` builds the legacy views into the dev DB when the var is set;
+nothing builds them into the source of truth or the deploy snapshot, so the
+hosted app can never serve them. If they are missing the app says so and stops.
 
 **With no labels written it must report every occasion `Unchanged`.** That is
 the zero-label equivalence check as a live page: the new views have to reproduce
 the old ones exactly until a label says otherwise. A `Lost` occasion should be
-impossible — the bridge can only make *more* contests rankable — and the tab
-calls one out in red if it ever appears.
+impossible — the bridge only ever makes *more* contests rankable — and it is
+called out in red if one appears.
 
-To see it do something, write synthetic labels into the dev DB (never the source
-of truth):
+## Fake labels for previewing the buggy UI
 
-```sql
-INSERT INTO parkrun.run_modes (athlete_id, run_date, event_id, is_buggy, source, reason)
-SELECT athlete_id, run_date, event_id, TRUE, 'manual', 'synthetic'
-FROM parkrun.results WHERE athlete_id = 5462426 AND run_date >= DATE '2026-03-01';
+Until the real labels come back there is nothing for the buggy-mode UI to show:
+
+```bash
+python scripts/dev_fake_labels.py           # writes plausible fake labels
+python scripts/dev_fake_labels.py --clear   # start over
 ```
 
-Then delete `data/parkrun_dev.duckdb` when you are done — it is disposable, and
-leaving synthetic labels lying around in it is a trap.
+It labels runs that were slow *relative to that athlete's trailing 20-run
+median*, so the fakes track contemporaneous form rather than a flat time:
+Duncan gets a sustained era (what a real buggy looks like), George scattered
+one-offs, a quarter of them `estimated` so that marker is exercised too. It
+refuses to write to the source of truth or the deploy snapshot.
+
+Delete `data/parkrun_dev.duckdb` when you are done — it is disposable, and
+leaving fake labels in it is a trap.

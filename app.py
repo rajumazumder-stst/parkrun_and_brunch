@@ -18,7 +18,6 @@ import os
 from datetime import datetime, timezone
 from html import escape
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 import duckdb
 import folium
@@ -33,53 +32,27 @@ import streamlit as st
 from matplotlib_venn import venn3
 from streamlit_folium import st_folium
 
-def _resolve_db_path() -> str:
-    """Locate the DuckDB to read, in priority order:
-
-    1. ``PARKRUN_DB`` env var (local dev against the full personal DB, or a
-       MotherDuck connection string, e.g. ``md:parkrun_snapshot``).
-    2. A ``PARKRUN_DB`` Streamlit secret (set in the hosting dashboard).
-    3. The read-only ``parkrun``-only snapshot bundled with the repo — what a
-       deployed/shared instance uses by default.
-    """
-    env = os.environ.get("PARKRUN_DB")
-    if env:
-        return env
-    try:
-        secret = st.secrets.get("PARKRUN_DB")
-        if secret:
-            return str(secret)
-    except Exception:
-        pass
-    return str(Path(__file__).resolve().parent / "data" / "parkrun_snapshot.duckdb")
-
-
-def _ensure_motherduck_token() -> None:
-    """Make the MotherDuck token available to DuckDB when serving from ``md:``.
-
-    DuckDB reads ``motherduck_token`` from the environment. On a hosted deploy
-    the token lives in a Streamlit secret instead, so mirror it into the env.
-    """
-    if os.environ.get("motherduck_token") or os.environ.get("MOTHERDUCK_TOKEN"):
-        return
-    try:
-        tok = st.secrets.get("motherduck_token") or st.secrets.get("MOTHERDUCK_TOKEN")
-    except Exception:
-        tok = None
-    if tok:
-        os.environ["motherduck_token"] = str(tok)
-
-
-DB_PATH = _resolve_db_path()
-IS_MOTHERDUCK = DB_PATH.startswith("md:")
-if IS_MOTHERDUCK:
-    _ensure_motherduck_token()
-
-# Fixed per-athlete colours, used consistently everywhere (Dark2 palette).
-ATHLETE_COLORS = {"George": "#1b9e77", "Raju": "#d95f02", "Duncan": "#7570b3"}
-PLACE_COLORS = {"1st": "#FFB300", "2nd": "#B0B0B0", "3rd": "#C77B30"}
-PLACE_LABEL = {1: "🥇 1st", 2: "🥈 2nd", 3: "🥉 3rd"}
-MEDAL = {p: label.split()[0] for p, label in PLACE_LABEL.items()}
+from parkrun_ui import (  # shared with label_impact.py — see that module
+    ATHLETE_COLORS,
+    BASIS_LABEL,
+    BUGGY_GLYPH,
+    DB_PATH,
+    IS_MOTHERDUCK,
+    MEDAL,
+    PLACE_COLORS,
+    PLACE_LABEL,
+    _h2h_headline,
+    _read_sql,
+    _render_basis_note,
+    _surface_color,
+    _victory_fig,
+    _winning_margin,
+    UK_TZ,
+    fmt_time,
+    mode_badge,
+    mode_suffix,
+    mode_text,
+)
 
 # Logo built by scripts/build_logo.py (three runners in ATHLETE_COLORS on a
 # fried egg). Resolved off __file__, not the CWD, so it survives being launched
@@ -146,18 +119,6 @@ _inject_home_screen_icons()
 # --------------------------------------------------------------------------- #
 # Data access (read-only; cached so the DB lock is held only briefly)
 # --------------------------------------------------------------------------- #
-def _read_sql(sql: str) -> pd.DataFrame:
-    # MotherDuck connections don't take the read_only flag; the local snapshot
-    # (and dev DB) open read-only so the app never holds a write lock.
-    con = duckdb.connect(DB_PATH) if IS_MOTHERDUCK else duckdb.connect(
-        DB_PATH, read_only=True
-    )
-    try:
-        return con.execute(sql).fetchdf()
-    finally:
-        con.close()
-
-
 @st.cache_data(ttl=60, show_spinner=False)
 def data_version() -> str:
     """Cheap change-detector: the latest scrape timestamp, re-checked at most
@@ -306,27 +267,6 @@ def load_saturday_targets(version) -> pd.DataFrame:
     return _with_date_cols(_read_sql("SELECT * FROM parkrun.v_saturday_targets"))
 
 
-@st.cache_data(ttl=60, show_spinner=False)
-def _legacy_views_exist() -> bool:
-    """Checked via information_schema rather than try/except on the query, so a
-    genuine SQL error in the legacy view still surfaces instead of silently
-    hiding the tab."""
-    df = _read_sql(
-        """
-        SELECT count(*) AS n FROM information_schema.tables
-        WHERE table_schema = 'parkrun'
-          AND table_name IN ('v_head_to_head_legacy', 'v_saturday_targets_legacy')
-        """
-    )
-    return int(df["n"].iloc[0]) == 2
-
-
-@st.cache_data(show_spinner=False)
-def load_h2h_legacy(version) -> pd.DataFrame:
-    """The pre-buggy head-to-head, for the dev-only label-impact tab."""
-    return _read_sql("SELECT * FROM parkrun.v_head_to_head_legacy")
-
-
 @st.cache_data(show_spinner=False)
 def load_event_coords(version) -> pd.DataFrame:
     return _read_sql(
@@ -406,18 +346,6 @@ def year_season_filters(df: pd.DataFrame, prefix: str, col_year, col_season):
     return yr, se
 
 
-def fmt_time(sec) -> str:
-    if pd.isna(sec):
-        return "—"
-    sec = int(round(sec))
-    h, rem = divmod(sec, 3600)
-    m, s = divmod(rem, 60)
-    return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
-
-
-UK_TZ = ZoneInfo("Europe/London")
-
-
 def _fmt_uk_dt(ts) -> str:
     """A timestamp shown in UK local time (DST-aware), e.g. '05 Jul 2026, 15:41'.
     Naive timestamps are assumed UTC (how scrape_timestamp is stored)."""
@@ -434,46 +362,6 @@ def _fmt_uk_date(d) -> str:
     if d is None or pd.isna(d):
         return "—"
     return pd.Timestamp(d).strftime("%a %d %b %Y")
-
-
-# --------------------------------------------------------------------------- #
-# Buggy mode — display helpers
-# --------------------------------------------------------------------------- #
-# Shown only for athletes who actually have a buggy run in the loaded data, so
-# an athlete who has never pushed one sees an unchanged UI. Computed once per
-# render from v_results_moded (see `BUGGY_ATHLETES`).
-BUGGY_GLYPH = "🍼"
-
-
-def mode_badge(is_buggy, source: str | None = None) -> str:
-    """HTML glyph for a run's mode. NEVER emoji-alone: the glyph always carries
-    a title, because an unexplained icon is worse than no icon."""
-    if not is_buggy:
-        return ""
-    what = "with buggy"
-    if source == "estimated":
-        what += ", estimated"
-    return (f"<span title='{escape(what)}' "
-            f"style='cursor:help'>{BUGGY_GLYPH}</span>")
-
-
-def mode_suffix(is_buggy, source: str | None = None) -> str:
-    """Plain-text equivalent for st.table / st.dataframe, which strip HTML.
-
-    An estimated label must read differently from a confirmed one — given how
-    poorly a per-run rule separates a buggy from a hard course, a guess has to
-    be visibly a guess.
-    """
-    if not is_buggy:
-        return ""
-    return " (with buggy, estimated)" if source == "estimated" else " (with buggy)"
-
-
-def mode_text(is_buggy, source: str | None = None) -> str:
-    """Value for a real `Mode` column: always says something, never blank."""
-    if not is_buggy:
-        return "—"
-    return "With buggy (est.)" if source == "estimated" else "With buggy"
 
 
 def _render_window_runs(runs: pd.DataFrame, athlete_name: str,
@@ -501,9 +389,13 @@ def _render_window_runs(runs: pd.DataFrame, athlete_name: str,
         "parkrun": g["short_name"],
         "Time": g["time_seconds"].map(fmt_time),
     }
-    # Only worth a column when this athlete has both modes in play.
-    if "is_buggy" in g.columns and g["is_buggy"].any():
-        cols["Mode"] = g["is_buggy"].map(lambda b: mode_text(b))
+    # Marker whenever this athlete uses a buggy AT ALL in the window — not just
+    # when this filtered list contains one. Shown in both popovers, it reads as
+    # "these are the with-buggy runs / these are the without"; shown in only
+    # one, its absence in the other would look like missing data.
+    athlete_runs = runs[runs["athlete_name"] == athlete_name]
+    if "is_buggy" in athlete_runs.columns and athlete_runs["is_buggy"].any():
+        cols[""] = g["is_buggy"].map(lambda b: BUGGY_GLYPH if b else "")
     disp = pd.DataFrame(cols)
 
     def _hl(row):
@@ -516,7 +408,10 @@ def _render_window_runs(runs: pd.DataFrame, athlete_name: str,
         width="stretch",
     )
     kind = "median (= the target)" if n % 2 else "the two runs averaged for the target"
-    st.caption(f"🟨 Highlighted = {kind}.")
+    note = f"🟨 Highlighted = {kind}."
+    if "" in disp.columns:
+        note += f" {BUGGY_GLYPH} = run with the buggy."
+    st.caption(note)
 
 
 # One type size for the scope label and the where/when line, a larger one for
@@ -530,6 +425,10 @@ PB_VENUE_LINES = 2  # venue block is ALWAYS this tall — see _venue
 # match — so the box reads tight at the bottom. This spacer squares it up.
 PB_BOTTOM_PAD = "0.45rem"
 PB_SCOPES = ["All time", "Last 12 months", "Last 3 months"]
+
+# Current-target box: the mode label small, the time itself large.
+TGT_SMALL = "0.82rem"
+TGT_BIG = "1.5rem"
 
 
 def render_personal_bests(pb: pd.DataFrame) -> None:
@@ -723,169 +622,6 @@ def build_h2h_map(mh: pd.DataFrame, coords: pd.DataFrame):
     return fmap
 
 
-def _surface_color() -> str:
-    """The app's current chart surface, for surface-coloured marker rings."""
-    try:
-        return "#0e1117" if st.context.theme.type == "dark" else "#ffffff"
-    except Exception:
-        return "#ffffff"
-
-
-def _h2h_headline(rows: pd.DataFrame) -> str:
-    """One-line scoreline for an occasion (percentages/margins to 2 dp), with
-    a comment on the third-placed finisher when there is one."""
-    d = rows.sort_values(["place_rank", "pct_diff"])
-    # Naming a runner without saying they had a buggy would misrepresent the
-    # result, so every name in this sentence carries the suffix.
-    def nm(r):
-        return r["athlete_name"] + mode_suffix(r.get("is_buggy"))
-    winners = d[d["place_rank"] == 1]
-    w = winners.iloc[0]
-    speed = (f"{abs(w['pct_diff']):.2f}% "
-             f"{'faster' if w['pct_diff'] <= 0 else 'slower'} than form")
-    if len(winners) > 1:
-        names = " & ".join(nm(r) for _, r in winners.iterrows())
-        line = f"🥇 **{names}** share 1st — both {speed}"
-    else:
-        ru = d[d["place_rank"] > 1].iloc[0]
-        line = (f"🥇 **{nm(w)}** takes it — {speed}, "
-                f"{_winning_margin(rows):.2f} points clear of {nm(ru)}")
-    third = d[d["place_rank"] >= 3]
-    if not third.empty:
-        t = third.iloc[0]
-        if t["pct_diff"] <= 0:
-            line += (f"; **{nm(t)}** still beat their form in 3rd "
-                     f"({t['pct_diff']:+.2f}%)")
-        else:
-            line += (f"; **{nm(t)}** trails in 3rd, "
-                     f"{t['pct_diff']:.2f}% off form")
-        if len(winners) > 1:    # 1st-place tie: one gap covers both
-            line += (f" — {t['pct_diff'] - w['pct_diff']:.2f} pts behind the "
-                     f"joint winners")
-        else:
-            gap2 = t["pct_diff"] - d.iloc[1]["pct_diff"]
-            gap1 = t["pct_diff"] - w["pct_diff"]
-            line += (f" — {gap2:.2f} pts behind 2nd, "
-                     f"{gap1:.2f} pts behind 1st")
-    return line
-
-
-def _winning_margin(rows: pd.DataFrame) -> float | None:
-    """1st-to-2nd gap in percentage points. Shared 1st -> 0.0; fewer than two
-    ranked -> None.
-
-    One definition, used by the headline, the victory bracket and the label-
-    impact tab. A second copy would make a method difference indistinguishable
-    from an arithmetic difference when the tab compares old against new.
-    """
-    d = rows.sort_values(["place_rank", "pct_diff"])
-    if len(d) < 2:
-        return None
-    if (d["place_rank"] == 1).sum() > 1:
-        return 0.0
-    return float(d.iloc[1]["pct_diff"] - d.iloc[0]["pct_diff"])
-
-
-BASIS_LABEL = {"buggy": "With buggy", "nonbuggy": "Without buggy"}
-BASIS_HOVER = {
-    "nonbuggy+handicap": "without-buggy form + handicap",
-    "buggy-handicap": "with-buggy form ÷ handicap",
-    "buggy": "with-buggy form",
-    "nonbuggy": "without-buggy form",
-}
-
-
-def _basis_hover(r) -> str:
-    b = r.get("target_basis")
-    return f" ({BASIS_HOVER[b]})" if b in BASIS_HOVER else ""
-
-
-def _victory_fig(rows: pd.DataFrame) -> go.Figure:
-    """Victory lollipops for one occasion: each athlete's raw % vs form from
-    the on-form baseline, x-axis reversed (positive/slower left, negative/
-    faster right) so beating your form reads in the winning direction, with
-    the 1st–2nd winning margin bracketed. Winner on top."""
-    d = rows.sort_values(["place_rank", "pct_diff"]).copy()
-    # `.get` throughout, not d["is_buggy"]: the label-impact tab feeds this the
-    # LEGACY frame, which has neither is_buggy nor target_basis.
-    d["medal_name"] = d.apply(
-        lambda r: f"{MEDAL[int(r['place_rank'])]} {r['athlete_name']}"
-                  + (f" {BUGGY_GLYPH}" if r.get("is_buggy") else ""), axis=1)
-    surface = _surface_color()
-    fig = go.Figure()
-    for _, r in d.iterrows():
-        pct = r["pct_diff"]
-        fig.add_trace(go.Scatter(   # stem
-            x=[0, pct], y=[r["medal_name"]] * 2, mode="lines",
-            line=dict(color=ATHLETE_COLORS[r["athlete_name"]], width=3),
-            hoverinfo="skip", showlegend=False))
-        fig.add_trace(go.Scatter(   # head, labelled with the raw % vs form
-            x=[pct], y=[r["medal_name"]], mode="markers+text",
-            marker=dict(size=13, color=ATHLETE_COLORS[r["athlete_name"]],
-                        line=dict(width=2, color=surface)),
-            text=[f"{pct:+.2f}%"],
-            # Reversed axis: negative (faster) sits on the right of screen.
-            textposition="middle right" if pct <= 0 else "middle left",
-            cliponaxis=False,
-            hovertemplate=(f"<b>{r['athlete_name']}</b><br>"
-                           f"Mode: {BASIS_LABEL.get(r.get('mode'), mode_text(r.get('is_buggy')))}<br>"
-                           f"Target: {fmt_time(r['target_seconds'])}"
-                           f"{_basis_hover(r)}<br>"
-                           f"Actual: {fmt_time(r['actual_seconds'])}<br>"
-                           f"{pct:+.2f}% vs form<extra></extra>"),
-            showlegend=False))
-    lo, hi = min(0.0, d["pct_diff"].min()), max(0.0, d["pct_diff"].max())
-    pad = max(1.0, (hi - lo) * 0.30)
-    fig.add_vline(x=0, line_width=1, line_color="#999999")
-    # Winning-margin bracket between 1st and 2nd (skip on a shared 1st).
-    if (d["place_rank"] == 1).sum() == 1 and len(d) > 1:
-        w, ru = d.iloc[0], d.iloc[1]
-        fig.add_shape(type="line", x0=ru["pct_diff"], x1=w["pct_diff"],
-                      y0=-0.45, y1=-0.45, line=dict(color="#808080", width=1))
-        for x in (ru["pct_diff"], w["pct_diff"]):
-            fig.add_shape(type="line", x0=x, x1=x, y0=-0.45, y1=-0.28,
-                          line=dict(color="#808080", width=1))
-        fig.add_annotation(x=(w["pct_diff"] + ru["pct_diff"]) / 2, y=-0.75,
-                           text=(f"winning margin "
-                                 f"{_winning_margin(d):.2f} pts"),
-                           showarrow=False,
-                           font=dict(size=11.5, color="#808080"))
-    fig.update_layout(
-        height=120 + 52 * len(d),
-        margin=dict(t=16, b=8, l=0, r=0),
-        xaxis=dict(range=[hi + pad, lo - pad], ticksuffix="%",
-                   title=dict(text="← slower than form · faster than form →",
-                              font=dict(size=12, color="#808080"))),
-        yaxis=dict(title=None,
-                   range=[len(d) - 0.5, -1.1]),  # winner top + bracket headroom
-    )
-    return fig
-
-
-# What each target_basis means, in words. A buggy run can no longer carry a
-# plain 'nonbuggy' basis, so never test for that combination.
-BASIS_NOTE = {
-    "nonbuggy+handicap": ("had no buggy runs in the 91-day window, so their "
-                          "target is their without-buggy form **+ the buggy "
-                          "handicap**"),
-    "buggy-handicap": ("had no without-buggy runs in the 91-day window, so "
-                       "their target is their with-buggy form **÷ the buggy "
-                       "handicap**"),
-}
-
-
-def _render_basis_note(rows: pd.DataFrame) -> None:
-    """Say so whenever a target was bridged from the opposite mode. A bridged
-    target is a different kind of claim from a measured one and the reader has
-    to be told which they are looking at."""
-    if "target_basis" not in rows.columns:
-        return
-    notes = [f"**{r['Athlete']}** {BASIS_NOTE[r['target_basis']]}"
-             for _, r in rows.iterrows() if r["target_basis"] in BASIS_NOTE]
-    if notes:
-        st.caption("ℹ️ " + "; ".join(notes) + ".")
-
-
 def render_occasion(rows: pd.DataFrame, victory: bool = False) -> None:
     """Render the detail block for a single head-to-head occasion; `victory`
     adds the scoreline one-liner + victory lollipops above the table."""
@@ -1005,21 +741,10 @@ with st.sidebar:
         st.cache_data.clear()
         st.rerun()
 
-# The label-impact tab is DEV-ONLY. Both gates must pass, and they fail
-# independently on the hosted app: it sets no env var, and build_snapshot never
-# writes the legacy views into the snapshot it serves.
-LABEL_AUDIT = (
-    os.environ.get("PARKRUN_LABEL_AUDIT") == "1" and _legacy_views_exist()
+tab1, tab2, tab3, tab4, tab5 = st.tabs(
+    ["🏃 parkrun & brunch", "⚔️ Head-to-head summary", "🔎 Head-to-head detail",
+     "📈 Form (target time)", "🗺️ Where they meet"]
 )
-
-_tab_labels = ["🏃 parkrun & brunch", "⚔️ Head-to-head summary",
-               "🔎 Head-to-head detail", "📈 Form (target time)",
-               "🗺️ Where they meet"]
-if LABEL_AUDIT:
-    _tab_labels.append("🧪 Label impact")
-_tabs = st.tabs(_tab_labels)
-tab1, tab2, tab3, tab4, tab5 = _tabs[:5]
-tab6 = _tabs[5] if LABEL_AUDIT else None
 
 # =========================================================================== #
 # TAB 1 — intro + overlap
@@ -1164,30 +889,54 @@ such. And because a run's label decides which target it is judged against,
     if targets.empty:
         st.info("No current targets yet — run a refresh.")
     else:
-        # One tile per (athlete, mode): an athlete running both with and without
-        # a buggy has two different current forms, and averaging them would be
-        # the very thing this feature exists to stop.
-        tiles = targets.sort_values("target_seconds")
-        cols = st.columns(len(tiles))
-        for col, (_, row) in zip(cols, tiles.iterrows()):
-            n = int(row["n_window"])
-            buggy = row.get("mode") == "buggy"
-            label = row["athlete_name"] + (f" {BUGGY_GLYPH}" if buggy else "")
-            col.metric(
-                label,
-                fmt_time(row["target_seconds"]) if n else "—",
-                help="Target for their runs with the buggy" if buggy else None,
-            )
-            if n:
-                with col.popover(f"{n} runs in window", width="stretch"):
+        # ONE BOX PER ATHLETE, holding their non-buggy target first and their
+        # buggy target second. Two athletes now have two current forms each, and
+        # a flat row of five tiles buried whose target belonged to whom.
+        # Athletes ordered by their primary (non-buggy) target, so the reading
+        # order does not jump around as labels change.
+        def _primary(name: str) -> float:
+            g = targets[targets["athlete_name"] == name]
+            nb = g[g["mode"] == "nonbuggy"] if "mode" in g else g
+            return float((nb if not nb.empty else g)["target_seconds"].min())
+
+        names = sorted(targets["athlete_name"].unique(), key=_primary)
+        cols = st.columns(len(names))
+        for col, name in zip(cols, names):
+            g = targets[targets["athlete_name"] == name]
+            with col.container(border=True):
+                st.markdown(
+                    f"<div style='font-weight:600;font-size:1.05rem;"
+                    f"margin-bottom:.35rem'>"
+                    f"<span style='color:{ATHLETE_COLORS.get(name, '#888')}'>●</span>"
+                    f" {name}</div>",
+                    unsafe_allow_html=True,
+                )
+                # nonbuggy first, buggy second — the order the user reads them.
+                for mode in ("nonbuggy", "buggy"):
+                    row = g[g["mode"] == mode] if "mode" in g else g
+                    if row.empty:
+                        continue
+                    row = row.iloc[0]
+                    n = int(row["n_window"])
+                    buggy = mode == "buggy"
                     st.markdown(
-                        f"**{row['athlete_name']}{mode_suffix(buggy)} — "
-                        f"{n} runs in the 91-day window**"
+                        f"<div style='font-size:{TGT_SMALL};opacity:.75'>"
+                        f"{BUGGY_GLYPH + ' with buggy' if buggy else 'without buggy'}"
+                        f"</div>"
+                        f"<div style='font-size:{TGT_BIG};font-weight:600;"
+                        f"font-variant-numeric:tabular-nums;line-height:1.15'>"
+                        f"{fmt_time(row['target_seconds']) if n else '—'}</div>",
+                        unsafe_allow_html=True,
                     )
-                    _render_window_runs(target_runs, row["athlete_name"],
-                                        mode=row.get("mode"))
-            else:
-                col.caption("no runs in window")
+                    if n:
+                        with st.popover(f"{n} runs in window", width="stretch"):
+                            st.markdown(
+                                f"**{name}{mode_suffix(buggy)} — {n} runs in "
+                                f"the 91-day window**"
+                            )
+                            _render_window_runs(target_runs, name, mode=mode)
+                    else:
+                        st.caption("no runs in window")
 
     st.divider()
     st.subheader("Latest head-to-head")
@@ -1442,169 +1191,3 @@ with tab5:
             st.caption(f"**{n_venues}** venue{'s' if n_venues != 1 else ''} · "
                        f"**{n_occ}** head-to-head{'s' if n_occ != 1 else ''}")
             st_folium(fmap, height=520, returned_objects=[])
-
-# =========================================================================== #
-# TAB 6 — label impact (DEV ONLY: PARKRUN_LABEL_AUDIT=1 + legacy views present)
-# =========================================================================== #
-if LABEL_AUDIT:
-    with tab6:
-        st.header("🧪 Label impact — old method vs new")
-        st.caption(
-            "Dev-only. Compares the live views against `v_head_to_head_legacy` "
-            "— the pre-buggy method, a single pooled 91-day median with no mode "
-            "split and no handicap bridge. With no labels written, every "
-            "occasion here must read **Unchanged**: that is the zero-label "
-            "equivalence check, live."
-        )
-
-        legacy = _with_date_cols(load_h2h_legacy(_ver))
-
-        def _occasions(df: pd.DataFrame) -> dict:
-            """Occasion -> its ranked rows, keyed on (event_id, run_date)."""
-            return {k: g for k, g in df.groupby(["event_id", "run_date"])}
-
-        new_occ, old_occ = _occasions(h2h), _occasions(legacy)
-
-        def _winners(g) -> frozenset:
-            return frozenset(g.loc[g["place_rank"] == 1, "athlete_id"])
-
-        def _places(g) -> dict:
-            return dict(zip(g["athlete_id"], g["place_rank"]))
-
-        rows = []
-        for key in sorted(set(new_occ) | set(old_occ), key=lambda k: k[1]):
-            n, o = new_occ.get(key), old_occ.get(key)
-            base = (n if n is not None else o).iloc[0]
-            nm_ = _winning_margin(n) if n is not None else None
-            om = _winning_margin(o) if o is not None else None
-            # First match wins. `Lost` must never occur — the handicap bridge
-            # can only ADD rankable participants (Verification C).
-            if o is None:
-                verdict = "Gained"
-            elif n is None:
-                verdict = "Lost"
-            elif _winners(n) != _winners(o):
-                verdict = "Winner changed"
-            elif _places(n) != _places(o):
-                verdict = "Places changed"
-            elif int(n.iloc[0]["n_ranked"]) != int(o.iloc[0]["n_ranked"]):
-                verdict = "Roster changed"
-            elif nm_ is not None and om is not None and abs(nm_ - om) >= 0.01:
-                verdict = "Margin only"
-            else:
-                verdict = "Unchanged"
-
-            def _who(g):
-                if g is None:
-                    return "—"
-                return " & ".join(sorted(g.loc[g["place_rank"] == 1,
-                                               "athlete_name"]))
-            rows.append({
-                "key": key,
-                "Date": pd.to_datetime(key[1]),
-                "parkrun": base["short_name"],
-                "Classification": base["classification"],
-                "Old winner": _who(o), "New winner": _who(n),
-                "Old margin": om, "New margin": nm_,
-                "Δ margin": (None if (nm_ is None or om is None)
-                             else round(nm_ - om, 2)),
-                "Verdict": verdict,
-            })
-        cmp = pd.DataFrame(rows)
-
-        counts = cmp["Verdict"].value_counts()
-        n_unchanged = int(counts.get("Unchanged", 0))
-        st.markdown(f"**{n_unchanged} of {len(cmp)}** head-to-heads unchanged.")
-        order = ["Winner changed", "Places changed", "Roster changed",
-                 "Margin only", "Gained", "Lost"]
-        mcols = st.columns(len(order))
-        for col, v in zip(mcols, order):
-            col.metric(v, int(counts.get(v, 0)))
-        if int(counts.get("Lost", 0)):
-            st.error(
-                "**Lost occasions exist.** The bridge can only make more "
-                "contests rankable, never fewer — this is a Verification C "
-                "failure, not a label effect."
-            )
-
-        VERDICT_COLOR = {
-            "Winner changed": "#b3261e", "Places changed": "#a15c00",
-            "Roster changed": "#a15c00", "Margin only": "#5b5b5b",
-            "Gained": "#1b6e3c", "Lost": "#b3261e", "Unchanged": "#8a8a8a",
-        }
-        show = cmp.drop(columns=["key"]).copy()
-        show["Date"] = show["Date"].dt.strftime("%Y-%m-%d")
-        for c in ("Old margin", "New margin"):
-            show[c] = show[c].map(lambda v: "—" if pd.isna(v) else f"{v:.2f}")
-        show["Δ margin"] = cmp["Δ margin"]
-        st.dataframe(
-            show.sort_values("Δ margin", key=lambda s: s.abs(),
-                             ascending=False, na_position="last")
-                .style.map(lambda v: f"color:{VERDICT_COLOR.get(v, '')}",
-                           subset=["Verdict"])
-                .format({"Δ margin": lambda v: "—" if pd.isna(v) else f"{v:+.2f}"}),
-            hide_index=True, width="stretch",
-        )
-
-        st.divider()
-        st.subheader("One occasion, both methods")
-        # Default to the biggest mover: opening on an unchanged 2023 contest
-        # would waste the page.
-        movers = cmp[cmp["Verdict"] != "Unchanged"].copy()
-        pool6 = movers if not movers.empty else cmp
-        pool6 = pool6.assign(_ord=pool6["Verdict"].eq("Winner changed").astype(int),
-                             _abs=pool6["Δ margin"].abs().fillna(-1))
-        pool6 = pool6.sort_values(["_ord", "_abs"], ascending=False)
-        labels6 = {
-            f"{r['Date']:%Y-%m-%d} · {r['parkrun']} · {r['Classification']}"
-            f" — {r['Verdict']}": r["key"]
-            for _, r in pool6.iterrows()
-        }
-        chosen = st.selectbox("Occasion", list(labels6), key="t6_occ")
-        key = labels6[chosen]
-        n, o = new_occ.get(key), old_occ.get(key)
-
-        # Both panels share one x-range, computed here rather than inside
-        # _victory_fig: each figure scales to its own frame, so an UNCHANGED
-        # run would appear to move simply because the other panel rescaled.
-        pcts = pd.concat([g["pct_diff"] for g in (n, o) if g is not None])
-        lo6, hi6 = min(0.0, pcts.min()), max(0.0, pcts.max())
-        pad6 = max(1.0, (hi6 - lo6) * 0.30)
-        xr = [hi6 + pad6, lo6 - pad6]      # reversed, as _victory_fig does
-
-        st.markdown("##### Old method — pooled 91-day median")
-        if o is None:
-            st.info(
-                "Not rankable under the old method — no same-mode history in "
-                "the window, so the bridge is what made this contest exist."
-            )
-        else:
-            st.markdown(_h2h_headline(o))
-            fo = _victory_fig(o)
-            fo.update_xaxes(range=xr)
-            st.plotly_chart(fo, width="stretch", key="t6_old")
-
-        st.markdown("##### New method — mode-split + handicap bridge")
-        if n is None:
-            st.error("Absent from the new view — a Verification C failure.")
-        else:
-            st.markdown(_h2h_headline(n))
-            fn = _victory_fig(n)
-            fn.update_xaxes(range=xr)
-            st.plotly_chart(fn, width="stretch", key="t6_new")
-
-        if n is not None and o is not None:
-            om, nm_ = _winning_margin(o), _winning_margin(n)
-            st.caption(
-                f"Winner **{_who(o)} → {_who(n)}** · margin "
-                f"**{'—' if om is None else f'{om:.2f}'} → "
-                f"{'—' if nm_ is None else f'{nm_:.2f}'}** pts · ranked "
-                f"**{int(o.iloc[0]['n_ranked'])} → {int(n.iloc[0]['n_ranked'])}**"
-            )
-            if list(o.sort_values("place_rank")["athlete_id"]) != \
-               list(n.sort_values("place_rank")["athlete_id"]):
-                st.caption(
-                    "⚠️ The rows are in a different order between the panels — "
-                    "the charts sort by place, so that reordering *is* the "
-                    "finding, not a rendering glitch."
-                )

@@ -21,6 +21,8 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEV_DB="$REPO/data/parkrun_dev.duckdb"
+APP_PORT="${PARKRUN_PORT:-8501}"
+LABEL_PORT="${PARKRUN_LABEL_PORT:-8502}"
 SNAPSHOT="$REPO/data/parkrun_snapshot.duckdb"
 
 # Use the project venv if present (has streamlit, duckdb, plotly, matplotlib-venn).
@@ -65,8 +67,8 @@ if [[ -z "${PARKRUN_DB:-}" ]]; then
   export PARKRUN_DB="$DEV_DB"
 fi
 
-# Dev-only "Label impact" tab: needs the frozen pre-buggy views alongside the
-# live ones. Never built on the source of truth or in the deploy snapshot.
+# The dev-only "Label impact" app needs the frozen pre-buggy views alongside
+# the live ones. Never built on the source of truth or in the deploy snapshot.
 if [[ "${PARKRUN_LABEL_AUDIT:-}" == "1" ]]; then
   PARKRUN_LABEL_AUDIT=1 python - "$PARKRUN_DB" <<'PYEOF' || echo "⚠️  could not build the legacy views" >&2
 import sys, duckdb, parkrun_pipeline as p
@@ -78,7 +80,16 @@ PYEOF
 fi
 
 echo "→ branch:     $branch"
-[[ "${PARKRUN_LABEL_AUDIT:-}" == "1" ]] && echo "→ label-impact tab: ON"
 echo "→ PARKRUN_DB: $PARKRUN_DB"
-echo "→ opening http://localhost:8501 …"
-exec streamlit run "$REPO/app.py"
+
+# The label-impact comparison is a SEPARATE app on its own port: it is a
+# development instrument, not part of the product, and keeping it out of the
+# real app means there is no gate to get wrong at deploy time.
+if [[ "${PARKRUN_LABEL_AUDIT:-}" == "1" ]]; then
+  streamlit run "$REPO/label_impact.py" --server.port "$LABEL_PORT" \
+    --server.headless true >"${TMPDIR:-/tmp}/parkrun_label_impact.log" 2>&1 &
+  echo "→ label impact: http://localhost:$LABEL_PORT  (separate app)"
+fi
+
+echo "→ opening http://localhost:$APP_PORT …"
+exec streamlit run "$REPO/app.py" --server.port "$APP_PORT"
