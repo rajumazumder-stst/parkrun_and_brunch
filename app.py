@@ -627,7 +627,7 @@ def build_h2h_map(mh: pd.DataFrame, coords: pd.DataFrame):
                  if not bw.empty and event_id in bw.index else {})
         d = int(round(14 + 5 * math.sqrt(count)))
         breakdown = " · ".join(
-            f"{k} {v}" + (f" ({int(bdict[k])} with buggy)"
+            f"{k} {v}" + (f" ({int(bdict[k])} {BUGGY_GLYPH})"
                           if bdict.get(k) else "")
             for k, v in sorted(wdict.items(), key=lambda x: -x[1]))
         tip = (f"<b>{c.at[event_id, 'short_name']}</b><br>"
