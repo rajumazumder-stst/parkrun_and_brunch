@@ -404,14 +404,18 @@ def _render_window_runs(runs: pd.DataFrame, athlete_name: str) -> None:
         style = HL_BUGGY if m == "buggy" else HL_REGULAR
         med.update({i: style for i in idx})
 
-    cols = {
-        "Date": g["run_date"].dt.strftime("%d %b %Y"),
-        "parkrun": g["short_name"],
-        "Time": g["time_seconds"].map(fmt_time),
-    }
+    # Glyph appended to the parkrun name rather than given a column of its own:
+    # these rows are all one athlete, so there is no name to hang it on, and a
+    # column used by a handful of rows costs more width than it earns.
+    venue = g["short_name"]
     if has_modes:
-        cols[""] = g["is_buggy"].map(lambda b: BUGGY_GLYPH if b else "")
-    disp = pd.DataFrame(cols)
+        venue = [f"{v} {BUGGY_GLYPH}" if b else v
+                 for v, b in zip(g["short_name"], g["is_buggy"])]
+    disp = pd.DataFrame({
+        "Date": g["run_date"].dt.strftime("%d %b %Y"),
+        "parkrun": venue,
+        "Time": g["time_seconds"].map(fmt_time),
+    })
 
     def _hl(row):
         style = med.get(row.name, "")
