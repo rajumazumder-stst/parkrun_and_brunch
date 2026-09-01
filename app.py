@@ -54,7 +54,6 @@ from parkrun_ui import (  # shared with label_impact.py — see that module
     fmt_time,
     mode_badge,
     mode_suffix,
-    mode_text,
 )
 
 # Logo built by scripts/build_logo.py (three runners in ATHLETE_COLORS on a
@@ -666,12 +665,16 @@ def render_occasion(rows: pd.DataFrame, victory: bool = False) -> None:
         Actual=lambda d: d["actual_seconds"].map(fmt_time),
         **{"% vs form": lambda d: d["pct_diff"].map(lambda v: f"{v:+.2f}%")},
     ).rename(columns={"athlete_name": "Athlete"})
-    cols = ["Place", "Athlete", "Target", "Actual", "% vs form"]
-    # st.table strips HTML, so the mode gets a real column, not a glyph.
-    if "is_buggy" in d.columns and d["is_buggy"].any():
-        d["Mode"] = d["is_buggy"].map(lambda b: mode_text(b))
-        cols.insert(2, "Mode")
-    st.table(d[cols].set_index("Place"))
+    # The glyph goes on the name rather than into a Mode column of its own: a
+    # whole column earns its width only if most rows use it, and it reads as
+    # another attribute of the runner rather than of the run.
+    if "is_buggy" in d.columns:
+        d["Athlete"] = [
+            f"{n} {BUGGY_GLYPH}" if b else n
+            for n, b in zip(d["Athlete"], d["is_buggy"])
+        ]
+    st.table(d[["Place", "Athlete", "Target", "Actual", "% vs form"]]
+             .set_index("Place"))
     _render_basis_note(d)
 
 
@@ -1018,6 +1021,7 @@ such. And because a run's label decides which target it is judged against,
             .pivot_table(index="athlete_name", columns="place", values="event_id",
                          aggfunc="count", fill_value=0)
             .rename(columns={1: "1st", 2: "2nd", 3: "3rd"})
+            .rename_axis(index="Athlete", columns=None)
         )
         for c in places:
             if c not in board.columns:
@@ -1025,13 +1029,12 @@ such. And because a run's label decides which target it is judged against,
         board = board[places].sort_values("1st", ascending=False)
 
         tidy = board.reset_index().melt(
-            id_vars="athlete_name", var_name="Place", value_name="count"
+            id_vars="Athlete", var_name="Place", value_name="count"
         )
         fig3 = px.bar(
-            tidy, x="athlete_name", y="count", color="Place", barmode="group",
+            tidy, x="Athlete", y="count", color="Place", barmode="group",
             color_discrete_map=PLACE_COLORS,
-            category_orders={"Place": places,
-                             "athlete_name": list(board.index)},
+            category_orders={"Place": places, "Athlete": list(board.index)},
             text="count",
         )
         fig3.update_layout(xaxis_title=None, yaxis_title="head-to-heads",

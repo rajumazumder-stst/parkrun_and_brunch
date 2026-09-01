@@ -95,7 +95,10 @@ def load_legacy(version) -> pd.DataFrame:
 def load_label_counts(version) -> pd.DataFrame:
     return _read_sql(
         """
-        SELECT a.athlete_name, m.source, m.is_buggy, count(*) AS runs
+        SELECT a.athlete_name AS "Athlete",
+               m.source        AS "Source",
+               m.is_buggy      AS "With buggy",
+               count(*)        AS "Runs"
         FROM parkrun.run_modes m JOIN parkrun.athletes a USING (athlete_id)
         GROUP BY 1, 2, 3 ORDER BY 1, 2, 3
         """
