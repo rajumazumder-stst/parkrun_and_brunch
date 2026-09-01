@@ -139,9 +139,15 @@ def mode_suffix(is_buggy, source: str | None = None) -> str:
 
 
 def mode_text(is_buggy, source: str | None = None) -> str:
-    """Value for a real `Mode` column: always says something, never blank."""
+    """Value for a `Mode` column: "With buggy", or blank.
+
+    Blank rather than "Regular": the column only appears when a buggy run is
+    present, so it is there to mark the exceptions. Filling every other row
+    with a word gives the eye something to read on rows that carry no
+    information, and buries the ones that do.
+    """
     if not is_buggy:
-        return "Regular"
+        return ""
     return "With buggy (est.)" if source == "estimated" else "With buggy"
 
 
