@@ -446,6 +446,7 @@ are (re)created on every connection via `ensure_views()`.
 | `data/parkrun_events.csv` (incl. Victoria Dock) | `*.duckdb` (binary source of truth) |
 | `data/parkrun_results.csv` (versioned snapshots) | `data/events.json` (transient download) |
 | `data/parkrun_run_modes.csv` (label audit trail) | |
+| `data/course_difficulty.csv` (cached scores + aliases) | |
 | `data/country_lookup.csv` | |
 | `data/athletes_lookup.csv` | |
 | `data/parkrun_snapshot.duckdb` (read-only, deploy snapshot) | |
@@ -479,6 +480,7 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | `scripts/parkrun_refresh.sh` | Master refresh from this Mac (manual or scheduled — the one code path): pull clone → seed the local source-of-truth DB if absent → pipeline → audit-file push (fatal; this is the deploy) → freshness stamp → notification |
 | `scripts/parkrun_autorefresh.sh` | Scheduling policy calling the master (launchd agents run self-syncing deployed copies at `~/.config/parkrun/`, Sat 14:30 + Sun 11:00 + missed-weekend login prompt — see `docs/DEPLOY.md` § Scheduled refresh) |
 | `scripts/sync_working_copy.sh` | `sync_working_copy()` — sourced by `parkrun_refresh.sh` (after the freshness stamp) and by `run_local.sh` (`--fetch-only`). Always fetches the `~/Documents` working copy; fast-forwards it only when the tree is clean **and** the branch is `main`. Every path returns 0 — it can never fail a refresh. No-op under launchd (TCC blocks `~/Documents`) |
+| `scripts/fetch_course_difficulty.py` | One-off fetch of the published UK course-difficulty scores to `data/course_difficulty.csv`. Run by hand; the refresh applies the cached CSV and never touches the network for it |
 | `scripts/build_logo.py` | Builds the app logo — two variants, `ACTIVE` (currently `toast`) is the one rasterised into `static/`. Lettering is converted from DejaVu Sans Bold to SVG paths at build time, so the committed SVG needs no font installed (DejaVu, not a system font like Arial, because its licence permits redistributing outlines). Build-time only; needs `cairosvg` + `fontTools` + `matplotlib`, deliberately **not** in `requirements.txt` |
 | `assets/logo-toast.svg` | Vector source, **active** logo: `PR&B` on a slice of toast, letters in the three athletes' colours (generated — edit `build_logo.py`, not this) |
 | `assets/logo-runners.svg` | Vector source, alternative logo: three runners in `ATHLETE_COLORS` on a fried egg (generated) |
@@ -494,6 +496,7 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | `data/athletes_lookup.csv` | Athlete names + DOB |
 | `data/parkrun_results.csv` | Results snapshot exported by the pipeline (keyed on event_id) |
 | `data/parkrun_run_modes.csv` | Buggy labels exported by the pipeline — the audit trail for hand-entered labels |
+| `data/course_difficulty.csv` | Cached course-difficulty scores + hand-maintained `alias_of` column |
 | `data/parkrun_snapshot.duckdb` | Read-only, parkrun-only DuckDB the deployed app serves |
 | `adhoc/` | One-off investigations using the parkrun data but **outside the app** — see `adhoc/README.md` |
 

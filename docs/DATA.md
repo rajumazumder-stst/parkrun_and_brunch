@@ -76,3 +76,69 @@ exported on every refresh, so the edit also shows up as a reviewable diff.
 - **The handicap is recomputed every refresh**, and it feeds targets, so it can
   shift past head-to-heads even though the labels themselves are fixed. The
   blast radius is limited to runs whose target was bridged from the other mode.
+
+## Course difficulty
+
+`data/course_difficulty.csv` caches the published UK course-difficulty scores
+(835 courses, 0–12 where 12 is hardest, from median finish times over roughly
+1 Jan 2023 – 25 Jan 2025). `scripts/fetch_course_difficulty.py` fetches it; the
+refresh only ever applies the cached CSV, so the scheduled path needs no network.
+
+It is a **covariate for the buggy estimator**, not an adjustment to the
+head-to-head target. A head-to-head still compares against form averaged across
+whatever courses were in the window.
+
+### Names that differ between the two sources
+
+`alias_of` maps a published name onto our `events.short_name`. Where a venue
+publishes two seasonal courses, **both** rows are aliased and the loader
+averages them — picking one would be a silent coin-flip between scores that can
+differ a lot (Bromley: Winter 1.2, Summer 2.5). Current aliases:
+
+| Published | → `short_name` |
+|---|---|
+| `Bromley (Winter)` + `Bromley (Summer)` | Bromley |
+| `Eastbourne (Main)` + `Eastbourne (Summer)` | Eastbourne |
+| `Foots Cray Meadows (Winter/Summer)` | Foots Cray Meadows |
+| `Jersey Farm (Winter/Summer)` | Jersey Farm |
+| `Medina I.O.W. (Winter/Summer)` | Medina I.O.W. |
+| `Greenwich` | Greenwich Peninsula |
+
+That last one is a judgement call: our catalogue has no plain `Greenwich` event
+and the source has no `Greenwich Peninsula`, so they are the same course under
+two names. The rest are mechanical.
+
+**Do not alias `Jersey` → `Jersey Farm`, or `Jubilee`/`Bedford` → `Jubilee,
+Bedford`.** Those published names are real, distinct parkruns that already match
+our catalogue exactly.
+
+### Currently unmatched (6 UK events, by design)
+
+Four launched after the dataset's Jan 2025 cutoff — Queenswood Country Park,
+Stanborough, Rothamsted Park, and `Jubilee, Bedford` (whose two candidate names
+are taken by other events). `Holywell King George V Playing Fields` is not the
+source's `King George V Playing Field`, which is a different parkrun we also run.
+`Avery Hill` is the odd one out: we have run it since 2021, so it should be in a
+Jan 2025 dataset, but no plausible published name matches. Left unmatched rather
+than guessed.
+
+A missing score is never fatal — the run falls back with lower confidence.
+
+### When to re-fetch
+
+The scores do not age; courses do not get harder. **What ages is the course
+list** — new parkruns launch regularly and Duncan runs a new venue most weeks.
+`apply_course_difficulty` logs coverage on every refresh and warns when either
+trigger fires:
+
+1. the cached CSV is more than **90 days** old, or
+2. UK run coverage falls below **95%**, or more than **20 UK events** are
+   unmatched.
+
+Baseline as built (1 Sep 2026): **163/204 events, 99% of UK runs, 6 UK events
+unmatched.** Coverage is counted over UK events only — the non-UK ones are
+missing by design and would swamp the signal.
+
+A warning never blocks the refresh. It is a prompt to run
+`python scripts/fetch_course_difficulty.py` when convenient, then re-check the
+`alias_of` column for any new near-miss names.

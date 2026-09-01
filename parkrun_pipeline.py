@@ -132,6 +132,16 @@ RETRY_STATUSES = {403, 405, 429, 500, 502, 503, 504}
 RETRY_ATTEMPTS = 3
 RETRY_BACKOFF_SECONDS = 15  # wait 15s, then 30s
 CORRUPTION_GATE_MIN_RATIO = 0.95  # new count must be >= 95% of stored count
+# Course-difficulty cache freshness. The SCORES do not age (they are a published
+# snapshot of 1 Jan 2023 - 25 Jan 2025; courses do not get harder) — what ages is
+# the COURSE LIST, since new parkruns launch regularly and Duncan runs a new
+# venue most weeks. A missing score is not fatal (the run falls back with lower
+# confidence) but it quietly erodes the feature, so the checks are self-
+# announcing rather than something to remember.
+COURSE_DIFFICULTY_MAX_AGE_DAYS = 90
+COURSE_DIFFICULTY_MIN_UK_COVERAGE = 0.95
+COURSE_DIFFICULTY_MAX_UK_UNMATCHED = 20
+UK_COUNTRY_URL = "www.parkrun.org.uk"
 
 RESULT_COLUMN_MAP = {
     "Event": "event",
@@ -1065,6 +1075,98 @@ def export_results_snapshot(con: duckdb.DuckDBPyConnection) -> None:
     log(f"  exported snapshot -> {out}")
 
 
+def apply_course_difficulty(con: duckdb.DuckDBPyConnection) -> None:
+    """Load the cached course-difficulty CSV into parkrun.course_difficulty.
+
+    No network: scripts/fetch_course_difficulty.py does the one-off fetch, this
+    applies its output on every refresh. Idempotent.
+
+    Names are resolved to event_id HERE rather than being cached in the CSV, so
+    coverage self-heals as new events appear in events.json without a re-fetch,
+    and a short_name that gets reassigned can never leave a stale id behind.
+    `alias_of` in the CSV overrides the name for the courses the two sources
+    spell differently.
+
+    Logs a coverage + staleness line every refresh, and warns (never blocks)
+    when the cache is old or UK coverage has decayed — the prompt to re-run the
+    fetch script when convenient.
+    """
+    src = DATA_DIR / "course_difficulty.csv"
+    if not src.exists():
+        log(f"  course difficulty: {src.name} absent — skipped")
+        return
+
+    # GROUP BY event_id, not a bare INSERT: a venue that publishes two seasonal
+    # courses (Bromley Winter 1.2 / Summer 2.5) has two source rows aliased onto
+    # one event. Taking whichever row landed last would be a silent coin-flip
+    # between very different scores, so they are averaged — we do not know which
+    # season a given run fell in. parkrun_name keeps both source names so the
+    # aggregate is traceable; speed_rank is reference-only and keeps the best.
+    con.execute(
+        f"""
+        INSERT OR REPLACE INTO {SCHEMA}.course_difficulty
+              (event_id, parkrun_name, difficulty, speed_rank, source, fetched_at)
+        SELECT e.event_id,
+               string_agg(c.parkrun_name, ' + ' ORDER BY c.parkrun_name),
+               avg(c.difficulty),
+               min(c.speed_rank),
+               'therunningchannel',
+               max(c.fetched_at::timestamptz)
+        FROM read_csv_auto('{src}', header=true) c
+        JOIN {SCHEMA}.events e
+          ON e.short_name = coalesce(nullif(c.alias_of, ''), c.parkrun_name)
+         AND e.seriesid = 1
+        GROUP BY e.event_id
+        """
+    )
+
+    # Coverage is measured over events we have actually RUN, not the whole
+    # catalogue, and only over UK events — the non-UK ones are missing by
+    # design (the source is UK-only) and would swamp the signal.
+    row = con.execute(
+        f"""
+        WITH run_events AS (
+            SELECT DISTINCT r.event_id, e.country_url
+            FROM {SCHEMA}.results r JOIN {SCHEMA}.events e USING (event_id)
+        ),
+        uk AS (
+            SELECT r.event_id, d.event_id IS NOT NULL AS has_score
+            FROM {SCHEMA}.results r
+            JOIN {SCHEMA}.events e USING (event_id)
+            LEFT JOIN {SCHEMA}.course_difficulty d ON d.event_id = r.event_id
+            WHERE e.country_url = '{UK_COUNTRY_URL}'
+        )
+        SELECT
+            (SELECT count(*) FROM run_events)                                AS events_run,
+            (SELECT count(*) FROM run_events re
+              JOIN {SCHEMA}.course_difficulty d ON d.event_id = re.event_id) AS events_scored,
+            (SELECT count(*) FROM uk)                                        AS uk_runs,
+            (SELECT count(*) FROM uk WHERE has_score)                        AS uk_runs_scored,
+            (SELECT count(DISTINCT event_id) FROM uk WHERE NOT has_score)    AS uk_events_unmatched,
+            -- Age computed in SQL: handing a raw TIMESTAMPTZ back to Python
+            -- needs pytz, which is not a dependency.
+            (SELECT date_diff('day', max(fetched_at), now())
+             FROM {SCHEMA}.course_difficulty)                                AS cache_age_days
+        """
+    ).fetchone()
+    events_run, events_scored, uk_runs, uk_scored, uk_unmatched, age = row
+    uk_cov = (uk_scored / uk_runs) if uk_runs else 0.0
+    age_txt = f"cached {age}d ago" if age is not None else "never cached"
+    log(f"  course difficulty: {events_scored}/{events_run} events, "
+        f"{uk_cov:.0%} of UK runs, {age_txt}")
+
+    reasons = []
+    if age is None or age > COURSE_DIFFICULTY_MAX_AGE_DAYS:
+        reasons.append(f"stale (>{COURSE_DIFFICULTY_MAX_AGE_DAYS}d)")
+    if uk_cov < COURSE_DIFFICULTY_MIN_UK_COVERAGE:
+        reasons.append(f"UK coverage below {COURSE_DIFFICULTY_MIN_UK_COVERAGE:.0%}")
+    if uk_unmatched > COURSE_DIFFICULTY_MAX_UK_UNMATCHED:
+        reasons.append(f"{uk_unmatched} UK events unmatched")
+    if reasons:
+        log(f"    WARNING: {' and '.join(reasons)} — re-run "
+            f"scripts/fetch_course_difficulty.py")
+
+
 def export_run_modes(con: duckdb.DuckDBPyConnection) -> None:
     """Export the buggy labels as a tracked CSV.
 
@@ -1303,6 +1405,7 @@ def build_motherduck(con: duckdb.DuckDBPyConnection) -> None:
 def _finalize(con: duckdb.DuckDBPyConnection) -> None:
     """Post-write steps shared by bootstrap and refresh: snapshot current-form
     targets, export the results CSV, and rebuild the deploy snapshot."""
+    apply_course_difficulty(con)
     update_current_targets(con)
     export_results_snapshot(con)
     export_run_modes(con)
