@@ -56,3 +56,38 @@ tracked snapshot on the next `python parkrun_pipeline.py snapshot` (for release)
 When a change is ready: commit on `dev`, merge to `main`, and (if the change
 touched the data model/views) regenerate `data/parkrun_snapshot.duckdb` via
 `python parkrun_pipeline.py snapshot` so the deployable snapshot matches.
+
+## The label-impact tab (dev only)
+
+```bash
+PARKRUN_LABEL_AUDIT=1 ./scripts/run_local.sh
+```
+
+Adds a sixth tab comparing the live head-to-head against
+`v_head_to_head_legacy` — the frozen pre-buggy method (a single pooled 91-day
+median, no mode split, no handicap bridge). It reports, per occasion, whether
+the winner, the places, the ranked roster or just the margin moved, and lets you
+put the old and new victory charts side by side for any one contest.
+
+Two independent gates: the env var, and the legacy views actually existing.
+`run_local.sh` builds them into the dev DB when the var is set; nothing builds
+them into the source of truth or the deploy snapshot, so the hosted app can
+never show the tab.
+
+**With no labels written it must report every occasion `Unchanged`.** That is
+the zero-label equivalence check as a live page: the new views have to reproduce
+the old ones exactly until a label says otherwise. A `Lost` occasion should be
+impossible — the bridge can only make *more* contests rankable — and the tab
+calls one out in red if it ever appears.
+
+To see it do something, write synthetic labels into the dev DB (never the source
+of truth):
+
+```sql
+INSERT INTO parkrun.run_modes (athlete_id, run_date, event_id, is_buggy, source, reason)
+SELECT athlete_id, run_date, event_id, TRUE, 'manual', 'synthetic'
+FROM parkrun.results WHERE athlete_id = 5462426 AND run_date >= DATE '2026-03-01';
+```
+
+Then delete `data/parkrun_dev.duckdb` when you are done — it is disposable, and
+leaving synthetic labels lying around in it is a trap.

@@ -53,13 +53,32 @@ fi
 
 if [[ -z "${PARKRUN_DB:-}" ]]; then
   if [[ ! -f "$DEV_DB" ]]; then
-    echo "→ creating isolated dev DB: data/parkrun_dev.duckdb (copy of the snapshot)"
-    cp "$SNAPSHOT" "$DEV_DB"
+    # Built through the pipeline, NOT `cp`: the committed snapshot carries the
+    # views as they were when it was last rebuilt, so a plain copy would be
+    # missing anything added since (and has no primary keys). `seed` runs
+    # ensure_schema + ensure_migrations + ensure_views, then fills it row for
+    # row from the snapshot.
+    echo "→ creating isolated dev DB: data/parkrun_dev.duckdb (from the snapshot)"
+    PARKRUN_PIPELINE_DB="$DEV_DB" python "$REPO/parkrun_pipeline.py" seed \
+      || { echo "✗ could not seed the dev DB" >&2; rm -f "$DEV_DB" "$DEV_DB.wal"; exit 1; }
   fi
   export PARKRUN_DB="$DEV_DB"
 fi
 
+# Dev-only "Label impact" tab: needs the frozen pre-buggy views alongside the
+# live ones. Never built on the source of truth or in the deploy snapshot.
+if [[ "${PARKRUN_LABEL_AUDIT:-}" == "1" ]]; then
+  PARKRUN_LABEL_AUDIT=1 python - "$PARKRUN_DB" <<'PYEOF' || echo "⚠️  could not build the legacy views" >&2
+import sys, duckdb, parkrun_pipeline as p
+con = duckdb.connect(sys.argv[1])
+p.ensure_views(con)
+p.ensure_legacy_views(con)
+con.close()
+PYEOF
+fi
+
 echo "→ branch:     $branch"
+[[ "${PARKRUN_LABEL_AUDIT:-}" == "1" ]] && echo "→ label-impact tab: ON"
 echo "→ PARKRUN_DB: $PARKRUN_DB"
 echo "→ opening http://localhost:8501 …"
 exec streamlit run "$REPO/app.py"
