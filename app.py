@@ -1196,13 +1196,13 @@ with tab4:
                 # legendgroup per athlete so one click hides both their lines.
                 def _rename(tr):
                     name, _, mode = tr.name.partition(", ")
-                    tr.name = name + (" (with buggy)" if mode == "buggy" else "")
+                    tr.name = name + (f" {BUGGY_GLYPH}" if mode == "buggy" else "")
                     tr.legendgroup = name
                 fig.for_each_trace(_rename)
                 st.caption(
-                    "Dotted = target for runs **with the buggy**. Where both "
-                    "lines run together, that athlete had runs of each kind in "
-                    "the same 91-day window."
+                    f"{BUGGY_GLYPH} dotted = target for runs **with the "
+                    f"buggy**. Where both lines run together, that athlete had "
+                    f"runs of each kind in the same 91-day window."
                 )
             # y-axis tick labels as mm:ss at 2-minute steps; autorange on both axes
             # so hiding an athlete via the legend rescales to those still shown.
