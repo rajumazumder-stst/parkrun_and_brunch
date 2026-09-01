@@ -202,7 +202,8 @@ for c in ("Old margin", "New margin"):
     show[c] = show[c].map(lambda v: "—" if pd.isna(v) else f"{v:.2f}")
 
 only_changed = st.checkbox("Only the ones that changed", value=False)
-table = show[cmp["Verdict"] != "Unchanged"] if only_changed else show
+keep = cmp["Verdict"] != "Unchanged" if only_changed else pd.Series(True, index=cmp.index)
+table = show[keep]
 st.dataframe(
     table.style
          .map(lambda v: f"color:{VERDICT_COLOR.get(v, '')}", subset=["Verdict"])
@@ -215,11 +216,17 @@ st.subheader("One head-to-head, both methods")
 
 # Date order, most recent first — the same order the table is in, so picking a
 # row from it and finding it in the dropdown takes no searching.
+# The checkbox drives this list too: having filtered the table down to what
+# moved, the obvious next act is to open one of them, and a dropdown still
+# offering all 205 would make that a search.
 labels = {
     f"{pd.Timestamp(r['Date']):%Y-%m-%d} · {r['parkrun']} · "
     f"{r['Classification']} — {r['Verdict']}": r["key"]
-    for _, r in cmp.iterrows()
+    for _, r in cmp[keep].iterrows()
 }
+if not labels:
+    st.info("Nothing changed, so there is nothing to compare.")
+    st.stop()
 chosen = st.selectbox("Head-to-head", list(labels))
 key = labels[chosen]
 n, o = new_occ.get(key), old_occ.get(key)

@@ -127,15 +127,17 @@ def mode_badge(is_buggy, source: str | None = None) -> str:
 
 
 def mode_suffix(is_buggy, source: str | None = None) -> str:
-    """Plain-text equivalent for st.table / st.dataframe, which strip HTML.
+    """Glyph appended to a runner's name in prose and tables.
 
-    An estimated label must read differently from a confirmed one — given how
-    poorly a per-run rule separates a buggy from a hard course, a guess has to
-    be visibly a guess.
+    The glyph alone, not the words: it appears mid-sentence in the scoreline,
+    where "(with buggy)" after every name made the line hard to read. An
+    estimated label still has to look different from a confirmed one — given
+    how poorly a per-run rule separates a buggy from a hard course, a guess has
+    to be visibly a guess — so it keeps the "est." qualifier.
     """
     if not is_buggy:
         return ""
-    return " (with buggy, estimated)" if source == "estimated" else " (with buggy)"
+    return f" {BUGGY_GLYPH} (est.)" if source == "estimated" else f" {BUGGY_GLYPH}"
 
 
 def mode_text(is_buggy, source: str | None = None) -> str:
