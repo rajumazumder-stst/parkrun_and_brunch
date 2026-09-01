@@ -55,9 +55,29 @@ where they differ from the original brief, **the spec wins**.
   stamp is written only after it succeeds. The hosted app's `PARKRUN_DB` /
   `motherduck_token` secrets are removed — it serves the bundled snapshot
   again (`docs/DEPLOY.md` § History).
+- 🔨 **Buggy mode — built on `dev`, not yet promoted** (1 Sep 2026). George and
+  Duncan sometimes run pushing a buggy, which parkrun records nothing about, so
+  their times were being pooled into a single form target that flattered the
+  buggy runs and penalised the rest. Built: the `run_modes` label store,
+  `course_difficulty` and `buggy_handicap` tables, the `current_targets` primary
+  key migration, the mode-aware views (`v_results_moded` + per-mode targets and
+  the symmetric handicap bridge), the review-sheet export/import tooling, and
+  the whole UI surface. **Waiting on George and Duncan to return the review
+  spreadsheet** — until a label exists the app is byte-identical to before,
+  which is asserted rather than assumed (see *zero-label equivalence* below).
+  The estimator that fills in future runs is deliberately unwritten: it is
+  supervised, and there is nothing yet to train it on.
 - 🧪 Local dev/test workflow: work on the `dev` branch, `./scripts/run_local.sh` serves
-  the app against an isolated `data/parkrun_dev.duckdb` (gitignored copy of the
-  snapshot) so previews never touch `main` or the deploy snapshot. See `docs/DEV.md`.
+  the app against an isolated `data/parkrun_dev.duckdb` (built through
+  `pipeline seed`, gitignored) so previews never touch `main` or the deploy
+  snapshot. `PARKRUN_LABEL_AUDIT=1` additionally starts `label_impact.py` on a
+  second port. See `docs/DEV.md`.
+- 🧪 **Zero-label equivalence** — with `run_modes` empty the mode-aware views
+  must reproduce the old ones **row for row** (verified: `v_head_to_head`
+  433 = 433, `v_saturday_targets` 1185 = 1185, zero rows either way). It still
+  holds after a full `default` backfill, since those rows are all `FALSE`; it is
+  spent by the first confirmed **buggy** label. `label_impact.py` renders the
+  same check as a live page.
 
 ---
 
@@ -475,19 +495,23 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | Path | Purpose |
 |---|---|
 | `parkrun_pipeline.py` | Loader: `bootstrap` / `refresh` / `status` / `snapshot` / `seed` / `motherduck` (Path A/B, DuckDB) + analytics views/targets + deploy-snapshot build + parkrun-only MotherDuck upload (`build_motherduck`). Also owns scraping (`scrape_athlete`) and time parsing (`time_to_seconds`). |
-| `app.py` | Streamlit front end (5 tabs: overlap · personal bests + head-to-head summary · head-to-head detail · form/target-time · head-to-head map, plus a 6th **dev-only** "Label impact" tab under `PARKRUN_LABEL_AUDIT=1`) reading the `parkrun` schema read-only; DB path resolved via `PARKRUN_DB` env/secret (incl. `md:` MotherDuck), else the bundled snapshot. Auto-reloads on new data via a `data_version()` (`max(scrape_timestamp)`, 60s TTL) cache key; 🔄 Reload button clears the cache manually |
-| `scripts/run_local.sh` | Local dev launcher: venv + isolated `data/parkrun_dev.duckdb` + `streamlit run` (see `docs/DEV.md`) |
+| `app.py` | Streamlit front end (5 tabs: overlap · personal bests + head-to-head summary · head-to-head detail · form/target-time · head-to-head map) reading the `parkrun` schema read-only; DB path resolved via `PARKRUN_DB` env/secret (incl. `md:` MotherDuck), else the bundled snapshot. Auto-reloads on new data via a `data_version()` cache key — `max(scrape_timestamp)` **plus `max(set_at)` and `count(*)` from `run_modes`**, since labels are edited out of band and never move the scrape timestamp — 60s TTL; 🔄 Reload button clears the cache manually |
+| `parkrun_ui.py` | Shared UI layer imported by **both** apps: DB resolution, `ATHLETE_COLORS`/`MEDAL`, `fmt_time`, the buggy display helpers (`BUGGY_GLYPH`, `mode_suffix`, `mode_text`, highlight colours), `_h2h_headline`, `_victory_fig` and `_winning_margin`. `_winning_margin` must exist **once only** — `label_impact.py` diffs old against new, so a second copy of that arithmetic would make a method difference indistinguishable from a rounding one |
+| `label_impact.py` | **Dev-only, separate app** (its own port): the pre-buggy head-to-head against the current one, per-occasion verdicts and paired victory charts. Not a tab in `app.py` — keeping it in its own file means there is no deploy-time gate to get wrong. Needs `v_head_to_head_legacy`, which only ever exists on a dev DB |
+| `scripts/run_local.sh` | Local dev launcher: venv + isolated `data/parkrun_dev.duckdb` (built via `pipeline seed`, **not** `cp` — the committed snapshot carries only the views it had when last rebuilt) + `streamlit run`. Under `PARKRUN_LABEL_AUDIT=1` it also builds the legacy views and starts `label_impact.py` on a second port (see `docs/DEV.md`) |
+| `scripts/dev_fake_labels.py` | Dev-only: plausible fake buggy labels for previewing the UI before the real ones arrive. Labels runs that were slow *relative to that athlete's trailing 20-run median*. Refuses to write to the source of truth or the deploy snapshot |
 | `scripts/parkrun_refresh.sh` | Master refresh from this Mac (manual or scheduled — the one code path): pull clone → seed the local source-of-truth DB if absent → pipeline → audit-file push (fatal; this is the deploy) → freshness stamp → notification |
 | `scripts/parkrun_autorefresh.sh` | Scheduling policy calling the master (launchd agents run self-syncing deployed copies at `~/.config/parkrun/`, Sat 14:30 + Sun 11:00 + missed-weekend login prompt — see `docs/DEPLOY.md` § Scheduled refresh) |
 | `scripts/sync_working_copy.sh` | `sync_working_copy()` — sourced by `parkrun_refresh.sh` (after the freshness stamp) and by `run_local.sh` (`--fetch-only`). Always fetches the `~/Documents` working copy; fast-forwards it only when the tree is clean **and** the branch is `main`. Every path returns 0 — it can never fail a refresh. No-op under launchd (TCC blocks `~/Documents`) |
 | `scripts/fetch_course_difficulty.py` | One-off fetch of the published UK course-difficulty scores to `data/course_difficulty.csv`. Run by hand; the refresh applies the cached CSV and never touches the network for it |
+| `scripts/export_buggy_review.py` | The buggy review sheet: **export** (one tab per athlete, evidence only — no estimate), **`--import`** a returned workbook, **`--backfill`** every unreviewed run as `default`. Dry-run by default, writes only with `--apply`, never overwrites an existing label, refuses to write to the deploy snapshot. Needs `openpyxl`, deliberately not in `requirements.txt` |
 | `scripts/build_logo.py` | Builds the app logo — two variants, `ACTIVE` (currently `toast`) is the one rasterised into `static/`. Lettering is converted from DejaVu Sans Bold to SVG paths at build time, so the committed SVG needs no font installed (DejaVu, not a system font like Arial, because its licence permits redistributing outlines). Build-time only; needs `cairosvg` + `fontTools` + `matplotlib`, deliberately **not** in `requirements.txt` |
 | `assets/logo-toast.svg` | Vector source, **active** logo: `PR&B` on a slice of toast, letters in the three athletes' colours (generated — edit `build_logo.py`, not this) |
 | `assets/logo-runners.svg` | Vector source, alternative logo: three runners in `ATHLETE_COLORS` on a fried egg (generated) |
 | `static/logo-512.png` | `page_icon` source: the browser-tab favicon |
 | `static/apple-touch-icon.png` | 180×180 for the iOS "Add to Home Screen" icon, served at `/app/static/` |
 | `.streamlit/config.toml` | `enableStaticServing = true` so `static/` is reachable at `/app/static/` |
-| `docs/DEV.md` | Local dev workflow (incl. `PARKRUN_LABEL_AUDIT=1` for the label-impact tab) |
+| `docs/DEV.md` | Local dev workflow (incl. `PARKRUN_LABEL_AUDIT=1` for the label-impact app and the fake-label script) |
 | `docs/DATA.md` | The buggy labels: what each `source` means, how the training set grows, how to correct a label by hand |
 | `docs/DEPLOY.md` | Deploy/ops: local source-of-truth DB + snapshot delivery, scheduled refresh, rebuilding/seeding, retired MotherDuck path (secret flip, tokens, re-seed) |
 | `requirements.txt` | Pinned runtime deps for hosting (Streamlit Cloud etc.) |
@@ -529,28 +553,32 @@ Streamlit · plotly · matplotlib-venn · folium/streamlit-folium (map).
 
 ## Visualisations
 
-**Built (local Streamlit, `app.py`, 5 tabs)**:
+**Built (local Streamlit, `app.py`, 5 tabs)** — plus `label_impact.py`, a
+**separate dev-only app** on its own port (`docs/DEV.md`):
 - **Tab 1** participation overlap / Venn (`v_overlap`) + per-athlete company.
 - **Tab 2** form-adjusted head-to-head summary (`v_head_to_head`,
   `current_targets`): **personal bests** (top of the tab — see below), the
-  head-to-head explainer, current-form targets — each a `st.popover` (**click "N
-  runs in window"** to list that athlete's window runs, date desc, with the
-  median time(s) highlighted; the two middle runs for an even count) — latest
-  head-to-head, record leaderboard (3rd place shown only for the 3-way / All),
-  and a **cumulative 1st-place finishes** trend (requires a head-to-head;
-  year/season filterable; hover names the winning parkrun).
+  head-to-head explainer, current-form targets (see **Buggy mode in the UI**),
+  latest head-to-head, record leaderboard (3rd place shown only for the 3-way /
+  All, each placing annotated with how many were run with a buggy), and a
+  **cumulative 1st-place finishes** trend (requires a head-to-head; year/season
+  filterable; hover names the winning parkrun).
 - **Tab 3** head-to-head detail (drill into a single contest): a scoreline
   one-liner (winner, % vs form, winning margin, note on any 3rd-placed
   finisher — all 2 dp), a **victory lollipop chart** (raw `pct_diff` per
   athlete from the on-form baseline, x-axis reversed so faster-than-form
   points right, 1st–2nd winning margin bracketed, winner on top), then the
   results table.
-- **Tab 4** **form — target time by Saturday** (`v_saturday_targets`): per-athlete
-  target line, mm:ss axis, year/season filter, line breaks across >91-day gaps,
-  axes rescale when an athlete is hidden via the legend.
+- **Tab 4** **form — target time by Saturday** (`v_saturday_targets`): one line
+  per **(athlete, mode)** — solid regular, dotted with a buggy — mm:ss axis,
+  year/season filter, line breaks across >91-day gaps, axes rescale when an
+  athlete is hidden via the legend (one `legendgroup` per athlete, so a click
+  hides both their lines).
 - **Tab 5** **map — where the head-to-heads happen** (Folium + OpenStreetMap):
   one pie marker per venue, sized by count and split by wins per athlete; shown
-  once a head-to-head classification is selected.
+  once a head-to-head classification is selected. Tooltips count buggy wins
+  **per athlete** (`George 2 (1 🛒)`) — a trailing total would be ambiguous
+  about whose wins it counted.
 
 **Personal bests** (Tab 2, `load_personal_bests()` + `render_personal_bests()`
 in `app.py` — no view; the SQL lives in the loader). Each athlete's **fastest**
@@ -570,6 +598,38 @@ label and venue/date share one type size (`PB_SMALL`); the time is larger
 (`PB_BIG`) with tabular numerals. The block leads the tab because it motivates
 the head-to-head: their bests sit minutes apart, so ranking a shared parkrun by
 finish time would be meaningless — the explainer says so directly.
+
+### Buggy mode in the UI
+
+One glyph everywhere: **🛒**. The rule is that it marks the *exception*, and
+that a label is only shown for an athlete who actually uses a buggy — Raju's UI
+is unchanged from before the feature, as is everyone's on a database with no
+labels.
+
+- **Current-form targets** (Tab 2) — one bordered box per athlete, ordered by
+  their regular target, showing **`21:36 / 🛒 24:37`** on one line. An athlete
+  with no buggy runs shows a single time and no separator: a slash would imply a
+  second target exists.
+- **Runs in window** — *one* popover per athlete covering the whole 91-day span,
+  not one per target. Buggy runs carry 🛒 after the parkrun name, and the
+  highlight is computed **per mode**: 🟨 the run(s) forming the regular target,
+  🟦 the run(s) forming the buggy one (the median, or the two averaged for an
+  even count). One highlight across both would misrepresent which runs made
+  which number.
+- **Tables** carry no Mode column: 🛒 goes after the runner's name in the
+  head-to-head table and after the parkrun name in the window-runs table. A
+  column earns its width only if most rows use it.
+- **Scorelines and charts** — 🛒 after the name in the `_h2h_headline` sentence
+  and on the victory chart's axis labels; the hover names the mode and the
+  target basis, so a **bridged** target (form borrowed from the other mode via
+  the handicap) is never mistaken for a measured one. `render_occasion` also
+  prints a note in words whenever a target was bridged.
+- **Estimated labels read differently** from confirmed ones (`🛒 (est.)`).
+  Given how poorly a per-run rule separates a buggy from a hard course, a guess
+  has to be visibly a guess.
+- Words, not the glyph, in the **explainer prose**, the bridged-target note and
+  the `title` tooltip that explains the glyph — those are read rather than
+  scanned.
 
 All date-filtered tabs share one mutually-exclusive Year/Season control
 (`year_season_filters`); "Season" is year-qualified (e.g. `2018/19 Winter`,

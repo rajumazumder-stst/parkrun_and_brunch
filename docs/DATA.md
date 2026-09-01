@@ -103,6 +103,22 @@ exported on every refresh, so the edit also shows up as a reviewable diff.
   shift past head-to-heads even though the labels themselves are fixed. The
   blast radius is limited to runs whose target was bridged from the other mode.
 
+## How a label is shown
+
+One glyph, **🛒**, everywhere a run's mode is surfaced — target boxes, the
+head-to-head table, the runs-in-window table, the chart legend and the map
+tooltips. It marks the **exception**: a regular run carries nothing, and an
+athlete with no buggy runs is never labelled either way, so Raju's UI (and
+everyone's, before the first label) is unchanged from before the feature.
+
+An **estimated** label reads differently from a confirmed one (`🛒 (est.)`).
+That distinction is load-bearing: a per-run rule cannot separate a buggy from a
+hard course, so a guess has to be visibly a guess.
+
+Words rather than the glyph in prose — the tab-2 explainer, the note under a
+head-to-head table saying a target was bridged, and the tooltip that explains
+the glyph itself.
+
 ## Course difficulty
 
 `data/course_difficulty.csv` caches the published UK course-difficulty scores

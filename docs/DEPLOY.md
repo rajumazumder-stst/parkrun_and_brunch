@@ -72,6 +72,25 @@ re-points the hosted app at it.
 
 ---
 
+## What is and is not deployed
+
+Streamlit Cloud serves **`app.py` plus `data/parkrun_snapshot.duckdb` from the
+same commit**, which is why the code and the regenerated snapshot must be
+committed together (see the rollout note in the buggy-mode work).
+
+`label_impact.py` is **never** deployed in any meaningful sense. It is a second
+Streamlit entry point that only the local launcher starts, and it needs
+`v_head_to_head_legacy` — a view built solely by `ensure_legacy_views`, which is
+gated on `PARKRUN_LABEL_AUDIT=1` and is never called from `bootstrap` or
+`refresh`. So the legacy views cannot reach the source-of-truth DB or the
+snapshot, and the hosted app has nothing to serve even if the file is present.
+
+`scripts/dev_fake_labels.py` likewise never runs outside a dev database: it
+refuses to write to `~/.config/parkrun/parkrun_local.duckdb` or to the deploy
+snapshot.
+
+---
+
 ## Backends the app can read (`_resolve_db_path` in `app.py`)
 
 Priority order:

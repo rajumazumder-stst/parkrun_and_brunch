@@ -103,3 +103,30 @@ refuses to write to the source of truth or the deploy snapshot.
 
 Delete `data/parkrun_dev.duckdb` when you are done — it is disposable, and
 leaving fake labels in it is a trap.
+
+## Screenshots
+
+Playwright drives the running app for phone-sized captures (390×844, 3×), which
+is the only reliable way to see the layout as it lands on a phone — the tabs,
+popovers, legend isolation and map tooltips all need real interaction. Install
+it into a throwaway venv rather than the project one; it is not a runtime
+dependency:
+
+```bash
+python3 -m venv /tmp/shotenv
+/tmp/shotenv/bin/pip install playwright
+/tmp/shotenv/bin/playwright install chromium
+```
+
+Hide Streamlit's own chrome first, or the shots look like a dev session rather
+than the app:
+
+```python
+p.add_style_tag(content='[data-testid="stToolbar"],[data-testid="stDecoration"],'
+                        '.modebar-container{display:none!important}')
+```
+
+Two gotchas. `full_page=True` gives you only the viewport — Streamlit scrolls an
+inner container, not the document — so scroll the target into view and take a
+normal screenshot. And every tab's DOM is present at once, so scope selectors
+with `:visible` or you will match a hidden element on another tab.
