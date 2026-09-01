@@ -962,9 +962,9 @@ such. And because a run's label decides which target it is judged against,
                     if not labelled:
                         label = "&nbsp;"
                     elif buggy:
-                        label = f"{BUGGY_GLYPH} with buggy"
+                        label = f"{BUGGY_GLYPH} buggy target"
                     else:
-                        label = REGULAR_LABEL
+                        label = "regular target"
                     st.markdown(
                         f"<div style='font-size:{TGT_SMALL};opacity:.75'>"
                         f"{label}</div>"
