@@ -102,25 +102,34 @@ differ a lot (Bromley: Winter 1.2, Summer 2.5). Current aliases:
 | `Foots Cray Meadows (Winter/Summer)` | Foots Cray Meadows |
 | `Jersey Farm (Winter/Summer)` | Jersey Farm |
 | `Medina I.O.W. (Winter/Summer)` | Medina I.O.W. |
-| `Greenwich` | Greenwich Peninsula |
 
-That last one is a judgement call: our catalogue has no plain `Greenwich` event
-and the source has no `Greenwich Peninsula`, so they are the same course under
-two names. The rest are mechanical.
+Plus one rename:
 
-**Do not alias `Jersey` → `Jersey Farm`, or `Jubilee`/`Bedford` → `Jubilee,
-Bedford`.** Those published names are real, distinct parkruns that already match
-our catalogue exactly.
+| Published | → `short_name` |
+|---|---|
+| `Greenwich` | Avery Hill |
 
-### Currently unmatched (6 UK events, by design)
+**`Greenwich` is Avery Hill's former name** (confirmed by the athletes, 1 Sep
+2026). The evidence agreed before the confirmation: Avery Hill's
+`events.location` is *"Avery Hill Park, Greenwich"*; we have run it since
+**2021-11-06**, so it existed throughout the dataset's Jan 2023 – Jan 2025
+window and an essentially-complete UK list (835 courses against 896 live UK
+events today) should contain it; and no row bore its current name.
 
-Four launched after the dataset's Jan 2025 cutoff — Queenswood Country Park,
-Stanborough, Rothamsted Park, and `Jubilee, Bedford` (whose two candidate names
-are taken by other events). `Holywell King George V Playing Fields` is not the
-source's `King George V Playing Field`, which is a different parkrun we also run.
-`Avery Hill` is the odd one out: we have run it since 2021, so it should be in a
-Jan 2025 dataset, but no plausible published name matches. Left unmatched rather
-than guessed.
+It is **not** `Greenwich Peninsula`, which was the first guess on name
+similarity alone and was withdrawn — our first run there was 2026-01-31, a year
+after the dataset's cutoff, so it is almost certainly absent from the source
+entirely. A renamed course is the general case to watch: the published name is a
+snapshot of early 2025, so any parkrun that has since been renamed will look
+unmatched under its current `short_name`.
+
+### Currently unmatched (6 UK events, all by design)
+
+Queenswood Country Park, Stanborough, Rothamsted Park and `Greenwich Peninsula`
+postdate the dataset's Jan 2025 cutoff. `Jubilee, Bedford`'s two candidate
+published names (`Jubilee`, `Bedford`) are both taken by other real parkruns.
+`Holywell King George V Playing Fields` is not the source's `King George V
+Playing Field`, which is a different parkrun we also run.
 
 A missing score is never fatal — the run falls back with lower confidence.
 
