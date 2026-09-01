@@ -225,11 +225,11 @@ def _winning_margin(rows: pd.DataFrame) -> float | None:
     return float(d.iloc[1]["pct_diff"] - d.iloc[0]["pct_diff"])
 
 
-BASIS_LABEL = {"buggy": "With buggy", "nonbuggy": "Regular"}
+BASIS_LABEL = {"buggy": f"{BUGGY_GLYPH} buggy", "nonbuggy": "regular"}
 BASIS_HOVER = {
     "nonbuggy+handicap": "regular form + handicap",
-    "buggy-handicap": "with-buggy form ÷ handicap",
-    "buggy": "with-buggy form",
+    "buggy-handicap": f"{BUGGY_GLYPH} form ÷ handicap",
+    "buggy": f"{BUGGY_GLYPH} form",
     "nonbuggy": "regular form",
 }
 

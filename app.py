@@ -428,14 +428,13 @@ def _render_window_runs(runs: pd.DataFrame, athlete_name: str) -> None:
     )
     if has_modes:
         counts = " · ".join(
-            f"{len(sub)} {'with buggy' if m == 'buggy' else REGULAR_LABEL}"
+            f"{len(sub)} {BUGGY_GLYPH if m == 'buggy' else REGULAR_LABEL}"
             for m, sub in groups if not sub.empty
         )
         st.caption(
             f"{counts}. Highlighted = the run(s) whose time **is** that "
-            f"target — 🟨 {REGULAR_LABEL}, 🟦 with buggy (the median, or the "
-            f"two averaged for an even count). {BUGGY_GLYPH} = run with the "
-            f"buggy."
+            f"target — 🟨 {REGULAR_LABEL}, 🟦 {BUGGY_GLYPH} (the median, or "
+            f"the two averaged for an even count)."
         )
     else:
         n_ = len(g)

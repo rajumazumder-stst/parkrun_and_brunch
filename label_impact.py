@@ -97,7 +97,7 @@ def load_label_counts(version) -> pd.DataFrame:
         """
         SELECT a.athlete_name AS "Athlete",
                m.source        AS "Source",
-               m.is_buggy      AS "With buggy",
+               m.is_buggy      AS "🛒",
                count(*)        AS "Runs"
         FROM parkrun.run_modes m JOIN parkrun.athletes a USING (athlete_id)
         GROUP BY 1, 2, 3 ORDER BY 1, 2, 3
