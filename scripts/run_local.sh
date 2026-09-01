@@ -14,6 +14,9 @@
 #   1. $PARKRUN_DB, if you've already set it (point it wherever you like)
 #   2. data/parkrun_dev.duckdb  (auto-created here on first run from the snapshot)
 #
+# Also fetches (never pulls) so the branch report below is based on fresh
+# remote refs — see scripts/sync_working_copy.sh.
+#
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -27,11 +30,25 @@ if [[ -f "$VENV/bin/activate" ]]; then
   source "$VENV/bin/activate"
 fi
 
+# Refresh remote refs so the branch report below reflects reality — fetch only,
+# this must never move a branch out from under work in progress.
+if [[ -r "$REPO/scripts/sync_working_copy.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "$REPO/scripts/sync_working_copy.sh"
+  PARKRUN_WORKING_COPY="$REPO" sync_working_copy --fetch-only
+fi
+
 # Warn (don't block) if run from main — the point is to keep main untouched.
 branch="$(git -C "$REPO" branch --show-current 2>/dev/null || echo '?')"
 if [[ "$branch" == "main" ]]; then
   echo "⚠️  You're on 'main'. Switch to a feature branch (e.g. 'git switch dev') so"
   echo "    local changes don't land on the deployable branch." >&2
+fi
+
+# The scheduled refresh pushes from its own clone, so this copy drifts behind.
+behind="$(git -C "$REPO" rev-list --count HEAD..origin/main 2>/dev/null || echo 0)"
+if [[ "$behind" != "0" ]]; then
+  echo "ℹ️  $behind commit(s) behind origin/main (data refreshes pushed by the scheduler)."
 fi
 
 if [[ -z "${PARKRUN_DB:-}" ]]; then
