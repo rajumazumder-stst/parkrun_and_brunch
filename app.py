@@ -364,37 +364,46 @@ def _fmt_uk_date(d) -> str:
     return pd.Timestamp(d).strftime("%a %d %b %Y")
 
 
-def _render_window_runs(runs: pd.DataFrame, athlete_name: str,
-                        mode: str | None = None) -> None:
-    """Table of an athlete's target-window runs (date desc), with the median
-    time(s) highlighted. The target is median(time_seconds); for an even number
-    of runs the two middle runs are both highlighted (they are averaged to form
-    the target)."""
-    g = runs[runs["athlete_name"] == athlete_name]
-    # Filter to the runs that ACTUALLY formed this target. The target is a
-    # per-mode median, so listing all window runs beside a buggy target would
-    # show 13 runs behind a median of 5 — actively misleading.
-    if mode is not None and "mode" in g.columns:
-        g = g[g["mode"] == mode]
-    g = g.sort_values("run_date", ascending=False).reset_index(drop=True)
+def _render_window_runs(runs: pd.DataFrame, athlete_name: str) -> None:
+    """One table of an athlete's target-window runs (date desc), covering BOTH
+    modes, with the run(s) that set each mode's target highlighted.
+
+    One box per athlete rather than one per target: the window is a single span
+    of that athlete's running, and splitting it into two tables made you open
+    two popovers to see one 91-day period. The highlight is computed PER MODE,
+    though — each target is the median of its own runs, so a single highlighted
+    pair would misrepresent which runs set which target.
+    """
+    g = (
+        runs[runs["athlete_name"] == athlete_name]
+        .sort_values("run_date", ascending=False)
+        .reset_index(drop=True)
+    )
     if g.empty:
         st.caption("No runs in the window.")
         return
-    # Median by *time*: the middle 1 (odd) or 2 (even) rows when sorted by time.
-    by_time = g["time_seconds"].sort_values().index.tolist()
-    n = len(by_time)
-    med = {by_time[n // 2]} if n % 2 else {by_time[n // 2 - 1], by_time[n // 2]}
+
+    has_modes = "mode" in g.columns and g["is_buggy"].any()
+    groups = (
+        [(m, g[g["mode"] == m]) for m in ("nonbuggy", "buggy")] if has_modes
+        else [(None, g)]
+    )
+    # Median by *time* within each mode: the middle 1 (odd) or 2 (even) rows.
+    med: set[int] = set()
+    for _, sub in groups:
+        if sub.empty:
+            continue
+        by_time = sub["time_seconds"].sort_values().index.tolist()
+        n_ = len(by_time)
+        med |= ({by_time[n_ // 2]} if n_ % 2
+                else {by_time[n_ // 2 - 1], by_time[n_ // 2]})
+
     cols = {
         "Date": g["run_date"].dt.strftime("%d %b %Y"),
         "parkrun": g["short_name"],
         "Time": g["time_seconds"].map(fmt_time),
     }
-    # Marker whenever this athlete uses a buggy AT ALL in the window — not just
-    # when this filtered list contains one. Shown in both popovers, it reads as
-    # "these are the with-buggy runs / these are the without"; shown in only
-    # one, its absence in the other would look like missing data.
-    athlete_runs = runs[runs["athlete_name"] == athlete_name]
-    if "is_buggy" in athlete_runs.columns and athlete_runs["is_buggy"].any():
+    if has_modes:
         cols[""] = g["is_buggy"].map(lambda b: BUGGY_GLYPH if b else "")
     disp = pd.DataFrame(cols)
 
@@ -407,11 +416,21 @@ def _render_window_runs(runs: pd.DataFrame, athlete_name: str,
         hide_index=True,
         width="stretch",
     )
-    kind = "median (= the target)" if n % 2 else "the two runs averaged for the target"
-    note = f"🟨 Highlighted = {kind}."
-    if "" in disp.columns:
-        note += f" {BUGGY_GLYPH} = run with the buggy."
-    st.caption(note)
+    if has_modes:
+        counts = " · ".join(
+            f"{len(sub)} {'with' if m == 'buggy' else 'without'} buggy"
+            for m, sub in groups if not sub.empty
+        )
+        st.caption(
+            f"{counts}. 🟨 = the run(s) whose time **is** that mode's target "
+            f"(the median, or the two averaged for an even count). "
+            f"{BUGGY_GLYPH} = run with the buggy."
+        )
+    else:
+        n_ = len(g)
+        kind = ("median (= the target)" if n_ % 2
+                else "the two runs averaged for the target")
+        st.caption(f"🟨 Highlighted = {kind}.")
 
 
 # One type size for the scope label and the where/when line, a larger one for
@@ -912,6 +931,7 @@ such. And because a run's label decides which target it is judged against,
                     unsafe_allow_html=True,
                 )
                 # nonbuggy first, buggy second — the order the user reads them.
+                shown = 0
                 for mode in ("nonbuggy", "buggy"):
                     row = g[g["mode"] == mode] if "mode" in g else g
                     if row.empty:
@@ -928,15 +948,19 @@ such. And because a run's label decides which target it is judged against,
                         f"{fmt_time(row['target_seconds']) if n else '—'}</div>",
                         unsafe_allow_html=True,
                     )
-                    if n:
-                        with st.popover(f"{n} runs in window", width="stretch"):
-                            st.markdown(
-                                f"**{name}{mode_suffix(buggy)} — {n} runs in "
-                                f"the 91-day window**"
-                            )
-                            _render_window_runs(target_runs, name, mode=mode)
-                    else:
-                        st.caption("no runs in window")
+                    shown += n
+                # ONE popover per athlete, covering the whole window: it is a
+                # single 91-day span of their running, and a box per target
+                # meant opening two to see one period.
+                if shown:
+                    total = len(target_runs[target_runs["athlete_name"] == name])
+                    with st.popover(f"{total} runs in window", width="stretch"):
+                        st.markdown(
+                            f"**{name} — {total} runs in the 91-day window**"
+                        )
+                        _render_window_runs(target_runs, name)
+                else:
+                    st.caption("no runs in window")
 
     st.divider()
     st.subheader("Latest head-to-head")
