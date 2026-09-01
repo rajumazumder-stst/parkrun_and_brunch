@@ -946,34 +946,29 @@ such. And because a run's label decides which target it is judged against,
                     f" {name}</div>",
                     unsafe_allow_html=True,
                 )
-                # An athlete with no buggy runs gets NO mode label — calling
-                # Raju's only target "regular" implies a second one exists. The
-                # label line is still emitted, empty, so the times stay on the
-                # same level across all three boxes.
-                labelled = "mode" in g and (g["mode"] == "buggy").any()
-                shown = 0
+                # One line: regular target, then the buggy one after a slash,
+                # marked with the trolley. An athlete with no buggy runs shows
+                # a single time and nothing else — a label or separator would
+                # imply a second target exists.
+                parts, shown = [], 0
                 for mode in ("nonbuggy", "buggy"):
                     row = g[g["mode"] == mode] if "mode" in g else g
                     if row.empty:
                         continue
                     row = row.iloc[0]
                     n = int(row["n_window"])
-                    buggy = mode == "buggy"
-                    if not labelled:
-                        label = "&nbsp;"
-                    elif buggy:
-                        label = f"{BUGGY_GLYPH} buggy target"
-                    else:
-                        label = "regular target"
-                    st.markdown(
-                        f"<div style='font-size:{TGT_SMALL};opacity:.75'>"
-                        f"{label}</div>"
-                        f"<div style='font-size:{TGT_BIG};font-weight:600;"
-                        f"font-variant-numeric:tabular-nums;line-height:1.15'>"
-                        f"{fmt_time(row['target_seconds']) if n else '—'}</div>",
-                        unsafe_allow_html=True,
-                    )
+                    if not n:
+                        continue
+                    t = fmt_time(row["target_seconds"])
+                    parts.append(f"{BUGGY_GLYPH} {t}" if mode == "buggy" else t)
                     shown += n
+                st.markdown(
+                    f"<div style='font-size:{TGT_BIG};font-weight:600;"
+                    f"font-variant-numeric:tabular-nums;line-height:1.15'>"
+                    f"{' / '.join(parts) if parts else '—'}</div>",
+                    unsafe_allow_html=True,
+                )
+
                 # ONE popover per athlete, covering the whole window: it is a
                 # single 91-day span of their running, and a box per target
                 # meant opening two to see one period.
