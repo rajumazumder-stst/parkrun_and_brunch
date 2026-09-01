@@ -91,17 +91,29 @@ whatever courses were in the window.
 ### Names that differ between the two sources
 
 `alias_of` maps a published name onto our `events.short_name`. Where a venue
-publishes two seasonal courses, **both** rows are aliased and the loader
-averages them — picking one would be a silent coin-flip between scores that can
-differ a lot (Bromley: Winter 1.2, Summer 2.5). Current aliases:
+publishes several course variants, **every** row is aliased so the mapping stays
+complete and traceable, and the loader decides which to use:
+
+1. **If one variant is `(Main)`, that one is used alone.** Main is the course the
+   event normally runs; a seasonal alternative may be used only a few weeks a
+   year, and averaging it in drags the score toward a course they mostly did not
+   run. Eastbourne takes `(Main)` 2.0 rather than the 2.3 average with
+   `(Summer)`.
+2. **Otherwise the variants are averaged.** For a true Winter/Summer pair there
+   is no principled pick — we do not know which season a given run fell in, and
+   choosing arbitrarily would be a silent coin-flip between scores that can
+   differ a lot (Bromley: Winter 1.2, Summer 2.5).
+
+Both rules live in `apply_course_difficulty`, not in the CSV, so they also apply
+to any variant group aliased later. Current aliases:
 
 | Published | → `short_name` |
 |---|---|
-| `Bromley (Winter)` + `Bromley (Summer)` | Bromley |
-| `Eastbourne (Main)` + `Eastbourne (Summer)` | Eastbourne |
-| `Foots Cray Meadows (Winter/Summer)` | Foots Cray Meadows |
-| `Jersey Farm (Winter/Summer)` | Jersey Farm |
-| `Medina I.O.W. (Winter/Summer)` | Medina I.O.W. |
+| `Bromley (Winter)` + `Bromley (Summer)` | Bromley — averaged, 1.85 |
+| `Eastbourne (Main)` + `Eastbourne (Summer)` | Eastbourne — **`(Main)` used alone, 2.0** |
+| `Foots Cray Meadows (Winter/Summer)` | Foots Cray Meadows — averaged, 3.80 |
+| `Jersey Farm (Winter/Summer)` | Jersey Farm — averaged, 3.45 |
+| `Medina I.O.W. (Winter/Summer)` | Medina I.O.W. — averaged, 3.60 |
 
 Plus one rename:
 
@@ -151,3 +163,19 @@ missing by design and would swamp the signal.
 A warning never blocks the refresh. It is a prompt to run
 `python scripts/fetch_course_difficulty.py` when convenient, then re-check the
 `alias_of` column for any new near-miss names.
+
+### Variant groups not yet aliased
+
+The source publishes 19 variant groups; only the 5 above are aliased, because
+those are the only ones we have run. For the other 14 the base name matches
+nothing (the source has `Cheltenham (Summer)`/`(Winter)` but no `Cheltenham`),
+so the first run at any of them lands **unmatched** and needs its rows aliased:
+
+Alton Water, Belvoir Castle, Bicester, Brockenhurst, Cheltenham, East Brighton,
+Fell Foot, Horsham, Hunstanton Promenade, Isabel Trail, Marine Parade, Mount
+Stuart, Nobles, Seven Fields.
+
+Four of those have a `(Main)`/`(Alternative)` split rather than a seasonal one —
+Horsham, Isabel Trail, Marine Parade, Nobles — and rule 1 handles them. Watch
+Marine Parade in particular: `(Main)` is 1.2 and `(Summer)` is 5.2, so getting
+the rule wrong there would be a whole-scale error.

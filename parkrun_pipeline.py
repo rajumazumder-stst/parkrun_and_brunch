@@ -1096,27 +1096,46 @@ def apply_course_difficulty(con: duckdb.DuckDBPyConnection) -> None:
         log(f"  course difficulty: {src.name} absent — skipped")
         return
 
-    # GROUP BY event_id, not a bare INSERT: a venue that publishes two seasonal
-    # courses (Bromley Winter 1.2 / Summer 2.5) has two source rows aliased onto
-    # one event. Taking whichever row landed last would be a silent coin-flip
-    # between very different scores, so they are averaged — we do not know which
-    # season a given run fell in. parkrun_name keeps both source names so the
-    # aggregate is traceable; speed_rank is reference-only and keeps the best.
+    # A venue that publishes several course variants has several source rows
+    # aliased onto one event, so this aggregates rather than inserting blind —
+    # taking whichever row landed last would be a silent coin-flip between
+    # scores that can differ a lot (Bromley: Winter 1.2, Summer 2.5).
+    #
+    # Two rules, in order:
+    #   1. If any variant is the "(Main)" course, use ONLY those. Main is the
+    #      course the event normally runs; a seasonal alternative may be used
+    #      only a few weeks a year, and averaging it in drags the score toward a
+    #      course they mostly did not run (Eastbourne: Main 2.0, Summer 2.6).
+    #   2. Otherwise average the variants — for a true Winter/Summer pair we do
+    #      not know which season a given run fell in.
+    #
+    # parkrun_name keeps the contributing source names so the result is
+    # traceable; speed_rank is reference-only and keeps the best.
     con.execute(
         f"""
         INSERT OR REPLACE INTO {SCHEMA}.course_difficulty
               (event_id, parkrun_name, difficulty, speed_rank, source, fetched_at)
-        SELECT e.event_id,
-               string_agg(c.parkrun_name, ' + ' ORDER BY c.parkrun_name),
-               avg(c.difficulty),
-               min(c.speed_rank),
+        WITH src AS (
+            SELECT e.event_id, c.parkrun_name, c.difficulty, c.speed_rank,
+                   c.fetched_at,
+                   c.parkrun_name ILIKE '%(Main)%' AS is_main
+            FROM read_csv_auto('{src}', header=true) c
+            JOIN {SCHEMA}.events e
+              ON e.short_name = coalesce(nullif(c.alias_of, ''), c.parkrun_name)
+             AND e.seriesid = 1
+        ),
+        pick AS (
+            SELECT * FROM src
+            QUALIFY is_main OR NOT bool_or(is_main) OVER (PARTITION BY event_id)
+        )
+        SELECT event_id,
+               string_agg(parkrun_name, ' + ' ORDER BY parkrun_name),
+               avg(difficulty),
+               min(speed_rank),
                'therunningchannel',
-               max(c.fetched_at::timestamptz)
-        FROM read_csv_auto('{src}', header=true) c
-        JOIN {SCHEMA}.events e
-          ON e.short_name = coalesce(nullif(c.alias_of, ''), c.parkrun_name)
-         AND e.seriesid = 1
-        GROUP BY e.event_id
+               max(fetched_at::timestamptz)
+        FROM pick
+        GROUP BY event_id
         """
     )
 
