@@ -23,6 +23,32 @@ runs and penalises the non-buggy ones. `parkrun.run_modes` is the label store.
 "probably not a buggy" — and training on them would assert several hundred
 unverified negatives as confirmed fact.
 
+## Importing the review sheet
+
+```bash
+# export the sheet for George and Duncan
+python scripts/export_buggy_review.py
+
+# label every run 'default' non-buggy — safe before the sheet comes back
+python scripts/export_buggy_review.py --backfill          # dry run
+python scripts/export_buggy_review.py --backfill --apply
+
+# import a returned sheet
+python scripts/export_buggy_review.py --import buggy_review_2026-09-01.xlsx
+python scripts/export_buggy_review.py --import ... --apply
+```
+
+Import and backfill both print what they would do and write only with
+`--apply`. They **never overwrite an existing `run_modes` row**, so a hand
+correction outranks a re-import permanently and re-running is a no-op.
+
+Writes are refused against the deploy snapshot: it is rebuilt from the source of
+truth on every refresh, so a label written there would be silently destroyed.
+
+The backfill is safe to run early. Those rows are all `is_buggy = FALSE`, so the
+views produce byte-identical output to before — but the estimator's anti-join
+converges immediately, which is what makes its write-once path exercisable.
+
 ## The training set grows two ways
 
 1. **A one-off backfill** — the review spreadsheet, imported once. It seeds the
