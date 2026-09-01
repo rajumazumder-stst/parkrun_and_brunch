@@ -47,6 +47,9 @@ from parkrun_ui import (  # shared with label_impact.py — see that module
     _surface_color,
     _victory_fig,
     _winning_margin,
+    HL_BUGGY,
+    HL_REGULAR,
+    REGULAR_LABEL,
     UK_TZ,
     fmt_time,
     mode_badge,
@@ -389,14 +392,18 @@ def _render_window_runs(runs: pd.DataFrame, athlete_name: str) -> None:
         else [(None, g)]
     )
     # Median by *time* within each mode: the middle 1 (odd) or 2 (even) rows.
-    med: set[int] = set()
-    for _, sub in groups:
+    # Colour-coded by mode — two targets, two highlights, so the reader can see
+    # at a glance which runs produced which number.
+    med: dict[int, str] = {}
+    for m, sub in groups:
         if sub.empty:
             continue
         by_time = sub["time_seconds"].sort_values().index.tolist()
         n_ = len(by_time)
-        med |= ({by_time[n_ // 2]} if n_ % 2
-                else {by_time[n_ // 2 - 1], by_time[n_ // 2]})
+        idx = ({by_time[n_ // 2]} if n_ % 2
+               else {by_time[n_ // 2 - 1], by_time[n_ // 2]})
+        style = HL_BUGGY if m == "buggy" else HL_REGULAR
+        med.update({i: style for i in idx})
 
     cols = {
         "Date": g["run_date"].dt.strftime("%d %b %Y"),
@@ -408,8 +415,8 @@ def _render_window_runs(runs: pd.DataFrame, athlete_name: str) -> None:
     disp = pd.DataFrame(cols)
 
     def _hl(row):
-        on = row.name in med
-        return ["background-color:#ffe08a;color:#111" if on else "" for _ in row]
+        style = med.get(row.name, "")
+        return [style for _ in row]
 
     st.dataframe(
         disp.style.apply(_hl, axis=1),
@@ -418,13 +425,14 @@ def _render_window_runs(runs: pd.DataFrame, athlete_name: str) -> None:
     )
     if has_modes:
         counts = " · ".join(
-            f"{len(sub)} {'with' if m == 'buggy' else 'without'} buggy"
+            f"{len(sub)} {'with buggy' if m == 'buggy' else REGULAR_LABEL}"
             for m, sub in groups if not sub.empty
         )
         st.caption(
-            f"{counts}. 🟨 = the run(s) whose time **is** that mode's target "
-            f"(the median, or the two averaged for an even count). "
-            f"{BUGGY_GLYPH} = run with the buggy."
+            f"{counts}. Highlighted = the run(s) whose time **is** that "
+            f"target — 🟨 {REGULAR_LABEL}, 🟦 with buggy (the median, or the "
+            f"two averaged for an even count). {BUGGY_GLYPH} = run with the "
+            f"buggy."
         )
     else:
         n_ = len(g)
@@ -448,6 +456,7 @@ PB_SCOPES = ["All time", "Last 12 months", "Last 3 months"]
 # Current-target box: the mode label small, the time itself large.
 TGT_SMALL = "0.82rem"
 TGT_BIG = "1.5rem"
+TGT_GAP = "0.75rem"   # space between the last target and the popover button
 
 
 def render_personal_bests(pb: pd.DataFrame) -> None:
@@ -886,7 +895,7 @@ don't compare raw finish times, we compare **performance against recent form**:
 
 A 3-way where someone has no recent form becomes a 2-way between the other two.
 
-**Running with a buggy** 🍼 — George and Duncan sometimes run pushing one, which
+**Running with a buggy** 🛒 — George and Duncan sometimes run pushing one, which
 costs them time parkrun records nothing about. So each of them has **two**
 targets: one for their runs with the buggy and one for without, and a run is
 always compared against the matching kind. Pooling the two would flatter the
@@ -930,7 +939,11 @@ such. And because a run's label decides which target it is judged against,
                     f" {name}</div>",
                     unsafe_allow_html=True,
                 )
-                # nonbuggy first, buggy second — the order the user reads them.
+                # An athlete with no buggy runs gets NO mode label — calling
+                # Raju's only target "regular" implies a second one exists. The
+                # label line is still emitted, empty, so the times stay on the
+                # same level across all three boxes.
+                labelled = "mode" in g and (g["mode"] == "buggy").any()
                 shown = 0
                 for mode in ("nonbuggy", "buggy"):
                     row = g[g["mode"] == mode] if "mode" in g else g
@@ -939,10 +952,15 @@ such. And because a run's label decides which target it is judged against,
                     row = row.iloc[0]
                     n = int(row["n_window"])
                     buggy = mode == "buggy"
+                    if not labelled:
+                        label = "&nbsp;"
+                    elif buggy:
+                        label = f"{BUGGY_GLYPH} with buggy"
+                    else:
+                        label = REGULAR_LABEL
                     st.markdown(
                         f"<div style='font-size:{TGT_SMALL};opacity:.75'>"
-                        f"{BUGGY_GLYPH + ' with buggy' if buggy else 'without buggy'}"
-                        f"</div>"
+                        f"{label}</div>"
                         f"<div style='font-size:{TGT_BIG};font-weight:600;"
                         f"font-variant-numeric:tabular-nums;line-height:1.15'>"
                         f"{fmt_time(row['target_seconds']) if n else '—'}</div>",
@@ -953,6 +971,10 @@ such. And because a run's label decides which target it is judged against,
                 # single 91-day span of their running, and a box per target
                 # meant opening two to see one period.
                 if shown:
+                    st.markdown(
+                        f"<div style='height:{TGT_GAP}'></div>",
+                        unsafe_allow_html=True,
+                    )
                     total = len(target_runs[target_runs["athlete_name"] == name])
                     with st.popover(f"{total} runs in window", width="stretch"):
                         st.markdown(

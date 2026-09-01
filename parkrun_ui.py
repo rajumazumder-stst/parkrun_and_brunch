@@ -107,7 +107,11 @@ UK_TZ = ZoneInfo("Europe/London")
 # Shown only for athletes who actually have a buggy run in the loaded data, so
 # an athlete who has never pushed one sees an unchanged UI. Computed once per
 # render from v_results_moded (see `BUGGY_ATHLETES`).
-BUGGY_GLYPH = "🍼"
+BUGGY_GLYPH = "🛒"
+# "Regular" rather than "without buggy": it is the athlete's normal running,
+# and naming it by what it lacks makes the buggy the default in the reader's
+# head. Raju has no buggy runs at all, so he is never labelled either way.
+REGULAR_LABEL = "regular"
 
 
 def mode_badge(is_buggy, source: str | None = None) -> str:
@@ -137,10 +141,17 @@ def mode_suffix(is_buggy, source: str | None = None) -> str:
 def mode_text(is_buggy, source: str | None = None) -> str:
     """Value for a real `Mode` column: always says something, never blank."""
     if not is_buggy:
-        return "—"
+        return "Regular"
     return "With buggy (est.)" if source == "estimated" else "With buggy"
 
 
+
+
+# Median highlights in the "runs in window" table. Two colours because there
+# are two targets: one highlight for both would leave the reader unable to tell
+# which runs made which number.
+HL_REGULAR = "background-color:#ffe08a;color:#111"
+HL_BUGGY = "background-color:#bcd8ff;color:#111"
 
 
 def _surface_color() -> str:
@@ -206,12 +217,12 @@ def _winning_margin(rows: pd.DataFrame) -> float | None:
     return float(d.iloc[1]["pct_diff"] - d.iloc[0]["pct_diff"])
 
 
-BASIS_LABEL = {"buggy": "With buggy", "nonbuggy": "Without buggy"}
+BASIS_LABEL = {"buggy": "With buggy", "nonbuggy": "Regular"}
 BASIS_HOVER = {
-    "nonbuggy+handicap": "without-buggy form + handicap",
+    "nonbuggy+handicap": "regular form + handicap",
     "buggy-handicap": "with-buggy form ÷ handicap",
     "buggy": "with-buggy form",
-    "nonbuggy": "without-buggy form",
+    "nonbuggy": "regular form",
 }
 
 
@@ -286,10 +297,10 @@ def _victory_fig(rows: pd.DataFrame) -> go.Figure:
 # plain 'nonbuggy' basis, so never test for that combination.
 BASIS_NOTE = {
     "nonbuggy+handicap": ("had no buggy runs in the 91-day window, so their "
-                          "target is their without-buggy form **+ the buggy "
+                          "target is their **regular** form **+ the buggy "
                           "handicap**"),
-    "buggy-handicap": ("had no without-buggy runs in the 91-day window, so "
-                       "their target is their with-buggy form **÷ the buggy "
+    "buggy-handicap": ("had no regular runs in the 91-day window, so their "
+                       "target is their with-buggy form **÷ the buggy "
                        "handicap**"),
 }
 
