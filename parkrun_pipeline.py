@@ -63,11 +63,21 @@ DATA_DIR = Path(__file__).parent / "data"
 SNAPSHOT_PATH = DATA_DIR / "parkrun_snapshot.duckdb"
 SNAPSHOT_TABLES = (
     "athletes",
+    "buggy_handicap",
     "country_lookup",
+    "course_difficulty",
     "current_targets",
     "events",
     "results",
+    "run_modes",
 )
+
+# Backfill values for columns newer than the snapshot being seeded from, keyed
+# (table, column). Anything not listed defaults to NULL. `mode` must be listed:
+# it is part of the current_targets primary key, so NULL would fail the insert.
+SEED_COLUMN_DEFAULTS = {
+    ("current_targets", "mode"): "'nonbuggy'",
+}
 
 # MotherDuck cloud target. The database name deliberately differs from the
 # `parkrun` schema (same rule as the snapshot catalog) so `parkrun.v_overlap`
@@ -79,6 +89,12 @@ MD_DATABASE = "parkrun_snapshot"
 ATHLETE_NAMES = {5672: "raju", 5462426: "duncan", 3087156: "george"}
 ATHLETE_IDS = list(ATHLETE_NAMES)
 TARGET_WINDOW_DAYS = 91  # head-to-head / current-form lookback
+# Multiplicative cost of pushing a buggy, used to bridge a target when an
+# athlete has no runs of the run's own mode in the window. A placeholder until
+# measured per athlete from confirmed labels: the one course-controlled figure
+# available is Duncan at Lordship Rec (2025 median 1450s -> 2026 median 1636s,
+# +12.8%), rounded up so it errs in the buggy runner's favour.
+BUGGY_HANDICAP_DEFAULT = 0.15
 ATHLETE_URL = "https://www.parkrun.org.uk/parkrunner/{athlete_id}/all/"
 EVENTS_JSON_URL = "https://images.parkrun.com/events.json"
 
@@ -204,18 +220,146 @@ def ensure_schema(con: duckdb.DuckDBPyConnection) -> None:
         );
         """
     )
+    # Per-run buggy label. ABSENT ROW MEANS NON-BUGGY and is_buggy is NOT NULL:
+    # there is no third state, which is what makes the zero-label equivalence
+    # check exact (with this table empty the views reproduce the old ones row
+    # for row). In practice the table is dense — the estimator's anti-join
+    # writes a row for every result — but the views still coalesce, so a hole
+    # (a re-keyed run, a skipped estimator) degrades to non-buggy rather than
+    # NULLing a target and silently dropping a runner from a contest.
+    #
+    # `source` values are NOT interchangeable: 'manual' and 'estimated' train
+    # the model, 'default' never does — those are assumptions, not observations.
+    con.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS {SCHEMA}.run_modes (
+            athlete_id BIGINT,
+            run_date   DATE,
+            event_id   INTEGER,
+            is_buggy   BOOLEAN     NOT NULL,
+            source     VARCHAR     NOT NULL,   -- 'manual' | 'estimated' | 'default'
+            confidence DOUBLE,                 -- max(p, 1-p); NULL for manual/default
+            reason     VARCHAR,
+            set_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+            PRIMARY KEY (athlete_id, run_date, event_id)
+        );
+        """
+    )
+    # Course difficulty, deliberately NOT a column on `events`: reconcile_events
+    # inserts into that table POSITIONALLY (14 values) inside a try/except that
+    # only logs, so a 15th column would turn into a silent weekly "reconcile
+    # rolled back" and new parkruns would stop appearing. Own table, no risk.
+    con.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS {SCHEMA}.course_difficulty (
+            event_id     INTEGER PRIMARY KEY,
+            parkrun_name VARCHAR,   -- name as published by the source
+            difficulty   DOUBLE,    -- 0.8 .. 11.6 on a 0-12 scale, 12 = hardest
+            speed_rank   INTEGER,   -- 1 .. 835, 1 = fastest (reference only)
+            source       VARCHAR,
+            fetched_at   TIMESTAMPTZ
+        );
+        """
+    )
+    # Per-athlete buggy handicap. Materialised rather than derived because
+    # measuring it needs the residual model, which lives in Python not SQL.
+    con.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS {SCHEMA}.buggy_handicap (
+            athlete_id     BIGINT PRIMARY KEY,
+            handicap       DOUBLE,    -- 0.15 = a buggy costs 15%
+            n_buggy_labels INTEGER,
+            method         VARCHAR,   -- 'default' | 'measured'
+            computed_at    TIMESTAMPTZ
+        );
+        """
+    )
+    # Declared in the post-migration shape: `mode` in the PK, because each
+    # athlete now gets one target row per mode per refresh. A fresh DB is
+    # already correct and never runs ensure_migrations' rebuild.
     con.execute(
         f"""
         CREATE TABLE IF NOT EXISTS {SCHEMA}.current_targets (
             refresh_date   DATE,
             athlete_id     BIGINT,
+            mode           VARCHAR,
             target_seconds DOUBLE,
             n_window       INTEGER,
-            PRIMARY KEY (refresh_date, athlete_id)
+            PRIMARY KEY (refresh_date, athlete_id, mode)
         );
         """
     )
     ensure_views(con)
+
+
+def ensure_migrations(con: duckdb.DuckDBPyConnection) -> None:
+    """Idempotent, forward-only schema migrations for EXISTING databases.
+
+    ensure_schema is all CREATE TABLE IF NOT EXISTS: it adds new tables to an
+    existing DB happily, but can never *change* one. Called from main() right
+    after ensure_schema, so every entry point migrates whatever DB it touches.
+
+    Two steps: backfill buggy_handicap defaults, and rebuild current_targets'
+    primary key to gain `mode`. DuckDB
+    (1.5.4) cannot alter a PK in place — DROP CONSTRAINT raises
+    NotImplementedException and ADD PRIMARY KEY raises "can have only one
+    primary key" — so it is rename/create/copy/drop.
+
+    Existing rows backfill as 'nonbuggy' and are deliberately NOT recomputed:
+    they record what the targets WERE on those dates, which is the entire
+    reason current_targets is a table rather than a view.
+    """
+    # Backfill the handicap rows on an existing DB. seed_static_tables only
+    # runs on bootstrap/seed, never on refresh, so without this an existing
+    # source-of-truth DB would carry an empty buggy_handicap for ever and the
+    # head-to-head bridge would fall back to its defensive coalesce. Cheap and
+    # idempotent (INSERT OR IGNORE); a no-op while `athletes` is still empty.
+    seed_buggy_handicap_defaults(con)
+
+    has_mode = con.execute(
+        """
+        SELECT count(*) FROM information_schema.columns
+        WHERE table_schema = ? AND table_name = 'current_targets'
+          AND column_name = 'mode'
+        """,
+        [SCHEMA],
+    ).fetchone()[0]
+    if has_mode:
+        return
+
+    log("migration: current_targets PK -> (refresh_date, athlete_id, mode)")
+    con.execute("BEGIN;")
+    try:
+        con.execute(
+            f"ALTER TABLE {SCHEMA}.current_targets RENAME TO current_targets_old;"
+        )
+        con.execute(
+            f"""
+            CREATE TABLE {SCHEMA}.current_targets (
+                refresh_date   DATE,
+                athlete_id     BIGINT,
+                mode           VARCHAR,
+                target_seconds DOUBLE,
+                n_window       INTEGER,
+                PRIMARY KEY (refresh_date, athlete_id, mode)
+            );
+            """
+        )
+        con.execute(
+            f"""
+            INSERT INTO {SCHEMA}.current_targets
+                  (refresh_date, athlete_id, mode, target_seconds, n_window)
+            SELECT refresh_date, athlete_id, 'nonbuggy', target_seconds, n_window
+            FROM   {SCHEMA}.current_targets_old;
+            """
+        )
+        con.execute(f"DROP TABLE {SCHEMA}.current_targets_old;")
+        con.execute("COMMIT;")
+    except Exception:
+        con.execute("ROLLBACK;")
+        raise
+    log(f"  migrated {_count(con, 'current_targets')} current_targets rows "
+        f"as mode='nonbuggy'")
 
 
 def ensure_views(con: duckdb.DuckDBPyConnection) -> None:
@@ -333,6 +477,24 @@ def is_bootstrapped(con: duckdb.DuckDBPyConnection) -> bool:
 # --------------------------------------------------------------------------- #
 # Bootstrap (seed static tables + events from tracked CSVs)
 # --------------------------------------------------------------------------- #
+def seed_buggy_handicap_defaults(con: duckdb.DuckDBPyConnection) -> None:
+    """One handicap row per athlete at the placeholder value.
+
+    INSERT OR IGNORE, so a measured value is never overwritten by a later
+    bootstrap or seed. The row must exist: the head-to-head bridge joins on it,
+    and a missing row would NULL the target and silently drop that runner from
+    the contest.
+    """
+    con.execute(
+        f"""
+        INSERT OR IGNORE INTO {SCHEMA}.buggy_handicap
+              (athlete_id, handicap, n_buggy_labels, method, computed_at)
+        SELECT athlete_id, {BUGGY_HANDICAP_DEFAULT}, 0, 'default', now()
+        FROM {SCHEMA}.athletes;
+        """
+    )
+
+
 def seed_static_tables(con: duckdb.DuckDBPyConnection) -> None:
     con.execute(
         f"""
@@ -349,7 +511,8 @@ def seed_static_tables(con: duckdb.DuckDBPyConnection) -> None:
                       dateformat='%d/%m/%Y');
         """
     )
-    log("  seeded country_lookup + athletes")
+    seed_buggy_handicap_defaults(con)
+    log("  seeded country_lookup + athletes + buggy_handicap")
 
 
 def seed_events_from_csv(con: duckdb.DuckDBPyConnection) -> None:
@@ -659,11 +822,18 @@ def upsert_results(con: duckdb.DuckDBPyConnection) -> None:
 
 def update_current_targets(con: duckdb.DuckDBPyConnection) -> None:
     """Snapshot each athlete's current-form target (91-day median, min 1 run)
-    as of today. Stored per refresh_date so form history accumulates."""
+    as of today. Stored per refresh_date so form history accumulates.
+
+    Writes an explicit column list with mode='nonbuggy': current_targets gained
+    `mode` in its PK, and the old positional INSERT would no longer bind. Every
+    run is non-buggy until run_modes carries labels, so this is correct as it
+    stands; the cross-join over modes lands with the mode-aware views.
+    """
     con.execute(
         f"""
         INSERT OR REPLACE INTO {SCHEMA}.current_targets
-        SELECT CURRENT_DATE, a.athlete_id,
+              (refresh_date, athlete_id, mode, target_seconds, n_window)
+        SELECT CURRENT_DATE, a.athlete_id, 'nonbuggy',
                median(h.time_seconds) AS target_seconds,
                count(h.time_seconds)  AS n_window
         FROM {SCHEMA}.athletes a
@@ -794,13 +964,54 @@ def seed_from_snapshot(con: duckdb.DuckDBPyConnection, src: Path) -> None:
     log(f"seeding from snapshot: {src}")
     con.execute(f"ATTACH '{src}' AS seedsrc (READ_ONLY);")
     try:
+        # A snapshot older than a table simply doesn't carry it — including the
+        # disaster-recovery path in docs/DEPLOY.md, which may reach for a
+        # months-old file. Seed what is there, warn about the rest, never fail.
+        present = {
+            r[0]
+            for r in con.execute(
+                """
+                SELECT table_name FROM information_schema.tables
+                WHERE table_catalog = 'seedsrc' AND table_schema = ?
+                """,
+                [SCHEMA],
+            ).fetchall()
+        }
         con.execute("BEGIN;")
         try:
             for t in SNAPSHOT_TABLES:
+                if t not in present:
+                    log(f"  WARN: {t} absent from snapshot — seeded empty "
+                        f"(older snapshot)")
+                    continue
+                src_cols = {
+                    r[0]
+                    for r in con.execute(
+                        """
+                        SELECT column_name FROM information_schema.columns
+                        WHERE table_catalog = 'seedsrc'
+                          AND table_schema = ? AND table_name = ?
+                        """,
+                        [SCHEMA, t],
+                    ).fetchall()
+                }
+                # A column may be newer than the snapshot too (current_targets
+                # gained `mode`). Take it from the source when it is there,
+                # else from SEED_COLUMN_DEFAULTS — same backfill value the
+                # migration uses, because this is the same situation.
+                missing = [c for c in cols[t] if c not in src_cols]
+                if missing:
+                    log(f"  WARN: {t} missing column(s) {missing} in snapshot "
+                        f"— defaulted (older snapshot)")
+                sel = ", ".join(
+                    c if c in src_cols
+                    else f"{SEED_COLUMN_DEFAULTS.get((t, c), 'NULL')} AS {c}"
+                    for c in cols[t]
+                )
                 collist = ", ".join(cols[t])
                 con.execute(
                     f"INSERT INTO {SCHEMA}.{t} ({collist}) "
-                    f"SELECT {collist} FROM seedsrc.{SCHEMA}.{t};"
+                    f"SELECT {sel} FROM seedsrc.{SCHEMA}.{t};"
                 )
                 log(f"  seeded {t}: {_count(con, t)} rows")
             con.execute("COMMIT;")
@@ -809,6 +1020,10 @@ def seed_from_snapshot(con: duckdb.DuckDBPyConnection, src: Path) -> None:
             raise
     finally:
         con.execute("DETACH seedsrc;")
+
+    # Re-assert the handicap defaults: a pre-feature snapshot carries no
+    # buggy_handicap rows, and a missing row NULLs a head-to-head target.
+    seed_buggy_handicap_defaults(con)
 
 
 def build_motherduck(con: duckdb.DuckDBPyConnection) -> None:
@@ -902,7 +1117,7 @@ def refresh(con: duckdb.DuckDBPyConnection) -> None:
 
 def status(con: duckdb.DuckDBPyConnection) -> None:
     for t in SNAPSHOT_TABLES:
-        print(f"  {SCHEMA}.{t:<14} {_count(con, t):>6} rows")
+        print(f"  {SCHEMA}.{t:<18} {_count(con, t):>6} rows")
     live = con.execute(
         f"SELECT count(*) FROM {SCHEMA}.events WHERE live"
     ).fetchone()[0]
@@ -921,6 +1136,7 @@ def main() -> None:
     con = duckdb.connect(target)
     try:
         ensure_schema(con)
+        ensure_migrations(con)
         if cmd == "bootstrap":
             if is_bootstrapped(con):
                 log("already bootstrapped; use 'refresh'")
