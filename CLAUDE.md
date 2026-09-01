@@ -198,25 +198,96 @@ Hand-maintained (`data/athletes_lookup.csv`).
 | date_of_birth |
 
 ### `current_targets`
-Materialised by the refresh: each athlete's current-form target as of the
-refresh date (a snapshot — recomputing live would silently drift). Keyed on
-`(refresh_date, athlete_id)` so form history accumulates over refreshes.
+Materialised by the refresh: each athlete's current-form target **per mode** as
+of the refresh date (a snapshot — recomputing live would silently drift). Keyed
+on `(refresh_date, athlete_id, mode)` so form history accumulates over refreshes.
 
 | Column | Notes |
 |---|---|
 | refresh_date | PK part; the date the snapshot was taken |
 | athlete_id | PK part |
-| target_seconds | 91-day median of `time_seconds` over `[refresh_date−91, refresh_date−1]`; NULL if no runs in window |
+| mode | PK part; `buggy` or `nonbuggy` |
+| target_seconds | 91-day median of same-mode `time_seconds` over `[refresh_date−91, refresh_date−1]`; NULL if no runs in window |
 | n_window | Runs found in the window (target valid when ≥ 1) |
+
+Only athletes who actually use a buggy get a `buggy` row — Raju never does, so
+storing a permanently empty row for him would be noise in a table that grows
+every refresh. George and Duncan **do** get an empty buggy row when they have no
+buggy runs in the window: that is a real "none in the last 91 days", not an
+impossibility. The app filters on `n_window >= 1`.
+
+Historic rows (pre-mode) were migrated as `mode = 'nonbuggy'` and **not
+recomputed** — they record what the targets *were* on those dates, which is the
+entire reason this is a table and not a view.
+
+### `run_modes`
+The per-run buggy label. One row per run once backfilled; **an absent row means
+non-buggy** and `is_buggy` is `NOT NULL` — there is no third state.
+
+| Column | Notes |
+|---|---|
+| athlete_id, run_date, event_id | PK — same natural key as `results` |
+| is_buggy | NOT NULL |
+| source | `manual` \| `estimated` \| `default` — **not interchangeable**, see below |
+| confidence | `max(p, 1−p)`; NULL for `manual`/`default` |
+| reason | Free text |
+| set_at | When the label was written |
+
+| `source` | Written by | Trains the model? |
+|---|---|---|
+| `manual` | Spreadsheet import, or a hand SQL correction | **yes** |
+| `estimated` | The model, on new runs | **yes** |
+| `default` | Backfill of unreviewed runs; Raju's rows | **no** — an assumption, not an observation |
+
+Exported to `data/parkrun_run_modes.csv` on every refresh, so hand-entered
+labels have a diffable git history rather than living only inside a binary DB.
+
+### `course_difficulty`
+External per-course difficulty score, used as a covariate by the buggy
+estimator. Deliberately **its own table, not a column on `events`** —
+`reconcile_events` inserts into `events` *positionally* inside a try/except that
+only logs, so a 15th column would become a silent weekly "reconcile rolled back"
+and new parkruns would stop appearing.
+
+| Column | Notes |
+|---|---|
+| event_id | PK |
+| parkrun_name | Name as published by the source |
+| difficulty | 0.8 – 11.6 on a 0–12 scale; 12 = hardest |
+| speed_rank | 1 = fastest; reference only |
+| source, fetched_at | |
+
+### `buggy_handicap`
+Each athlete's multiplicative cost of pushing a buggy — the bridge used by
+`v_head_to_head` when one mode has no runs in the window.
+
+| Column | Notes |
+|---|---|
+| athlete_id | PK |
+| handicap | `0.15` = a buggy costs 15% |
+| n_buggy_labels | Labels the measurement was based on |
+| method | `default` (the placeholder) \| `measured` |
+| computed_at | |
+
+Seeded with one row per athlete at the placeholder, `INSERT OR IGNORE` so a
+measured value is never overwritten. The row **must** exist: a missing one would
+NULL a head-to-head target and silently drop that runner from the contest.
 
 ---
 
 ## Analytics layer
 
 The comparison features are **derived from `results`**. They are deterministic
-from the stored data, so they are DuckDB **views** (`v_overlap`,
-`v_head_to_head`, `v_saturday_targets`) — always live, no duplication, no
-staleness; only the date-anchored `current_targets` is materialised.
+from the stored data, so they are DuckDB **views** (`v_results_moded`,
+`v_overlap`, `v_head_to_head`, `v_saturday_targets`) — always live, no
+duplication, no staleness; only the date-anchored `current_targets` is
+materialised.
+
+`v_results_moded` is the base view the mode-aware queries read: `results` plus
+`coalesce(is_buggy, FALSE)` and a `mode` of `buggy`/`nonbuggy`. It is created
+**first** in `ensure_views()` — DuckDB resolves a view body at creation time, so
+anything referencing it must come after. The `coalesce` is deliberate: a missing
+label degrades to the old non-buggy behaviour rather than NULLing a mode.
 Created/refreshed by `ensure_views()` and `update_current_targets()`. The cohort
 is fixed (3 athletes); `ATHLETE_NAMES` in the pipeline is the single source for
 the per-athlete column names. The **cumulative 1st-place trend** (Tab 2) and the
@@ -237,34 +308,73 @@ A **head-to-head** is an occasion where ≥ 2 of the cohort ran. Placing is
 **form-adjusted**, not actual finish order (the three differ hugely in pace):
 
 1. **Target** per participant = **median** `time_seconds` over their runs in
-   `[date−91, date−1]` (min **1** run). Window excludes the event day.
-2. **`pct_diff` = round((actual − target) / target × 100, 2)** — faster than form
-   is negative.
-3. **Placing** = `rank()` over `pct_diff` **ascending** (most-beat-your-form = 1st);
-   **standard competition ranking** (ties share a rank, e.g. 1-1-3).
-4. **Demote rule** — only participants with a valid target are ranked. Need ≥ 2
+   `[date−91, date−1]` **of the same mode** (buggy / non-buggy — see
+   `run_modes`), min **1** run. Window excludes the event day.
+2. **Handicap bridge** — when that mode has **no** runs in the window, the
+   target is bridged from the *other* mode using the athlete's `buggy_handicap`
+   `h`: a buggy run gets `× (1 + h)`, a non-buggy run `÷ (1 + h)`. Division, not
+   `× (1 − h)`: only division makes the two directions compose back to the
+   starting value. `target_basis` records which of the four cases applied —
+   `buggy`, `nonbuggy`, `nonbuggy+handicap`, `buggy-handicap`.
+3. **`pct_diff` = round((actual − target) / target × 100, 2)** — faster than form
+   is negative. **Unchanged** by the mode split.
+4. **Placing** = `rank()` over `pct_diff` **ascending** (most-beat-your-form = 1st);
+   **standard competition ranking** (ties share a rank, e.g. 1-1-3). **Unchanged.**
+5. **Demote rule** — only participants with a valid target are ranked. Need ≥ 2
    rankable for a contest; a 3-way where one lacks a target becomes a 2-way
-   (and `classification` reflects the ranked set).
+   (and `classification` reflects the ranked set). **Unchanged**, but it now
+   bites far less often — see below.
+
+The change is scoped to **the target only**. Steps 3–5 are the same arithmetic
+they always were.
 
 Each row carries `classification` (e.g. `George vs Raju`, `Duncan vs George vs
 Raju`), `n_ranked`, `actual_seconds`, `target_seconds`, `n_window`, `pct_diff`,
-`place_rank`. The app shows a per-head-to-head table + a 1sts/2nds/3rds leaderboard.
+`place_rank`, `is_buggy`, `target_basis`. The app shows a per-head-to-head table
++ a 1sts/2nds/3rds leaderboard.
+
+**The bridge makes *more* contests rankable, not fewer.** Previously a
+participant with no same-mode history had `n_window = 0` and was demoted; now
+they get a bridged target instead. Only a participant with **no runs at all** in
+the window is still demoted.
+
+**Labelling a past run retroactively changes the record.** A new `run_modes` row
+changes that run's target, therefore its `pct_diff`, possibly its `place_rank`,
+and therefore the head-to-head leaderboard and the cumulative-1sts curve — back
+to 2023. This is intended (the old numbers pooled buggy and non-buggy runs into
+one target, which flattered buggy runs and penalised non-buggy ones), but it
+means head-to-head results are **not** immutable. The tab-2 explainer says so.
 
 Note: `v_overlap` counts **all** co-participations; `v_head_to_head` counts only
-**rankable** ones — so the two totals can differ (occasions with no valid target).
+**rankable** ones — so the two totals can differ (occasions where a participant
+has no runs at all in the window). Bridged targets narrow that gap without
+closing it.
 
 Caveat (accepted): the target averages across all courses in the window, but a
-head-to-head is at one specific course — course difficulty is not adjusted for.
+head-to-head is at one specific course — **course difficulty is still not
+adjusted for here.** `course_difficulty` exists, but it is a covariate for the
+buggy *estimator*, not an adjustment to the head-to-head target. Do not read the
+table's presence as a fix for this.
 
 ### Feature 3 — Saturday form targets (`v_saturday_targets`)
-Each athlete's current-form **target** evaluated on **every Saturday** in the
-data span, using the **same 91-day median** as the head-to-head target:
+Each athlete's current-form **target per mode** evaluated on **every Saturday**
+in the data span, using the **same 91-day median** as the head-to-head target:
 `median(time_seconds)` over `[Saturday−91, Saturday−1]` (excludes the day),
 valid when ≥ 1 run in the window. Saturdays with no runs in the window are
 omitted (the Form-tab line breaks there, never drops to zero). Columns:
-`athlete_id`, `athlete_name`, `run_date` (the Saturday), `target_seconds`,
-`n_window`. By construction it equals `v_head_to_head.target_seconds` exactly on
-shared athlete/date pairs (verified).
+`athlete_id`, `athlete_name`, `run_date` (the Saturday), `mode`,
+`target_seconds`, `n_window`.
+
+That `n_window >= 1` filter is also what stops an athlete who has never pushed a
+buggy getting a phantom buggy line — no special-casing by athlete is needed.
+
+**The handicap bridge is deliberately NOT applied here** (nor in
+`current_targets`). Bridging every Saturday would draw an imaginary buggy form
+line back to 2017, for a buggy that did not exist. A bridge is a device for
+judging one specific contest fairly, not a claim about historical form. So this
+view equals `v_head_to_head.target_seconds` on shared athlete/date pairs **only
+where the head-to-head used a same-mode target** (`target_basis` of `buggy` or
+`nonbuggy`); on a bridged row the two legitimately differ.
 
 ---
 
@@ -335,6 +445,7 @@ are (re)created on every connection via `ensure_views()`.
 |---|---|
 | `data/parkrun_events.csv` (incl. Victoria Dock) | `*.duckdb` (binary source of truth) |
 | `data/parkrun_results.csv` (versioned snapshots) | `data/events.json` (transient download) |
+| `data/parkrun_run_modes.csv` (label audit trail) | |
 | `data/country_lookup.csv` | |
 | `data/athletes_lookup.csv` | |
 | `data/parkrun_snapshot.duckdb` (read-only, deploy snapshot) | |
@@ -375,12 +486,14 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | `static/apple-touch-icon.png` | 180×180 for the iOS "Add to Home Screen" icon, served at `/app/static/` |
 | `.streamlit/config.toml` | `enableStaticServing = true` so `static/` is reachable at `/app/static/` |
 | `docs/DEV.md` | Local dev workflow |
+| `docs/DATA.md` | The buggy labels: what each `source` means, how the training set grows, how to correct a label by hand |
 | `docs/DEPLOY.md` | Deploy/ops: local source-of-truth DB + snapshot delivery, scheduled refresh, rebuilding/seeding, retired MotherDuck path (secret flip, tokens, re-seed) |
 | `requirements.txt` | Pinned runtime deps for hosting (Streamlit Cloud etc.) |
 | `data/parkrun_events.csv` | Event catalogue (events.json dump + Victoria Dock) |
 | `data/country_lookup.csv` | country_code → country_name |
 | `data/athletes_lookup.csv` | Athlete names + DOB |
 | `data/parkrun_results.csv` | Results snapshot exported by the pipeline (keyed on event_id) |
+| `data/parkrun_run_modes.csv` | Buggy labels exported by the pipeline — the audit trail for hand-entered labels |
 | `data/parkrun_snapshot.duckdb` | Read-only, parkrun-only DuckDB the deployed app serves |
 | `adhoc/` | One-off investigations using the parkrun data but **outside the app** — see `adhoc/README.md` |
 

@@ -95,6 +95,11 @@ TARGET_WINDOW_DAYS = 91  # head-to-head / current-form lookback
 # available is Duncan at Lordship Rec (2025 median 1450s -> 2026 median 1636s,
 # +12.8%), rounded up so it errs in the buggy runner's favour.
 BUGGY_HANDICAP_DEFAULT = 0.15
+# Athletes who ever push a buggy: George and Duncan. Raju never does, so he has
+# no buggy form to record and gets no buggy row at all — not an empty one. The
+# analytics VIEWS stay symmetric (he falls out as all-nonbuggy on his own); this
+# only narrows what the materialised current_targets grid stores.
+BUGGY_ATHLETE_IDS = (3087156, 5462426)
 ATHLETE_URL = "https://www.parkrun.org.uk/parkrunner/{athlete_id}/all/"
 EVENTS_JSON_URL = "https://images.parkrun.com/events.json"
 
@@ -364,6 +369,26 @@ def ensure_migrations(con: duckdb.DuckDBPyConnection) -> None:
 
 def ensure_views(con: duckdb.DuckDBPyConnection) -> None:
     """(Re)create the derived analytics views. Deterministic from results."""
+    # Base view every mode-aware query reads. Created FIRST: DuckDB resolves a
+    # view body at creation time, so anything referencing it must come after.
+    #
+    # coalesce(is_buggy, FALSE): an absent run_modes row means non-buggy. The
+    # table is dense in practice, but a hole (a re-keyed run, a skipped
+    # estimator) must degrade to the old behaviour rather than NULL a mode and
+    # silently drop a runner from a contest.
+    con.execute(
+        f"""
+        CREATE OR REPLACE VIEW {SCHEMA}.v_results_moded AS
+        SELECT r.*,
+               coalesce(m.is_buggy, FALSE) AS is_buggy,
+               CASE WHEN coalesce(m.is_buggy, FALSE) THEN 'buggy'
+                    ELSE 'nonbuggy' END    AS mode,
+               m.source AS mode_source,
+               m.reason AS mode_reason
+        FROM {SCHEMA}.results r
+        LEFT JOIN {SCHEMA}.run_modes m USING (athlete_id, run_date, event_id);
+        """
+    )
     flags = ",\n               ".join(
         f"bool_or(athlete_id = {aid}) AS has_{name}"
         for aid, name in ATHLETE_NAMES.items()
@@ -383,22 +408,52 @@ def ensure_views(con: duckdb.DuckDBPyConnection) -> None:
         CREATE OR REPLACE VIEW {SCHEMA}.v_head_to_head AS
         WITH parts AS (
             SELECT r.event_id, r.run_date, r.athlete_id,
-                   r.time_seconds AS actual_seconds
-            FROM {SCHEMA}.results r
+                   r.time_seconds AS actual_seconds,
+                   r.is_buggy, r.mode
+            FROM {SCHEMA}.v_results_moded r
             JOIN (SELECT event_id, run_date FROM {SCHEMA}.results
                   GROUP BY event_id, run_date HAVING count(*) >= 2) o
               USING (event_id, run_date)
         ),
-        target AS (
+        -- Both modes' medians in one pass. count(...) FILTER returns 0, not
+        -- NULL, so own_n / oth_n are safe to compare directly.
+        win AS (
             SELECT p.event_id, p.run_date, p.athlete_id, p.actual_seconds,
-                   median(h.time_seconds) AS target_seconds,
-                   count(h.time_seconds)  AS n_window
+                   p.is_buggy, p.mode,
+                   median(h.time_seconds) FILTER (WHERE h.mode =  p.mode) AS own_target,
+                   count(h.time_seconds)  FILTER (WHERE h.mode =  p.mode) AS own_n,
+                   median(h.time_seconds) FILTER (WHERE h.mode <> p.mode) AS oth_target,
+                   count(h.time_seconds)  FILTER (WHERE h.mode <> p.mode) AS oth_n
             FROM parts p
-            LEFT JOIN {SCHEMA}.results h
+            LEFT JOIN {SCHEMA}.v_results_moded h
               ON h.athlete_id = p.athlete_id
              AND h.run_date BETWEEN p.run_date - {TARGET_WINDOW_DAYS}
                                AND p.run_date - 1
-            GROUP BY p.event_id, p.run_date, p.athlete_id, p.actual_seconds
+            GROUP BY p.event_id, p.run_date, p.athlete_id, p.actual_seconds,
+                     p.is_buggy, p.mode
+        ),
+        -- Same-mode form when it exists; otherwise bridge from the other mode
+        -- via the athlete's handicap. Symmetric, and it DIVIDES on the way
+        -- down: apply both directions and you return to the starting value,
+        -- which x (1 - h) would not. coalesce is defensive — seed_static_tables
+        -- guarantees a row, but a NULL handicap would NULL the target and drop
+        -- the runner from the contest, too quiet a failure to accept.
+        target AS (
+            SELECT w.event_id, w.run_date, w.athlete_id, w.actual_seconds,
+                   w.is_buggy,
+                   CASE WHEN w.own_n >= 1     THEN w.own_target
+                        WHEN w.mode = 'buggy' THEN w.oth_target
+                             * (1 + coalesce(bh.handicap, {BUGGY_HANDICAP_DEFAULT}))
+                        ELSE                       w.oth_target
+                             / (1 + coalesce(bh.handicap, {BUGGY_HANDICAP_DEFAULT}))
+                   END AS target_seconds,
+                   CASE WHEN w.own_n >= 1 THEN w.own_n ELSE w.oth_n END AS n_window,
+                   CASE WHEN w.own_n >= 1     THEN w.mode
+                        WHEN w.mode = 'buggy' THEN 'nonbuggy+handicap'
+                        ELSE                       'buggy-handicap'
+                   END AS target_basis
+            FROM win w
+            LEFT JOIN {SCHEMA}.buggy_handicap bh USING (athlete_id)
         ),
         valid AS (SELECT * FROM target WHERE n_window >= 1),
         h2h AS (
@@ -427,15 +482,20 @@ def ensure_views(con: duckdb.DuckDBPyConnection) -> None:
         SELECT l.event_id, l.run_date, e.short_name,
                l.athlete_id, l.athlete_name, l.classification, l.n_ranked,
                l.actual_seconds, l.target_seconds, l.n_window,
-               l.pct_diff, l.place_rank
+               l.pct_diff, l.place_rank, l.is_buggy, l.target_basis
         FROM labelled l JOIN {SCHEMA}.events e USING (event_id);
         """
     )
     # Each athlete's current-form target evaluated on *every Saturday* in the
-    # data span. Same definition as the head-to-head target: median time_seconds
-    # over the {TARGET_WINDOW_DAYS}-day window BEFORE the Saturday ([S-91, S-1],
-    # excludes the day), valid when >= 1 run in the window. Saturdays with no
-    # runs in the window are omitted (a gap in the line), never zero.
+    # data span, per mode. Same definition as the head-to-head target: median
+    # time_seconds over the {TARGET_WINDOW_DAYS}-day window BEFORE the Saturday
+    # ([S-91, S-1], excludes the day), valid when >= 1 run in the window.
+    # Saturdays with no runs in the window are omitted (a gap in the line),
+    # never zero — which is also what stops an athlete who has never pushed a
+    # buggy getting a phantom buggy row.
+    #
+    # NO handicap bridge here (nor in current_targets), unlike the head-to-head:
+    # bridging would draw an imaginary buggy form line back to 2017.
     con.execute(
         f"""
         CREATE OR REPLACE VIEW {SCHEMA}.v_saturday_targets AS
@@ -448,26 +508,139 @@ def ensure_views(con: duckdb.DuckDBPyConnection) -> None:
                  generate_series(d0::timestamp, d1::timestamp, INTERVAL 1 DAY) AS g(d)
             WHERE dayofweek(d::date) = 6            -- 6 = Saturday
         ),
+        modes(mode) AS (VALUES ('nonbuggy'), ('buggy')),
         grid AS (
-            SELECT a.athlete_id, a.athlete_name, s.sat
-            FROM {SCHEMA}.athletes a CROSS JOIN saturdays s
+            SELECT a.athlete_id, a.athlete_name, s.sat, m.mode
+            FROM {SCHEMA}.athletes a CROSS JOIN saturdays s CROSS JOIN modes m
         ),
         targets AS (
-            SELECT g.athlete_id, g.athlete_name, g.sat,
+            SELECT g.athlete_id, g.athlete_name, g.sat, g.mode,
                    median(r.time_seconds) AS target_seconds,
                    count(r.time_seconds)  AS n_window
             FROM grid g
-            LEFT JOIN {SCHEMA}.results r
+            LEFT JOIN {SCHEMA}.v_results_moded r
               ON r.athlete_id = g.athlete_id
+             AND r.mode = g.mode
              AND r.run_date BETWEEN g.sat - {TARGET_WINDOW_DAYS} AND g.sat - 1
-            GROUP BY g.athlete_id, g.athlete_name, g.sat
+            GROUP BY g.athlete_id, g.athlete_name, g.sat, g.mode
         )
         SELECT athlete_id, athlete_name,
-               sat AS run_date, target_seconds, n_window
+               sat AS run_date, mode, target_seconds, n_window
         FROM targets
         WHERE n_window >= 1;
         """
     )
+
+
+# Pre-buggy view bodies, kept VERBATIM as frozen text for the zero-label
+# equivalence check (Verification A) and the dev-only label-impact page. Never
+# refactor these to share code with ensure_views — the whole point is to compare
+# the new views against an independent copy of the old ones.
+LEGACY_HEAD_TO_HEAD_SQL = """
+CREATE OR REPLACE VIEW {schema}.v_head_to_head_legacy AS
+WITH parts AS (
+    SELECT r.event_id, r.run_date, r.athlete_id,
+           r.time_seconds AS actual_seconds
+    FROM {schema}.results r
+    JOIN (SELECT event_id, run_date FROM {schema}.results
+          GROUP BY event_id, run_date HAVING count(*) >= 2) o
+      USING (event_id, run_date)
+),
+target AS (
+    SELECT p.event_id, p.run_date, p.athlete_id, p.actual_seconds,
+           median(h.time_seconds) AS target_seconds,
+           count(h.time_seconds)  AS n_window
+    FROM parts p
+    LEFT JOIN {schema}.results h
+      ON h.athlete_id = p.athlete_id
+     AND h.run_date BETWEEN p.run_date - {window} AND p.run_date - 1
+    GROUP BY p.event_id, p.run_date, p.athlete_id, p.actual_seconds
+),
+valid AS (SELECT * FROM target WHERE n_window >= 1),
+h2h AS (
+    SELECT event_id, run_date FROM valid
+    GROUP BY event_id, run_date HAVING count(*) >= 2
+),
+ranked AS (
+    SELECT v.*,
+           round((v.actual_seconds - v.target_seconds)
+                 / v.target_seconds * 100, 2) AS pct_diff
+    FROM valid v JOIN h2h USING (event_id, run_date)
+),
+placed AS (
+    SELECT r.*, a.athlete_name,
+           rank() OVER (PARTITION BY r.event_id, r.run_date
+                        ORDER BY r.pct_diff) AS place_rank
+    FROM ranked r JOIN {schema}.athletes a USING (athlete_id)
+),
+labelled AS (
+    SELECT *,
+           string_agg(athlete_name, ' vs ' ORDER BY athlete_name)
+             OVER (PARTITION BY event_id, run_date) AS classification,
+           count(*) OVER (PARTITION BY event_id, run_date) AS n_ranked
+    FROM placed
+)
+SELECT l.event_id, l.run_date, e.short_name,
+       l.athlete_id, l.athlete_name, l.classification, l.n_ranked,
+       l.actual_seconds, l.target_seconds, l.n_window,
+       l.pct_diff, l.place_rank
+FROM labelled l JOIN {schema}.events e USING (event_id);
+"""
+
+LEGACY_SATURDAY_TARGETS_SQL = """
+CREATE OR REPLACE VIEW {schema}.v_saturday_targets_legacy AS
+WITH bounds AS (
+    SELECT min(run_date) AS d0, max(run_date) AS d1 FROM {schema}.results
+),
+saturdays AS (
+    SELECT d::date AS sat
+    FROM bounds,
+         generate_series(d0::timestamp, d1::timestamp, INTERVAL 1 DAY) AS g(d)
+    WHERE dayofweek(d::date) = 6
+),
+grid AS (
+    SELECT a.athlete_id, a.athlete_name, s.sat
+    FROM {schema}.athletes a CROSS JOIN saturdays s
+),
+targets AS (
+    SELECT g.athlete_id, g.athlete_name, g.sat,
+           median(r.time_seconds) AS target_seconds,
+           count(r.time_seconds)  AS n_window
+    FROM grid g
+    LEFT JOIN {schema}.results r
+      ON r.athlete_id = g.athlete_id
+     AND r.run_date BETWEEN g.sat - {window} AND g.sat - 1
+    GROUP BY g.athlete_id, g.athlete_name, g.sat
+)
+SELECT athlete_id, athlete_name,
+       sat AS run_date, target_seconds, n_window
+FROM targets
+WHERE n_window >= 1;
+"""
+
+
+def ensure_legacy_views(con: duckdb.DuckDBPyConnection) -> None:
+    """Create the pre-buggy views alongside the live ones. DEV DBs ONLY.
+
+    Deliberately NOT called from bootstrap/refresh: these must never reach the
+    source-of-truth DB or the deploy snapshot. Gated on PARKRUN_LABEL_AUDIT=1,
+    the same flag that reveals the app's label-impact tab.
+
+    They exist for two things:
+      * Verification A — with run_modes empty, the new views must reproduce
+        these row for row. That property holds ONLY while the table is empty,
+        so capture it before any label is written.
+      * The dev-only label-impact page, which diffs old against new once labels
+        exist.
+    """
+    if os.environ.get("PARKRUN_LABEL_AUDIT") != "1":
+        log("legacy views: skipped (set PARKRUN_LABEL_AUDIT=1 to build them)")
+        return
+    con.execute(LEGACY_HEAD_TO_HEAD_SQL.format(
+        schema=SCHEMA, window=TARGET_WINDOW_DAYS))
+    con.execute(LEGACY_SATURDAY_TARGETS_SQL.format(
+        schema=SCHEMA, window=TARGET_WINDOW_DAYS))
+    log("legacy views: v_head_to_head_legacy + v_saturday_targets_legacy created")
 
 
 def is_bootstrapped(con: duckdb.DuckDBPyConnection) -> bool:
@@ -824,29 +997,44 @@ def update_current_targets(con: duckdb.DuckDBPyConnection) -> None:
     """Snapshot each athlete's current-form target (91-day median, min 1 run)
     as of today. Stored per refresh_date so form history accumulates.
 
-    Writes an explicit column list with mode='nonbuggy': current_targets gained
-    `mode` in its PK, and the old positional INSERT would no longer bind. Every
-    run is non-buggy until run_modes carries labels, so this is correct as it
-    stands; the cross-join over modes lands with the mode-aware views.
+    One row per (athlete, mode), except that only BUGGY_ATHLETE_IDS get a
+    buggy row: Raju never pushes a buggy, so an empty row for him would be
+    noise stored for ever in a table that accumulates per refresh date.
+
+    A buggy row with no runs in the window is still written (n_window = 0,
+    NULL target) for the athletes who do use one — that is a real "no buggy
+    runs in the last 91 days", not an impossibility. The app filters on
+    n_window >= 1.
+
+    No handicap bridge here (unlike the head-to-head): this records measured
+    form, not a comparison.
     """
     con.execute(
         f"""
         INSERT OR REPLACE INTO {SCHEMA}.current_targets
               (refresh_date, athlete_id, mode, target_seconds, n_window)
-        SELECT CURRENT_DATE, a.athlete_id, 'nonbuggy',
+        WITH modes(mode) AS (VALUES ('nonbuggy'), ('buggy')),
+        grid AS (
+            SELECT a.athlete_id, m.mode
+            FROM {SCHEMA}.athletes a CROSS JOIN modes m
+            WHERE m.mode = 'nonbuggy'
+               OR a.athlete_id IN {BUGGY_ATHLETE_IDS}
+        )
+        SELECT CURRENT_DATE, g.athlete_id, g.mode,
                median(h.time_seconds) AS target_seconds,
                count(h.time_seconds)  AS n_window
-        FROM {SCHEMA}.athletes a
-        LEFT JOIN {SCHEMA}.results h
-          ON h.athlete_id = a.athlete_id
+        FROM grid g
+        LEFT JOIN {SCHEMA}.v_results_moded h
+          ON h.athlete_id = g.athlete_id
+         AND h.mode = g.mode
          AND h.run_date BETWEEN CURRENT_DATE - {TARGET_WINDOW_DAYS}
                            AND CURRENT_DATE - 1
-        GROUP BY a.athlete_id;
+        GROUP BY g.athlete_id, g.mode;
         """
     )
     rows = con.execute(
         f"""
-        SELECT a.athlete_name,
+        SELECT a.athlete_name, t.mode,
                CASE WHEN t.target_seconds IS NULL THEN 'n/a'
                     ELSE printf('%d:%02d', t.target_seconds::int // 60,
                                            t.target_seconds::int % 60) END,
@@ -854,12 +1042,12 @@ def update_current_targets(con: duckdb.DuckDBPyConnection) -> None:
         FROM {SCHEMA}.current_targets t
         JOIN {SCHEMA}.athletes a USING (athlete_id)
         WHERE t.refresh_date = CURRENT_DATE
-        ORDER BY t.target_seconds
+        ORDER BY a.athlete_name, t.mode
         """
     ).fetchall()
     log("  current-form targets (as of today):")
-    for name, mmss, n in rows:
-        log(f"    {name:<8} {mmss:>7}  ({n} runs in window)")
+    for name, mode, mmss, n in rows:
+        log(f"    {name:<8} {mode:<9} {mmss:>7}  ({n} runs in window)")
 
 
 def export_results_snapshot(con: duckdb.DuckDBPyConnection) -> None:
@@ -875,6 +1063,28 @@ def export_results_snapshot(con: duckdb.DuckDBPyConnection) -> None:
         """
     )
     log(f"  exported snapshot -> {out}")
+
+
+def export_run_modes(con: duckdb.DuckDBPyConnection) -> None:
+    """Export the buggy labels as a tracked CSV.
+
+    parkrun_results.csv is the audit trail of the *scrape*; this is the audit
+    trail of the *labels*, which are hand-entered or model-written and exist
+    nowhere else outside a binary DB. Committed alongside the snapshot, so a
+    label change is a reviewable diff.
+    """
+    out = DATA_DIR / "parkrun_run_modes.csv"
+    con.execute(
+        f"""
+        COPY (
+            SELECT athlete_id, run_date, event_id, is_buggy, source,
+                   confidence, reason, set_at
+            FROM {SCHEMA}.run_modes
+            ORDER BY athlete_id, run_date, event_id
+        ) TO '{out}' (HEADER, DELIMITER ',');
+        """
+    )
+    log(f"  exported run modes -> {out} ({_count(con, 'run_modes')} rows)")
 
 
 def build_snapshot(con: duckdb.DuckDBPyConnection) -> None:
@@ -1095,6 +1305,7 @@ def _finalize(con: duckdb.DuckDBPyConnection) -> None:
     targets, export the results CSV, and rebuild the deploy snapshot."""
     update_current_targets(con)
     export_results_snapshot(con)
+    export_run_modes(con)
     build_snapshot(con)
 
 

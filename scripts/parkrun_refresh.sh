@@ -56,7 +56,8 @@ notify() { # $1 title, $2 body
 # delivery step for the hosted app, so the caller treats failure as fatal.
 push_audit_files() {
   cd "$REPO"
-  git add data/parkrun_results.csv data/parkrun_snapshot.duckdb
+  git add data/parkrun_results.csv data/parkrun_run_modes.csv \
+          data/parkrun_snapshot.duckdb
   if git diff --cached --quiet; then
     log "audit files unchanged — nothing to commit"
     return 0

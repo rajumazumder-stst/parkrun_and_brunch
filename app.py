@@ -212,6 +212,11 @@ def load_targets(version) -> pd.DataFrame:
         FROM parkrun.current_targets t
         JOIN parkrun.athletes a USING (athlete_id)
         WHERE t.refresh_date = (SELECT max(refresh_date) FROM parkrun.current_targets)
+          -- current_targets now holds one row per (athlete, mode); a mode the
+          -- athlete has no runs in carries n_window = 0 and a NULL target.
+          -- Drop those or they render as empty tiles. (Tab 2 gains a tile per
+          -- (athlete, mode) when the mode-aware UI lands.)
+          AND t.n_window >= 1
         """
     )
 
