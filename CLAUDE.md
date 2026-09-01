@@ -96,6 +96,30 @@ name** (verified), which is why a hand-maintained `country_lookup` exists.
    `seriesid = 1` filter is required so a name can't match an adult + junior
    event. The join **must never filter on `live`** — defunct events still need
    to resolve historical results.
+
+   **Known issue — not fixed, deliberately deferred (1 Sep 2026).** That
+   uniqueness is *validated but not enforced*. `resolve_event_ids` builds the
+   name → id map with last-write-wins over an **unordered** `SELECT`, so if two
+   `seriesid = 1` events ever share a short name (a new event taking a defunct
+   one's name is the realistic route — the join never filters on `live`), which
+   id wins can flip between refreshes with no data change at all. It logs
+   `WARN: duplicate short_name … ambiguous match` and resolves anyway.
+
+   Because every refresh re-resolves **all** historical names from scratch and
+   the UPSERT keys on `(athlete_id, run_date, event_id)`, a flipped id does not
+   move the existing row — it **inserts a second row for the same physical
+   run**, and nothing deletes the first. One run then counts twice in `results`,
+   `v_overlap` and potentially both sides of a head-to-head. Curation changes
+   (editing `short_name` in `parkrun_events.csv`, the Victoria Dock manual row,
+   or any future name-matching work) can trigger the same thing deliberately.
+
+   Fixes when it is worth doing: (a) treat `dupes` in `resolve_event_ids` as
+   fatal, or route those names to the unmatched report — never resolve a name
+   that maps to more than one id; (b) `ORDER BY event_id` so the map is at least
+   deterministic; (c) a refresh-time check for one athlete holding two rows with
+   the same `run_number`, which is unambiguous evidence of a re-keyed duplicate
+   (two rows for one `(athlete_id, run_date)` is *legal* — decision 7 allows
+   same-day doubles at different events — so `run_number` is the tell).
 4. **Country is stored as `country_code` (FK) on `events` only**, not on results.
    Names come from `country_lookup`.
 5. **Soft delete, never hard delete.** Events dropping out of `events.json` are
