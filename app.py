@@ -1039,7 +1039,29 @@ such. And because a run's label decides which target it is judged against,
         fig3.update_layout(xaxis_title=None, yaxis_title="head-to-heads",
                            legend_title=None, margin=dict(t=10, b=0, l=0, r=0))
         st.plotly_chart(fig3, width="stretch")
-        st.dataframe(board, width="stretch")
+
+        # How many of each placing were run with the buggy, in the same form as
+        # the map tooltips: "83 (5 🛒)". The chart keeps the plain counts — a
+        # bar cannot carry the split, and a second series would imply buggy and
+        # regular placings are alternatives rather than a subset.
+        shown = board
+        if "is_buggy" in summ.columns and summ["is_buggy"].any():
+            bug = (
+                summ[summ["is_buggy"]]
+                .assign(place=lambda d: d["place_rank"].clip(upper=3))
+                .pivot_table(index="athlete_name", columns="place",
+                             values="event_id", aggfunc="count", fill_value=0)
+                .rename(columns={1: "1st", 2: "2nd", 3: "3rd"})
+                .rename_axis(index="Athlete", columns=None)
+                .reindex(index=board.index, columns=places, fill_value=0)
+            )
+            shown = board.astype(str)
+            for c in places:
+                shown[c] = [
+                    f"{t} ({b} {BUGGY_GLYPH})" if b else str(t)
+                    for t, b in zip(board[c], bug[c])
+                ]
+        st.dataframe(shown, width="stretch")
 
         # ----- cumulative 1st-place finishes over the selected period ----- #
         st.divider()
