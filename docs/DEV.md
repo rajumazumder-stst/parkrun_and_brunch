@@ -100,34 +100,26 @@ the old ones exactly until a label says otherwise. A `Lost` occasion should be
 impossible — the bridge only ever makes *more* contests rankable — and it is
 called out in red if one appears.
 
-## TODO — give the label-impact app a URL
+## The hosted buggy-handicap page
 
-It has no hosted address: it runs on `:8502` on this Mac and nowhere else, so
-sharing either tab means sharing a screenshot. Worth fixing — the buggy-handicap
-tab is the argument for the numbers George and Duncan are being judged by, and
-they cannot see it.
+`pages/1_🛒_Buggy_handicap.py` puts the handicap analysis on the public app at
+`/Buggy_handicap`, so George and Duncan can read the argument for the numbers
+they are judged by instead of being sent a screenshot. Adding `pages/` also
+gives `app.py` a sidebar page nav — that is how anyone finds it.
 
-Three things stand in the way, and the first is the real one:
+The analysis itself lives in `buggy_handicap.py`, imported by **both** that page
+and `label_impact.py`'s second tab. One implementation, for the same reason
+`_winning_margin` exists once: two copies of this arithmetic would make a method
+difference indistinguishable from a rounding one.
 
-1. **Tab 1 needs `v_head_to_head_legacy`, which by design exists only on a dev
-   DB.** `build_snapshot` rebuilds views from `ensure_views` alone, so the legacy
-   pair never reaches the deploy snapshot — deliberately: they freeze a
-   superseded method, and a hosted app serving them invites someone to read the
-   old numbers as current. Hosting tab 1 means either shipping the legacy views
-   (and giving up that guarantee) or accepting that the hosted copy carries only
-   the handicap tab.
-2. **scipy is not in `requirements.txt`**, and the handicap tab needs it. Adding
-   it puts a ~40 MB dependency into an app that otherwise does no statistics —
-   fine if the tab is hosted, waste if it is not.
-3. **It is a development instrument**, which is the whole reason it is a separate
-   app on a separate port. A URL makes it a product surface, and the framing has
-   to change with it: "what the labels changed" is a question for whoever
-   maintains the labels, not for a visitor.
+**The head-to-head method comparison stays local.** It needs
+`v_head_to_head_legacy`, which `build_snapshot` never carries — the legacy views
+freeze a superseded method, and hosting them invites a visitor to read the old
+numbers as current. That is a guarantee worth keeping, so the hosted surface is
+the handicap tab alone.
 
-The cheapest version that solves the actual problem: host **only** the buggy
-handicap tab as a second Streamlit page, leave the comparison local. That needs
-scipy in `requirements.txt` and nothing else — no legacy views, no guarantee
-given up.
+scipy moved into `requirements.txt` for this page. It is the only runtime
+dependency there that `app.py` itself does not use.
 
 ## Fake labels for previewing the buggy UI
 

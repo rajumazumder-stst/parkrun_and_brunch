@@ -67,13 +67,13 @@ where they differ from the original brief, **the spec wins**.
   which is asserted rather than assumed (see *zero-label equivalence* below).
   The estimator that fills in future runs is deliberately unwritten: it is
   supervised, and there is nothing yet to train it on.
-- 📋 **TODO — a URL for the label-impact app.** It runs on `:8502` on this Mac
-  and nowhere else, so the buggy-handicap tab — the argument for the numbers
-  George and Duncan are judged by — can only be shared as a screenshot. Blocked
-  on three things, listed in `docs/DEV.md`; the cheap version is to host the
-  handicap tab alone (needs `scipy` in `requirements.txt`) and keep the
-  comparison local, since tab 1 needs `v_head_to_head_legacy`, which is
-  deliberately absent from the deploy snapshot.
+- ✅ **Buggy handicap page hosted** (2 Sep 2026) —
+  `pages/1_🛒_Buggy_handicap.py` at `/Buggy_handicap` on the deployed app, so
+  the working behind each athlete's handicap is shareable rather than a
+  screenshot of `localhost:8502`. The analysis lives in `buggy_handicap.py`,
+  imported by both that page and `label_impact.py`. The head-to-head method
+  comparison is deliberately **not** hosted: it needs `v_head_to_head_legacy`,
+  which the deploy snapshot never carries.
 - 🧪 Local dev/test workflow: work on the `dev` branch, `./scripts/run_local.sh` serves
   the app against an isolated `data/parkrun_dev.duckdb` (built through
   `pipeline seed`, gitignored) so previews never touch `main` or the deploy
@@ -513,8 +513,10 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 |---|---|
 | `parkrun_pipeline.py` | Loader: `bootstrap` / `refresh` / `status` / `snapshot` / `seed` / `motherduck` (Path A/B, DuckDB) + analytics views/targets + deploy-snapshot build + parkrun-only MotherDuck upload (`build_motherduck`). Also owns scraping (`scrape_athlete`) and time parsing (`time_to_seconds`). |
 | `app.py` | Streamlit front end (5 tabs: overlap · personal bests + head-to-head summary · head-to-head detail · form/target-time · head-to-head map) reading the `parkrun` schema read-only; DB path resolved via `PARKRUN_DB` env/secret (incl. `md:` MotherDuck), else the bundled snapshot. Auto-reloads on new data via a `data_version()` cache key — `max(scrape_timestamp)` **plus `max(set_at)` and `count(*)` from `run_modes`**, since labels are edited out of band and never move the scrape timestamp — 60s TTL; 🔄 Reload button clears the cache manually |
+| `buggy_handicap.py` | The handicap measurement, imported by **both** `label_impact.py` and the hosted page: per athlete, the runs between their first and last buggy run, split by mode — mean/SD/median, density curves with a rug of the real runs, and three estimates (raw difference in means, course fixed effects, the same plus a form-drift term). Recommends a value only when the estimates agree in sign, the raw interval clears zero, and there are ≥ 8 buggy runs. **One implementation only** — the `_winning_margin` rule applies: a second copy would make a method difference indistinguishable from a rounding one. Needs `scipy` |
+| `pages/1_🛒_Buggy_handicap.py` | Hosted page at `/Buggy_handicap` — a thin wrapper over `render_handicap`. Its existence gives `app.py` a sidebar page nav. The head-to-head comparison is **not** hosted beside it: that needs `v_head_to_head_legacy`, absent from the deploy snapshot by design |
 | `parkrun_ui.py` | Shared UI layer imported by **both** apps: DB resolution, `ATHLETE_COLORS`/`MEDAL`, `fmt_time`, the buggy display helpers (`BUGGY_GLYPH`, `mode_suffix`, `mode_text`, highlight colours), `_h2h_headline`, `_victory_fig` and `_winning_margin`. `_winning_margin` must exist **once only** — `label_impact.py` diffs old against new, so a second copy of that arithmetic would make a method difference indistinguishable from a rounding one |
-| `label_impact.py` | **Dev-only, separate app** (its own port), **2 tabs**: *head-to-head impact* — the pre-buggy method against the current one, per-occasion verdicts (filterable to what changed and/or what used the handicap bridge) and paired victory charts; *buggy handicap* — the measurement behind `buggy_handicap`, per athlete, recomputed live from the labels. Not a tab in `app.py` — keeping it in its own file means there is no deploy-time gate to get wrong. Tab 1 needs `v_head_to_head_legacy`, which only ever exists on a dev DB; the gate lives **inside** that tab and returns rather than calling `st.stop()`, which would take the other tab down with it. Needs `scipy` (Welch interval, course fixed effects, `gaussian_kde`), deliberately not in `requirements.txt` |
+| `label_impact.py` | **Dev-only, separate app** (its own port), **2 tabs**: *head-to-head impact* — the pre-buggy method against the current one, per-occasion verdicts (filterable to what changed and/or what used the handicap bridge) and paired victory charts; *buggy handicap* — `render_handicap` from `buggy_handicap.py`, the same code the hosted page runs. Not a tab in `app.py` — keeping it in its own file means there is no deploy-time gate to get wrong. Tab 1 needs `v_head_to_head_legacy`, which only ever exists on a dev DB; the gate lives **inside** that tab and returns rather than calling `st.stop()`, which would take the other tab down with it. Its statistics come from `buggy_handicap.py`, so `scipy` is now a hosted dependency rather than a dev-only one |
 | `scripts/run_local.sh` | Local dev launcher: venv + isolated `data/parkrun_dev.duckdb` (built via `pipeline seed`, **not** `cp` — the committed snapshot carries only the views it had when last rebuilt) + `streamlit run`. Under `PARKRUN_LABEL_AUDIT=1` it also builds the legacy views and starts `label_impact.py` on a second port (see `docs/DEV.md`) |
 | `scripts/dev_fake_labels.py` | Dev-only: plausible fake buggy labels for previewing the UI before the real ones arrive. Labels runs that were slow *relative to that athlete's trailing 20-run median*. Refuses to write to the source of truth or the deploy snapshot |
 | `scripts/parkrun_refresh.sh` | Master refresh from this Mac (manual or scheduled — the one code path): pull clone → seed the local source-of-truth DB if absent → pipeline → audit-file push (fatal; this is the deploy) → freshness stamp → notification |
