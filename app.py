@@ -3,7 +3,8 @@
 Two pages on one domain:
 
     /                 parkrun_app.py    the five-tab comparison app
-    /buggy-handicap   handicap_page.py  the working behind buggy_handicap
+    /buggy-handicap   handicap_page.py  what the buggy costs · what labelling
+                                        changed
 
 `position="hidden"` is the point of routing through `st.navigation` at all.
 A `pages/` directory would give the same URLs but force a nav list into the
@@ -33,7 +34,9 @@ st.set_page_config(page_title="parkrun & brunch",
 st.navigation(
     [
         st.Page("parkrun_app.py", title="parkrun & brunch", default=True),
-        st.Page("handicap_page.py", title="What the buggy costs",
+        # Titles the whole page, not one of its tabs: it carries both what the
+        # buggy costs and what labelling changed.
+        st.Page("handicap_page.py", title="The buggy labels",
                 url_path="buggy-handicap"),
     ],
     position="hidden",

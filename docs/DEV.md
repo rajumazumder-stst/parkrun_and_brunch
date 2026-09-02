@@ -127,10 +127,19 @@ and `label_impact.py`'s second tab. One implementation, for the same reason
 `_winning_margin` exists once: two copies of this arithmetic would make a method
 difference indistinguishable from a rounding one.
 
-**The head-to-head method comparison stays local.** It needs
-`v_head_to_head_legacy`, which `build_snapshot` never carries — the legacy views
-freeze a superseded method, and hosting them invites a reader to take the old
-numbers as current.
+**The comparison is hosted too, and that cost something.** The second tab reads
+`v_head_to_head_legacy`, so `build_snapshot` now calls
+`ensure_legacy_views(force=True)` and the frozen pre-buggy views travel in the
+deploy snapshot. They were previously kept out of it precisely so a hosted app
+could not serve a superseded method. That guarantee is gone; what replaces it is
+presentation — the tab is titled *What labelling changed*, the columns are
+`Old winner` / `New winner`, and `method_impact.py` says in its docstring that
+those are retired numbers. If the framing ever gets loosened, the protection
+goes with it.
+
+The views are still **not** built into the source-of-truth DB: nothing there
+needs them, and a stored view of a retired method is one more thing a future
+migration has to carry.
 
 scipy is in `requirements.txt` for this page — the only runtime dependency there
 that the five-tab app does not itself use.

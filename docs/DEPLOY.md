@@ -74,17 +74,37 @@ re-points the hosted app at it.
 
 ## What is and is not deployed
 
-Streamlit Cloud serves **`app.py` (router: `/` the five tabs, `/buggy-handicap`
-the handicap analysis) plus `data/parkrun_snapshot.duckdb` from the
+Streamlit Cloud serves **`app.py` plus `data/parkrun_snapshot.duckdb` from the
 same commit**, which is why the code and the regenerated snapshot must be
-committed together (see the rollout note in the buggy-mode work).
+committed together — the rollout note below is not theoretical, it is a
+near-miss that happened.
 
-`label_impact.py` is **never** deployed in any meaningful sense. It is a second
-Streamlit entry point that only the local launcher starts, and it needs
-`v_head_to_head_legacy` — a view built solely by `ensure_legacy_views`, which is
-gated on `PARKRUN_LABEL_AUDIT=1` and is never called from `bootstrap` or
-`refresh`. So the legacy views cannot reach the source-of-truth DB or the
-snapshot, and the hosted app has nothing to serve even if the file is present.
+`app.py` is a router, not the app: `st.navigation([...], position="hidden")`
+over two page scripts.
+
+| Path | Page | Contents |
+|---|---|---|
+| `/` | `parkrun_app.py` | the five tabs |
+| `/buggy-handicap` | `handicap_page.py` | what the buggy costs · what labelling changed |
+
+`/buggy-handicap` is **unlisted, not access-controlled** — hidden navigation
+means no link to it, not no access. Anyone with the URL reads it.
+
+**The deploy snapshot now carries the legacy views.** `build_snapshot` calls
+`ensure_legacy_views(force=True)`, because the second tab of `/buggy-handicap`
+compares the pre-buggy method against the current one and needs
+`v_head_to_head_legacy` to do it. This reverses an earlier rule that kept them
+out of anything hosted, on the grounds that a superseded method should not be
+queryable on a public app. What guards against misreading them now is
+presentation, not absence — so if that tab's framing is ever loosened, this is
+the thing that was traded away.
+
+They are still **not** built into the source-of-truth DB; `bootstrap` and
+`refresh` never call `ensure_legacy_views`, only `build_snapshot` does.
+
+`label_impact.py` is still never deployed. It is a dev-only twin of
+`/buggy-handicap` that only the local launcher starts, running the same two
+shared modules against an isolated dev DB.
 
 `scripts/dev_fake_labels.py` likewise never runs outside a dev database: it
 refuses to write to `~/.config/parkrun/parkrun_local.duckdb` or to the deploy
