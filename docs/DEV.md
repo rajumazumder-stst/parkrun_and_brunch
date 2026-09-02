@@ -69,12 +69,26 @@ rather than a sixth tab because it is a development instrument, not part of the
 product — and keeping it out of `app.py` means there is no gate to get wrong at
 deploy time.
 
-`label_impact.py` compares the live head-to-head against
+`label_impact.py` has **two tabs**. *Head-to-head impact* compares the live head-to-head against
 `v_head_to_head_legacy` — the frozen pre-buggy method (a single pooled 91-day
 median, no mode split, no handicap bridge). Per occasion it reports whether the
 winner, the places, the ranked roster or just the margin moved, and draws the
 old and new victory charts stacked on a shared x-axis for whichever contest you
 pick. The dropdown is in date order, most recent first, matching the table.
+Two checkboxes filter it — what changed, and what used the handicap bridge —
+ANDed rather than exclusive, because "a bridged target that changed the result"
+is the cell worth looking at.
+
+*Buggy handicap* is the working behind `buggy_handicap`. For every athlete with
+a buggy label it takes the runs between their first and last buggy run, splits
+them by mode, and reports mean/SD/median, density curves with a rug of the real
+runs, and three estimates: the raw difference in means, the same-course estimate
+(course fixed effects, which keeps only courses run both ways), and the same
+with a linear form-drift term. It recommends a value only when the estimates
+agree in sign, the raw interval clears zero, and there are at least 8 buggy
+runs; otherwise it says hold the default and why. Nothing on the tab is
+hardcoded — correct a label and every number moves. Needs `scipy`, which the
+dev venv has and `requirements.txt` deliberately does not.
 
 `run_local.sh` builds the legacy views into the dev DB when the var is set;
 nothing builds them into the source of truth or the deploy snapshot, so the

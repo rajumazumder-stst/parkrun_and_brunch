@@ -78,6 +78,16 @@ where they differ from the original brief, **the spec wins**.
   holds after a full `default` backfill, since those rows are all `FALSE`; it is
   spent by the first confirmed **buggy** label. `label_impact.py` renders the
   same check as a live page.
+- ✅ **Labels imported; handicaps set** (2 Sep 2026). George and Duncan returned
+  the review sheet fully answered — 160 `manual` labels (George 31 buggy / 44
+  not, Duncan 5 / 80), the remaining 681 runs `default`. Measured from the runs
+  between each athlete's first and last buggy run: **George 0.13**
+  (`measured`, 31 labels — raw +12.0%, course fixed effects +15.3%, +12.7% once
+  form drift is allowed for; 0.13 is inside all three intervals), **Duncan held
+  at the 0.15 `default`** — five buggy runs, an interval crossing zero, and his
+  one course run both ways pointing the other way (−3.7%), which is the course
+  confound rather than the buggy. Zero-label equivalence is now **spent**: 175
+  of 205 occasions unchanged, 6 winners flipped, 0 lost.
 
 ---
 
@@ -497,7 +507,7 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | `parkrun_pipeline.py` | Loader: `bootstrap` / `refresh` / `status` / `snapshot` / `seed` / `motherduck` (Path A/B, DuckDB) + analytics views/targets + deploy-snapshot build + parkrun-only MotherDuck upload (`build_motherduck`). Also owns scraping (`scrape_athlete`) and time parsing (`time_to_seconds`). |
 | `app.py` | Streamlit front end (5 tabs: overlap · personal bests + head-to-head summary · head-to-head detail · form/target-time · head-to-head map) reading the `parkrun` schema read-only; DB path resolved via `PARKRUN_DB` env/secret (incl. `md:` MotherDuck), else the bundled snapshot. Auto-reloads on new data via a `data_version()` cache key — `max(scrape_timestamp)` **plus `max(set_at)` and `count(*)` from `run_modes`**, since labels are edited out of band and never move the scrape timestamp — 60s TTL; 🔄 Reload button clears the cache manually |
 | `parkrun_ui.py` | Shared UI layer imported by **both** apps: DB resolution, `ATHLETE_COLORS`/`MEDAL`, `fmt_time`, the buggy display helpers (`BUGGY_GLYPH`, `mode_suffix`, `mode_text`, highlight colours), `_h2h_headline`, `_victory_fig` and `_winning_margin`. `_winning_margin` must exist **once only** — `label_impact.py` diffs old against new, so a second copy of that arithmetic would make a method difference indistinguishable from a rounding one |
-| `label_impact.py` | **Dev-only, separate app** (its own port): the pre-buggy head-to-head against the current one, per-occasion verdicts and paired victory charts. Not a tab in `app.py` — keeping it in its own file means there is no deploy-time gate to get wrong. Needs `v_head_to_head_legacy`, which only ever exists on a dev DB |
+| `label_impact.py` | **Dev-only, separate app** (its own port), **2 tabs**: *head-to-head impact* — the pre-buggy method against the current one, per-occasion verdicts (filterable to what changed and/or what used the handicap bridge) and paired victory charts; *buggy handicap* — the measurement behind `buggy_handicap`, per athlete, recomputed live from the labels. Not a tab in `app.py` — keeping it in its own file means there is no deploy-time gate to get wrong. Tab 1 needs `v_head_to_head_legacy`, which only ever exists on a dev DB; the gate lives **inside** that tab and returns rather than calling `st.stop()`, which would take the other tab down with it. Needs `scipy` (Welch interval, course fixed effects, `gaussian_kde`), deliberately not in `requirements.txt` |
 | `scripts/run_local.sh` | Local dev launcher: venv + isolated `data/parkrun_dev.duckdb` (built via `pipeline seed`, **not** `cp` — the committed snapshot carries only the views it had when last rebuilt) + `streamlit run`. Under `PARKRUN_LABEL_AUDIT=1` it also builds the legacy views and starts `label_impact.py` on a second port (see `docs/DEV.md`) |
 | `scripts/dev_fake_labels.py` | Dev-only: plausible fake buggy labels for previewing the UI before the real ones arrive. Labels runs that were slow *relative to that athlete's trailing 20-run median*. Refuses to write to the source of truth or the deploy snapshot |
 | `scripts/parkrun_refresh.sh` | Master refresh from this Mac (manual or scheduled — the one code path): pull clone → seed the local source-of-truth DB if absent → pipeline → audit-file push (fatal; this is the deploy) → freshness stamp → notification |
