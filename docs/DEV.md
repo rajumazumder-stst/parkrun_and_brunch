@@ -100,26 +100,33 @@ the old ones exactly until a label says otherwise. A `Lost` occasion should be
 impossible — the bridge only ever makes *more* contests rankable — and it is
 called out in red if one appears.
 
-## The hosted buggy-handicap page
+## The hosted buggy-handicap app
 
-`pages/1_🛒_Buggy_handicap.py` puts the handicap analysis on the public app at
-`/Buggy_handicap`, so George and Duncan can read the argument for the numbers
-they are judged by instead of being sent a screenshot. Adding `pages/` also
-gives `app.py` a sidebar page nav — that is how anyone finds it.
+`handicap_app.py` is a **second** Streamlit Cloud app deployed from this repo,
+with its own URL, so George and Duncan can read the argument for the numbers
+they are judged by instead of being sent a screenshot.
 
-The analysis itself lives in `buggy_handicap.py`, imported by **both** that page
+Deploy it once: Streamlit Cloud → New app → this repo → main file
+`handicap_app.py` → its own subdomain. Same `requirements.txt`, same bundled
+snapshot, no secrets. After that it redeploys on push like the main app.
+
+It is **not** a `pages/` entry. That was the first attempt, and it added a nav
+link to `app.py`'s sidebar — which made a piece of working-out look like a
+sixth feature of the product, and put it in front of visitors who have no idea
+who George and Duncan are. A separate app has no nav and no link.
+
+The analysis itself lives in `buggy_handicap.py`, imported by **both** that app
 and `label_impact.py`'s second tab. One implementation, for the same reason
 `_winning_margin` exists once: two copies of this arithmetic would make a method
 difference indistinguishable from a rounding one.
 
 **The head-to-head method comparison stays local.** It needs
 `v_head_to_head_legacy`, which `build_snapshot` never carries — the legacy views
-freeze a superseded method, and hosting them invites a visitor to read the old
-numbers as current. That is a guarantee worth keeping, so the hosted surface is
-the handicap tab alone.
+freeze a superseded method, and hosting them invites a reader to take the old
+numbers as current.
 
-scipy moved into `requirements.txt` for this page. It is the only runtime
-dependency there that `app.py` itself does not use.
+scipy is in `requirements.txt` for this app. It is the only runtime dependency
+there that `app.py` itself does not use — both apps share one requirements file.
 
 ## Fake labels for previewing the buggy UI
 
