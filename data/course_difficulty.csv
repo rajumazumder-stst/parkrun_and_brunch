@@ -1,0 +1,836 @@
+parkrun_name,difficulty,speed_rank,alias_of,fetched_at
+Pegwell Bay,0.8,1,,2026-09-01
+Walsall Arboretum,1.0,2,,2026-09-01
+Battersea,1.2,3,,2026-09-01
+Isabel Trail (Main),1.2,4,,2026-09-01
+Bromley (Winter),1.2,5,Bromley,2026-09-01
+Belfast Victoria,1.2,6,,2026-09-01
+Widnes,1.2,7,,2026-09-01
+Elder Park,1.2,8,,2026-09-01
+Aberbeeg,1.2,9,,2026-09-01
+Marine Parade (Main),1.2,10,,2026-09-01
+Yarborough Leisure Centre,1.3,11,,2026-09-01
+Dulwich,1.3,12,,2026-09-01
+Five Arches,1.3,13,,2026-09-01
+Rother Valley,1.3,14,,2026-09-01
+Alexandra,1.3,15,,2026-09-01
+Storeys Field,1.3,16,,2026-09-01
+Selby,1.3,17,,2026-09-01
+Victoria Dock,1.3,18,,2026-09-01
+Strathclyde,1.3,19,,2026-09-01
+Somerdale Pavilion,1.3,20,,2026-09-01
+Isabel Trail (Alternative),1.4,21,,2026-09-01
+Long Eaton,1.4,22,,2026-09-01
+Hove Promenade,1.4,23,,2026-09-01
+Torbay Velopark,1.4,24,,2026-09-01
+Worthing,1.4,25,,2026-09-01
+Brooklands,1.4,26,,2026-09-01
+Market Rasen Racecourse,1.4,27,,2026-09-01
+Watermead Country Park,1.4,28,,2026-09-01
+Pont y Bala,1.4,29,,2026-09-01
+Hartlepool,1.4,30,,2026-09-01
+Poole,1.5,31,,2026-09-01
+Riverfront,1.5,32,,2026-09-01
+Doddington Hall,1.5,33,,2026-09-01
+Southampton,1.5,34,,2026-09-01
+Keswick,1.5,35,,2026-09-01
+Alvaston,1.5,36,,2026-09-01
+Eden Project,1.5,37,,2026-09-01
+Worcester Pitchcroft,1.5,38,,2026-09-01
+Northampton,1.5,39,,2026-09-01
+Victoria,1.5,40,,2026-09-01
+Albert,1.5,41,,2026-09-01
+Rickmansworth,1.5,42,,2026-09-01
+South Manchester,1.5,43,,2026-09-01
+St Andrews,1.5,44,,2026-09-01
+Morecambe Prom,1.5,45,,2026-09-01
+Stretford,1.5,46,,2026-09-01
+Burgess,1.6,47,,2026-09-01
+Abbey Park,1.6,48,,2026-09-01
+Blandford,1.6,49,,2026-09-01
+Swansea Bay,1.6,50,,2026-09-01
+Great Denham,1.6,51,,2026-09-01
+The Wammy,1.6,52,,2026-09-01
+Springburn,1.6,53,,2026-09-01
+Beacon,1.6,54,,2026-09-01
+Southport,1.6,55,,2026-09-01
+Bideford,1.6,56,,2026-09-01
+Gunpowder,1.6,57,,2026-09-01
+Edinburgh,1.6,58,,2026-09-01
+Oaklands,1.6,59,,2026-09-01
+Ruthin Memorial Playing Fields,1.6,60,,2026-09-01
+Severn Bridge,1.6,61,,2026-09-01
+The Old Showfield,1.6,62,,2026-09-01
+Riverside,1.6,63,,2026-09-01
+Southend,1.6,64,,2026-09-01
+Sixmilewater,1.6,65,,2026-09-01
+Rutland Water,1.6,66,,2026-09-01
+Knockbracken Reservoir,1.6,67,,2026-09-01
+Groe,1.6,68,,2026-09-01
+Fleetwood Promenade,1.6,69,,2026-09-01
+Perth,1.6,70,,2026-09-01
+Hastings,1.6,71,,2026-09-01
+Exmouth,1.6,72,,2026-09-01
+Maryport Prom,1.6,73,,2026-09-01
+Cardiff,1.7,74,,2026-09-01
+Bushy Park,1.7,75,,2026-09-01
+Heslington,1.7,76,,2026-09-01
+Congleton,1.7,77,,2026-09-01
+Sutcliffe,1.7,78,,2026-09-01
+Southwark,1.7,79,,2026-09-01
+Stratford-upon-Avon,1.7,80,,2026-09-01
+Lordship Recreation Ground,1.7,81,,2026-09-01
+Hull,1.7,82,,2026-09-01
+Peel,1.7,83,,2026-09-01
+Market Harborough,1.7,84,,2026-09-01
+Blyth Links,1.7,85,,2026-09-01
+Norwich,1.8,86,,2026-09-01
+Raphael,1.8,87,,2026-09-01
+Burnham and Highbridge,1.8,88,,2026-09-01
+Pymmes,1.8,89,,2026-09-01
+Berkeley Green,1.8,90,,2026-09-01
+Buckingham,1.8,91,,2026-09-01
+Penallta,1.8,92,,2026-09-01
+Citypark,1.8,93,,2026-09-01
+Arrow Valley,1.8,94,,2026-09-01
+Cassiobury,1.8,95,,2026-09-01
+Millennium Country,1.8,96,,2026-09-01
+Chipping Sodbury,1.8,97,,2026-09-01
+Barking,1.8,98,,2026-09-01
+King’s Lynn,1.8,99,,2026-09-01
+Croxteth Hall,1.8,100,,2026-09-01
+Ormskirk,1.8,101,,2026-09-01
+Sixfields Upton,1.8,102,,2026-09-01
+Bryn Bach,1.8,103,,2026-09-01
+Sandy Water,1.8,104,,2026-09-01
+Rogiet,1.8,105,,2026-09-01
+Gorleston Cliffs,1.8,106,,2026-09-01
+Ancholme Valley Way,1.8,107,,2026-09-01
+Felixstowe,1.8,108,,2026-09-01
+"Y Promenâd, Abermaw",1.8,109,,2026-09-01
+MUSA Cookstown,1.8,110,,2026-09-01
+Southsea,1.8,111,,2026-09-01
+York,1.8,112,,2026-09-01
+Greenock,1.8,113,,2026-09-01
+Chalkwell Beach,1.8,114,,2026-09-01
+Dover Waterfront,1.8,115,,2026-09-01
+Harwich,1.8,116,,2026-09-01
+Walmer and Deal Seafront,1.8,117,,2026-09-01
+Fountains Abbey,1.9,118,,2026-09-01
+Birkenhead,1.9,119,,2026-09-01
+Darlington South Park,1.9,120,,2026-09-01
+"Thames Path, Woolwich",1.9,121,,2026-09-01
+Whiteley,1.9,122,,2026-09-01
+Edgbaston Reservoir,1.9,123,,2026-09-01
+University Parks,1.9,124,,2026-09-01
+Roberts Park,1.9,125,,2026-09-01
+The Cinder Track,1.9,126,,2026-09-01
+Highbury Fields,1.9,127,,2026-09-01
+Penrose,1.9,128,,2026-09-01
+Salisbury,1.9,129,,2026-09-01
+Huddersfield,1.9,130,,2026-09-01
+Woodley,1.9,131,,2026-09-01
+Littlehampton Prom,1.9,132,,2026-09-01
+Aberdeen,1.9,133,,2026-09-01
+Lee-on-the-Solent,1.9,134,,2026-09-01
+Oxford,2.0,135,,2026-09-01
+Clevedon Salthouse Fields,2.0,136,,2026-09-01
+Clumber Park,2.0,137,,2026-09-01
+Three Brooks,2.0,138,,2026-09-01
+Paisley Park,2.0,139,,2026-09-01
+Rushcliffe,2.0,140,,2026-09-01
+Sloughbottom,2.0,141,,2026-09-01
+Grangemoor,2.0,142,,2026-09-01
+Wisbech,2.0,143,,2026-09-01
+Pontypridd,2.0,144,,2026-09-01
+Osterley,2.0,145,,2026-09-01
+Ury Riverside,2.0,146,,2026-09-01
+Eastbourne (Main),2.0,147,Eastbourne,2026-09-01
+Bedford,2.0,148,,2026-09-01
+East Park,2.0,149,,2026-09-01
+Stevenage,2.0,150,,2026-09-01
+Cyclopark,2.0,151,,2026-09-01
+Normanby Hall,2.0,152,,2026-09-01
+Wolverhampton,2.0,153,,2026-09-01
+Tremorfa,2.0,154,,2026-09-01
+Crinan Canal,2.0,155,,2026-09-01
+Southall,2.0,156,,2026-09-01
+Aberdare,2.0,157,,2026-09-01
+Perry Hall,2.0,158,,2026-09-01
+Quakers Walk,2.0,159,,2026-09-01
+North Yorkshire Water Park,2.0,160,,2026-09-01
+Erskine Waterfront,2.0,161,,2026-09-01
+Mansfield,2.0,162,,2026-09-01
+Watermeadows,2.0,163,,2026-09-01
+Newtown,2.0,164,,2026-09-01
+Ecos,2.0,165,,2026-09-01
+Aberystwyth,2.0,166,,2026-09-01
+Limavady,2.0,167,,2026-09-01
+Comber,2.0,168,,2026-09-01
+Maidstone,2.0,169,,2026-09-01
+Charlton,2.0,170,,2026-09-01
+Kingston,2.0,171,,2026-09-01
+The Leas,2.0,172,,2026-09-01
+Brueton,2.0,173,,2026-09-01
+Northala Fields,2.0,174,,2026-09-01
+Troon,2.0,175,,2026-09-01
+Workington,2.0,176,,2026-09-01
+Ferry Meadows,2.0,177,,2026-09-01
+Agnew,2.0,178,,2026-09-01
+Elgin,2.0,179,,2026-09-01
+West Links,2.0,180,,2026-09-01
+The Fisherman‘s Walk,2.0,181,,2026-09-01
+Dunleath Playing Fields,2.0,182,,2026-09-01
+Aviemore,2.0,183,,2026-09-01
+Millom,2.0,184,,2026-09-01
+Linwood,2.0,185,,2026-09-01
+Tyne Green,2.0,186,,2026-09-01
+Seaford Beach,2.0,187,,2026-09-01
+Teignmouth Promenade,2.0,188,,2026-09-01
+Leicester Victoria,2.0,189,,2026-09-01
+Millhouses,2.1,190,,2026-09-01
+Bug Hunter Waters,2.1,191,,2026-09-01
+Cannon Hill,2.1,192,,2026-09-01
+Coventry,2.1,193,,2026-09-01
+Preston Park,2.1,194,,2026-09-01
+Rushmoor,2.1,195,,2026-09-01
+University of Northampton,2.1,196,,2026-09-01
+Telford,2.1,197,,2026-09-01
+Poolsbrook,2.1,198,,2026-09-01
+Penrith,2.1,199,,2026-09-01
+Shrewsbury,2.1,200,,2026-09-01
+Ormeau,2.1,201,,2026-09-01
+Warwick Racecourse,2.1,202,,2026-09-01
+Auldcathie District,2.1,203,,2026-09-01
+Bicester (Winter),2.1,204,,2026-09-01
+Brighouse,2.1,205,,2026-09-01
+Weymouth,2.1,206,,2026-09-01
+Heaton Park,2.1,207,,2026-09-01
+Brighton & Hove,2.2,208,,2026-09-01
+Mile End,2.2,209,,2026-09-01
+Valentines,2.2,210,,2026-09-01
+Hillsborough,2.2,211,,2026-09-01
+"Old Railway Trail, Llangollen",2.2,212,,2026-09-01
+Peckham Rye,2.2,213,,2026-09-01
+Gloucester City,2.2,214,,2026-09-01
+Portsmouth Lakeside,2.2,215,,2026-09-01
+Cross Flatts,2.2,216,,2026-09-01
+Redcar,2.2,217,,2026-09-01
+Stormont,2.2,218,,2026-09-01
+Monsal Trail,2.2,219,,2026-09-01
+Colwick,2.2,220,,2026-09-01
+Worsley Woods,2.2,221,,2026-09-01
+Antrim,2.2,222,,2026-09-01
+Concord,2.2,223,,2026-09-01
+Jersey,2.2,224,,2026-09-01
+Malling,2.2,225,,2026-09-01
+Houghton Hall,2.2,226,,2026-09-01
+"Higginson, Marlow",2.2,227,,2026-09-01
+Tamworth Castle Grounds,2.2,228,,2026-09-01
+Bicester (Summer),2.2,229,,2026-09-01
+Folkestone,2.2,230,,2026-09-01
+Shepton Mallet,2.2,231,,2026-09-01
+Denton Dene,2.2,232,,2026-09-01
+Cleethorpes,2.2,233,,2026-09-01
+"Cycle Route 43, Ystalyfera",2.2,234,,2026-09-01
+Oak Hill,2.2,235,,2026-09-01
+Cannock Chase,2.2,236,,2026-09-01
+Chelmsford Central,2.2,237,,2026-09-01
+Minehead,2.2,238,,2026-09-01
+Markshall Estate,2.2,239,,2026-09-01
+Scunthorpe,2.2,240,,2026-09-01
+Rotherham,2.2,241,,2026-09-01
+Chasewater,2.2,242,,2026-09-01
+Wickford Memorial,2.2,243,,2026-09-01
+Kingsway,2.2,244,,2026-09-01
+Newbury,2.2,245,,2026-09-01
+Seaton,2.2,246,,2026-09-01
+Hereford,2.2,247,,2026-09-01
+Heartlands,2.2,248,,2026-09-01
+Hackney Marshes,2.2,249,,2026-09-01
+Town Moor,2.2,250,,2026-09-01
+Mildenhall Hub,2.2,251,,2026-09-01
+Llanishen Park,2.2,252,,2026-09-01
+Rothwell,2.2,253,,2026-09-01
+Kettering,2.2,254,,2026-09-01
+Kingsbury Water,2.2,255,,2026-09-01
+Alness,2.2,256,,2026-09-01
+Newbiggin-by-the-Sea,2.2,257,,2026-09-01
+"Chippenham Playing Fields, Monmouth",2.2,258,,2026-09-01
+Lowestoft,2.2,259,,2026-09-01
+Catford,2.2,260,,2026-09-01
+Aylesbury,2.2,261,,2026-09-01
+Ellon,2.2,262,,2026-09-01
+Downham Market Academy,2.2,263,,2026-09-01
+Reading,2.2,264,,2026-09-01
+Lingwood,2.2,265,,2026-09-01
+Wycombe Rye,2.2,266,,2026-09-01
+Ingrebourne Hill,2.3,267,,2026-09-01
+Gunnersbury,2.3,268,,2026-09-01
+Markeaton,2.3,269,,2026-09-01
+Moors Valley,2.3,270,,2026-09-01
+Endcliffe,2.3,271,,2026-09-01
+Woodhouse Moor,2.3,272,,2026-09-01
+Porthcawl,2.3,273,,2026-09-01
+Pontefract,2.3,274,,2026-09-01
+Lincoln,2.3,275,,2026-09-01
+Didcot,2.3,276,,2026-09-01
+The Great Field,2.3,277,,2026-09-01
+Maldon Prom,2.3,278,,2026-09-01
+Forfar Loch,2.3,279,,2026-09-01
+Leazes,2.3,280,,2026-09-01
+Wakehurst,2.4,281,,2026-09-01
+Brockenhurst (Winter – Wilverley),2.4,282,,2026-09-01
+Milton Keynes,2.4,283,,2026-09-01
+Princes,2.4,284,,2026-09-01
+Edenbrook Country,2.4,285,,2026-09-01
+Salcey Forest,2.4,286,,2026-09-01
+Ashford,2.4,287,,2026-09-01
+Pavilion Gardens,2.4,288,,2026-09-01
+Beeston,2.4,289,,2026-09-01
+Warrington,2.4,290,,2026-09-01
+Babbs Mill,2.4,291,,2026-09-01
+Mallards Pike,2.4,292,,2026-09-01
+Braunstone,2.4,293,,2026-09-01
+Harrow,2.4,294,,2026-09-01
+California Country,2.4,295,,2026-09-01
+Horsham (Main),2.4,296,,2026-09-01
+Woking,2.4,297,,2026-09-01
+Wallace,2.4,298,,2026-09-01
+Bramshall Road,2.4,299,,2026-09-01
+Bangor,2.4,300,,2026-09-01
+Crichton,2.4,301,,2026-09-01
+Derry City,2.4,302,,2026-09-01
+Lydiard,2.4,303,,2026-09-01
+Muncaster Castle,2.4,304,,2026-09-01
+Longrun Meadow,2.4,305,,2026-09-01
+Herrington Country,2.4,306,,2026-09-01
+Littleport,2.4,307,,2026-09-01
+Dalby Forest,2.4,308,,2026-09-01
+Luton Wardown,2.4,309,,2026-09-01
+Clacton Seafront,2.4,310,,2026-09-01
+Silksworth,2.4,311,,2026-09-01
+Fulbourn Hospital,2.4,312,,2026-09-01
+Hay Lodge,2.4,313,,2026-09-01
+Ashington Community Woodland,2.4,314,,2026-09-01
+Penistone,2.4,315,,2026-09-01
+Fulwell Quarry,2.4,316,,2026-09-01
+Pocket,2.4,317,,2026-09-01
+Cwmbran,2.4,318,,2026-09-01
+Seven Fields (Winter),2.4,319,,2026-09-01
+Lancing Beach Green,2.4,320,,2026-09-01
+Dereham,2.4,321,,2026-09-01
+Sharpham Road Playing Fields,2.4,322,,2026-09-01
+Hunstanton Promenade (Winter),2.4,323,,2026-09-01
+Street,2.4,324,,2026-09-01
+Llanerchaeron,2.4,325,,2026-09-01
+Livingston,2.4,326,,2026-09-01
+Goole,2.4,327,,2026-09-01
+Great Lines,2.4,328,,2026-09-01
+Largs Prom,2.4,329,,2026-09-01
+Exeter Riverside,2.4,330,,2026-09-01
+Silloth Promenade,2.4,331,,2026-09-01
+Armley,2.4,332,,2026-09-01
+Bromley (Summer),2.5,333,Bromley,2026-09-01
+Black Park,2.5,334,,2026-09-01
+Portobello,2.5,335,,2026-09-01
+Burnage,2.5,336,,2026-09-01
+Tooting Common,2.5,337,,2026-09-01
+Birchall Playing Fields,2.5,338,,2026-09-01
+Druridge Bay,2.5,339,,2026-09-01
+Nova Prestatyn,2.5,340,,2026-09-01
+Nonsuch,2.5,341,,2026-09-01
+Coldham’s Common,2.5,342,,2026-09-01
+Sittingbourne,2.5,343,,2026-09-01
+Abingdon,2.5,344,,2026-09-01
+Brynaman,2.5,345,,2026-09-01
+Andover,2.5,346,,2026-09-01
+Montrose,2.5,347,,2026-09-01
+Holy Cross College,2.5,348,,2026-09-01
+Winchester,2.5,349,,2026-09-01
+Carrickfergus,2.5,350,,2026-09-01
+Kirkwall,2.5,351,,2026-09-01
+Oaklands College,2.5,352,,2026-09-01
+Simmons Park,2.6,353,,2026-09-01
+Cockermouth Greenway,2.6,354,,2026-09-01
+Whitley Bay,2.6,355,,2026-09-01
+Linford Wood,2.6,356,,2026-09-01
+Cheltenham (Winter),2.6,357,,2026-09-01
+Philips Park,2.6,358,,2026-09-01
+Eastbourne (Summer),2.6,359,Eastbourne,2026-09-01
+Lytham Hall,2.6,360,,2026-09-01
+Fulham Palace,2.6,361,,2026-09-01
+Ifield Mill Pond,2.6,362,,2026-09-01
+Penrhyn,2.6,363,,2026-09-01
+Hillsborough Forest,2.6,364,,2026-09-01
+St Helens,2.6,365,,2026-09-01
+Levengrove,2.6,366,,2026-09-01
+Crane Park,2.6,367,,2026-09-01
+Gateshead,2.6,368,,2026-09-01
+Bognor Regis,2.6,369,,2026-09-01
+Drumpellier Country,2.6,370,,2026-09-01
+Brixworth Country,2.6,371,,2026-09-01
+Conwy,2.6,372,,2026-09-01
+Holkham,2.6,373,,2026-09-01
+Kesgrave,2.6,374,,2026-09-01
+Merthyr,2.6,375,,2026-09-01
+Sale Water,2.6,376,,2026-09-01
+Fareham,2.6,377,,2026-09-01
+Hanley,2.6,378,,2026-09-01
+Seven Fields (Summer),2.6,379,,2026-09-01
+Castlewellan,2.6,380,,2026-09-01
+Blickling,2.6,381,,2026-09-01
+Falkirk,2.6,382,,2026-09-01
+Wynyard Woodland,2.6,383,,2026-09-01
+Newborough Forest,2.6,384,,2026-09-01
+Lochore Meadows,2.6,385,,2026-09-01
+Newport,2.6,386,,2026-09-01
+Cranbrook Country Park,2.6,387,,2026-09-01
+University of Stirling,2.6,388,,2026-09-01
+Soham Village College,2.6,389,,2026-09-01
+Burnley,2.6,390,,2026-09-01
+Vogrie,2.6,391,,2026-09-01
+Tonbridge,2.6,392,,2026-09-01
+Beckton,2.6,393,,2026-09-01
+Frimley Lodge,2.6,394,,2026-09-01
+Ganger Farm,2.6,395,,2026-09-01
+Canons Park,2.6,396,,2026-09-01
+Billericay,2.6,397,,2026-09-01
+Woodgate Valley Country Park,2.6,398,,2026-09-01
+Tamar Lakes,2.6,399,,2026-09-01
+Whitehaven,2.6,400,,2026-09-01
+Melksham,2.6,401,,2026-09-01
+Prudhoe Riverside,2.6,402,,2026-09-01
+Cosmeston Lakes,2.6,403,,2026-09-01
+Evesham,2.6,404,,2026-09-01
+Great Cornard,2.6,405,,2026-09-01
+Lydney,2.6,406,,2026-09-01
+Upton Court,2.6,407,,2026-09-01
+Bolberry Down,2.6,408,,2026-09-01
+Stonehouse,2.6,409,,2026-09-01
+Brockwell,2.7,410,,2026-09-01
+Preston,2.7,411,,2026-09-01
+Richmond Park,2.7,412,,2026-09-01
+Finsbury Park,2.7,413,,2026-09-01
+Fletcher Moss,2.7,414,,2026-09-01
+Sherwood Pines,2.7,415,,2026-09-01
+"Lister Park, Bradford",2.7,416,,2026-09-01
+Millfield,2.7,417,,2026-09-01
+Grovelands,2.7,418,,2026-09-01
+Oldham,2.7,419,,2026-09-01
+Wollaton Hall,2.7,420,,2026-09-01
+Clapham Common,2.7,421,,2026-09-01
+Bracknell,2.7,422,,2026-09-01
+Egham Orbit,2.8,423,,2026-09-01
+Black Rocks,2.8,424,,2026-09-01
+Bramhall Park,2.8,425,,2026-09-01
+Southwick Country Park,2.8,426,,2026-09-01
+Rising Sun,2.8,427,,2026-09-01
+Dewsbury,2.8,428,,2026-09-01
+Chester,2.8,429,,2026-09-01
+Conkers,2.8,430,,2026-09-01
+Alderley Park,2.8,431,,2026-09-01
+Bedworth,2.8,432,,2026-09-01
+Sheffield Castle,2.8,433,,2026-09-01
+Northwich,2.8,434,,2026-09-01
+Thetford,2.8,435,,2026-09-01
+Netley Abbey,2.8,436,,2026-09-01
+Wilmslow,2.8,437,,2026-09-01
+"Queen’s, Belfast",2.8,438,,2026-09-01
+Kirkcaldy,2.8,439,,2026-09-01
+Bournemouth,2.8,440,,2026-09-01
+Basildon,2.8,441,,2026-09-01
+Greenwich,2.8,442,Avery Hill,2026-09-01
+Durham,2.8,443,,2026-09-01
+Brunswick Park,2.8,444,,2026-09-01
+Hazlehead,2.8,445,,2026-09-01
+Hanworth,2.8,446,,2026-09-01
+Peter Pan,2.8,447,,2026-09-01
+Boston,2.8,448,,2026-09-01
+Clare Castle,2.8,449,,2026-09-01
+Horspath,2.8,450,,2026-09-01
+Dolgellau,2.8,451,,2026-09-01
+Gloucester North,2.8,452,,2026-09-01
+Tewkesbury,2.8,453,,2026-09-01
+Omagh,2.8,454,,2026-09-01
+Withernsea Promenade,2.8,455,,2026-09-01
+Great Salterns,2.8,456,,2026-09-01
+Grove Fields,2.8,457,,2026-09-01
+Peacehaven,2.8,458,,2026-09-01
+Castle Park,2.8,459,,2026-09-01
+Sizewell,2.8,460,,2026-09-01
+Waterworks,2.8,461,,2026-09-01
+"Central, Plymouth",2.8,462,,2026-09-01
+Carlingwark Loch,2.8,463,,2026-09-01
+Thurrock,2.8,464,,2026-09-01
+Tetbury Goods Shed,2.8,465,,2026-09-01
+Sence Valley Forest Park,2.8,466,,2026-09-01
+Jersey Farm (Summer),2.9,467,Jersey Farm,2026-09-01
+Eastville,2.9,468,,2026-09-01
+Trentham Gardens,2.9,469,,2026-09-01
+Pomphrey Hill,2.9,470,,2026-09-01
+Colney Lane,2.9,471,,2026-09-01
+Y Promenâd,2.9,472,,2026-09-01
+Milton Country,2.9,473,,2026-09-01
+Tilgate,2.9,474,,2026-09-01
+Catton,2.9,475,,2026-09-01
+Colchester Castle,2.9,476,,2026-09-01
+Wythenshawe,2.9,477,,2026-09-01
+Holbrooks,2.9,478,,2026-09-01
+Crystal Palace,3.0,479,,2026-09-01
+Baysgarth Park,3.0,480,,2026-09-01
+Skipton,3.0,481,,2026-09-01
+Horsham (Winter – Southwater),3.0,482,,2026-09-01
+Fell Foot (Summer),3.0,483,,2026-09-01
+Blackpool,3.0,484,,2026-09-01
+Bedfont Lakes,3.0,485,,2026-09-01
+Daventry,3.0,486,,2026-09-01
+Margate,3.0,487,,2026-09-01
+Dinton Pastures,3.0,488,,2026-09-01
+Rothay Park,3.0,489,,2026-09-01
+Knowsley,3.0,490,,2026-09-01
+Delamere,3.0,491,,2026-09-01
+Great Notley,3.0,492,,2026-09-01
+Harleston Magpies,3.0,493,,2026-09-01
+Colby,3.0,494,,2026-09-01
+Sutton Park,3.0,495,,2026-09-01
+Aberfields,3.0,496,,2026-09-01
+Bexley,3.0,497,,2026-09-01
+Harcourt Hill,3.0,498,,2026-09-01
+Orangefield,3.0,499,,2026-09-01
+New Earswick,3.0,500,,2026-09-01
+Bury St Edmunds,3.0,501,,2026-09-01
+Gnoll,3.0,502,,2026-09-01
+Milford Waterfront,3.0,503,,2026-09-01
+Lymington Woodside,3.0,504,,2026-09-01
+South Norwood,3.0,505,,2026-09-01
+Mersea Island,3.0,506,,2026-09-01
+Corby,3.0,507,,2026-09-01
+Melton Mowbray,3.0,508,,2026-09-01
+Panshanger,3.0,509,,2026-09-01
+Chipping Norton School,3.0,510,,2026-09-01
+St Mary’s,3.0,511,,2026-09-01
+Basingstoke,3.0,512,,2026-09-01
+Barrow,3.0,513,,2026-09-01
+Old Deer Park,3.0,514,,2026-09-01
+Cusworth Hall,3.0,515,,2026-09-01
+Flegg High,3.0,516,,2026-09-01
+Whitstable,3.0,517,,2026-09-01
+Sandall Park,3.0,518,,2026-09-01
+Macclesfield,3.0,519,,2026-09-01
+Tidworth,3.0,520,,2026-09-01
+Limepark Playing Fields,3.0,521,,2026-09-01
+Bower Park,3.0,522,,2026-09-01
+Chichester,3.0,523,,2026-09-01
+Bartley Park,3.0,524,,2026-09-01
+Hastings High School,3.0,525,,2026-09-01
+March,3.0,526,,2026-09-01
+Wanstead Flats,3.0,527,,2026-09-01
+Harrogate,3.0,528,,2026-09-01
+Chippenham,3.0,529,,2026-09-01
+Derrynoid Forest,3.0,530,,2026-09-01
+North Walsham,3.0,531,,2026-09-01
+Huntingdon,3.0,532,,2026-09-01
+Burnham-on-Crouch,3.0,533,,2026-09-01
+South Woodham Ferrers,3.0,534,,2026-09-01
+Girvan Prom,3.0,535,,2026-09-01
+Battlestead Croft,3.0,536,,2026-09-01
+Brockenhurst (Summer),3.0,537,,2026-09-01
+St Albans,3.0,538,,2026-09-01
+Sandhurst Memorial,3.0,539,,2026-09-01
+Enniskillen,3.0,540,,2026-09-01
+Banbury,3.0,541,,2026-09-01
+Bressay,3.0,542,,2026-09-01
+Mount Stuart (Winter),3.0,543,,2026-09-01
+Hazelwood,3.0,544,,2026-09-01
+Thurso,3.0,545,,2026-09-01
+Ross-on-Wye,3.0,546,,2026-09-01
+Cheltenham (Summer),3.1,547,,2026-09-01
+Banstead Woods,3.1,548,,2026-09-01
+Guildford,3.1,549,,2026-09-01
+Holyrood,3.2,550,,2026-09-01
+Nostell,3.2,551,,2026-09-01
+Torvean,3.2,552,,2026-09-01
+Gladstone,3.2,553,,2026-09-01
+Pollok,3.2,554,,2026-09-01
+Forest Rec,3.2,555,,2026-09-01
+Shorne Woods,3.2,556,,2026-09-01
+Irchester Country,3.2,557,,2026-09-01
+Dartford,3.2,558,,2026-09-01
+Harlow,3.2,559,,2026-09-01
+Armagh,3.2,560,,2026-09-01
+Dunfermline,3.2,561,,2026-09-01
+Glossop,3.2,562,,2026-09-01
+Falls,3.2,563,,2026-09-01
+Ally Pally,3.2,564,,2026-09-01
+Hackworth,3.2,565,,2026-09-01
+Greenfield Valley,3.2,566,,2026-09-01
+Belton House,3.2,567,,2026-09-01
+Bramley,3.2,568,,2026-09-01
+Llyn Llech Owain,3.2,569,,2026-09-01
+Hunstanton Promenade (Summer),3.2,570,,2026-09-01
+Dartford Heath,3.2,571,,2026-09-01
+Swanley,3.2,572,,2026-09-01
+Barnstaple,3.2,573,,2026-09-01
+Haigh Woodland,3.2,574,,2026-09-01
+Brierley Forest,3.2,575,,2026-09-01
+Leavesden Country,3.2,576,,2026-09-01
+Horton Park,3.2,577,,2026-09-01
+Garvagh Forest,3.2,578,,2026-09-01
+Meadowmill,3.2,579,,2026-09-01
+Marple,3.2,580,,2026-09-01
+Sewerby,3.2,581,,2026-09-01
+Loch Leven,3.2,582,,2026-09-01
+Crosby,3.2,583,,2026-09-01
+Killerton,3.2,584,,2026-09-01
+Cirencester,3.2,585,,2026-09-01
+Roundshaw Downs,3.2,586,,2026-09-01
+Orpington,3.2,587,,2026-09-01
+Rugby,3.2,588,,2026-09-01
+Bury Field,3.2,589,,2026-09-01
+Thornbury,3.2,590,,2026-09-01
+Halifax,3.3,591,,2026-09-01
+Upton House,3.4,592,,2026-09-01
+Oriam,3.4,593,,2026-09-01
+Hilly Fields,3.4,594,,2026-09-01
+Crewe,3.4,595,,2026-09-01
+Sedgefield,3.4,596,,2026-09-01
+Rosliston,3.4,597,,2026-09-01
+Newark,3.4,598,,2026-09-01
+Brandon Country Park,3.4,599,,2026-09-01
+Potternewton,3.4,600,,2026-09-01
+Bowling Park,3.4,601,,2026-09-01
+Fell Foot (Winter),3.4,602,,2026-09-01
+Hyde,3.4,603,,2026-09-01
+Barnsley,3.4,604,,2026-09-01
+Ruchill,3.4,605,,2026-09-01
+Frickley Country,3.4,606,,2026-09-01
+Northallerton,3.4,607,,2026-09-01
+Maidenhead,3.4,608,,2026-09-01
+Ipswich,3.4,609,,2026-09-01
+Brundall,3.4,610,,2026-09-01
+Carlisle Park,3.4,611,,2026-09-01
+Guernsey,3.4,612,,2026-09-01
+Haverfordwest,3.4,613,,2026-09-01
+Talkin Tarn Country Park,3.4,614,,2026-09-01
+Maesteg,3.4,615,,2026-09-01
+Frogmary Green Farm,3.4,616,,2026-09-01
+Henlow Bridge Lakes,3.4,617,,2026-09-01
+Eglinton,3.4,618,,2026-09-01
+Loch Neaton,3.4,619,,2026-09-01
+Thomas Mills,3.4,620,,2026-09-01
+King George V Playing Field,3.4,621,,2026-09-01
+Alton Water (Winter),3.4,622,,2026-09-01
+Harrow Lodge,3.4,623,,2026-09-01
+Roding Valley,3.4,624,,2026-09-01
+Tollcross,3.4,625,,2026-09-01
+Worcester,3.4,626,,2026-09-01
+Wakefield Thornes,3.4,627,,2026-09-01
+Swaffham,3.4,628,,2026-09-01
+Myrtle,3.4,629,,2026-09-01
+Worden,3.4,630,,2026-09-01
+Wetherby,3.4,631,,2026-09-01
+Chilton Fields,3.4,632,,2026-09-01
+Prospect,3.4,633,,2026-09-01
+Ashbourne Recreation Ground,3.4,634,,2026-09-01
+Squerryes Winery,3.4,635,,2026-09-01
+Polkemmet Country,3.5,636,,2026-09-01
+Barclay,3.5,637,,2026-09-01
+Leamington,3.5,638,,2026-09-01
+Centre Vale,3.5,639,,2026-09-01
+South Shields,3.5,640,,2026-09-01
+Dungannon Park,3.5,641,,2026-09-01
+Great Dunmow,3.5,642,,2026-09-01
+"Manor Field, Whittlesey",3.5,643,,2026-09-01
+Woodbank,3.6,644,,2026-09-01
+Havant,3.6,645,,2026-09-01
+Kew Woods,3.6,646,,2026-09-01
+Wimpole Estate,3.6,647,,2026-09-01
+Dudley,3.6,648,,2026-09-01
+Hogmoor Inclosure,3.6,649,,2026-09-01
+Pontypool,3.6,650,,2026-09-01
+Tawd Valley,3.6,651,,2026-09-01
+Rendlesham Forest,3.6,652,,2026-09-01
+Land’s End,3.6,653,,2026-09-01
+Teifi Marshes Nature Reserve,3.6,654,,2026-09-01
+Valley,3.6,655,,2026-09-01
+Medina I.O.W. (Summer),3.6,656,Medina I.O.W.,2026-09-01
+Market Bosworth Country Park,3.6,657,,2026-09-01
+Pennington Flash,3.6,658,,2026-09-01
+Epworth Equestrian,3.6,659,,2026-09-01
+Alice Holt,3.6,660,,2026-09-01
+Jubilee,3.6,661,,2026-09-01
+Dean Castle Country Park,3.6,662,,2026-09-01
+Morden,3.6,663,,2026-09-01
+"Dishley, Loughborough",3.6,664,,2026-09-01
+Medina I.O.W. (Winter),3.6,665,Medina I.O.W.,2026-09-01
+Aldenham,3.6,666,,2026-09-01
+Walthamstow,3.6,667,,2026-09-01
+Broadwater,3.6,668,,2026-09-01
+Roundhay,3.6,669,,2026-09-01
+Witney,3.6,670,,2026-09-01
+Wimbledon Common,3.6,671,,2026-09-01
+Ford,3.6,672,,2026-09-01
+Barry Island,3.6,673,,2026-09-01
+Cranleigh,3.6,674,,2026-09-01
+Wormwood Scrubs,3.6,675,,2026-09-01
+Ashton Court,3.7,676,,2026-09-01
+Vermuyden Way,3.8,677,,2026-09-01
+Mote Park,3.8,678,,2026-09-01
+Gedling,3.8,679,,2026-09-01
+Shipley Country,3.8,680,,2026-09-01
+Stamford Park,3.8,681,,2026-09-01
+Haldon Forest,3.8,682,,2026-09-01
+Sandringham,3.8,683,,2026-09-01
+Foots Cray Meadows (Winter),3.8,684,Foots Cray Meadows,2026-09-01
+Foots Cray Meadows (Summer),3.8,685,Foots Cray Meadows,2026-09-01
+Plymvalley,3.8,686,,2026-09-01
+Wallaceneuk,3.8,687,,2026-09-01
+Nant y Pandy,3.8,688,,2026-09-01
+Palacerigg Country,3.8,689,,2026-09-01
+Carlisle,3.8,690,,2026-09-01
+Phoenix,3.8,691,,2026-09-01
+Beverley Westwood,3.8,692,,2026-09-01
+Stockley Country,3.8,693,,2026-09-01
+Snowden Field,3.8,694,,2026-09-01
+Sandwell Valley,3.8,695,,2026-09-01
+Blaise Castle,3.8,696,,2026-09-01
+Reigate Priory,3.8,697,,2026-09-01
+Thonock Lane Farm,3.8,698,,2026-09-01
+Eastleigh,3.8,699,,2026-09-01
+Alton Water (Summer),3.8,700,,2026-09-01
+Riddlesdown,3.8,701,,2026-09-01
+Haverhill,3.8,702,,2026-09-01
+The Plens,3.9,703,,2026-09-01
+Bath Skyline,3.9,704,,2026-09-01
+Graves,4.0,705,,2026-09-01
+Temple Newsam,4.0,706,,2026-09-01
+Jersey Farm (Winter),4.0,707,Jersey Farm,2026-09-01
+Belvoir Castle (Winter),4.0,708,,2026-09-01
+Middleton Woods,4.0,709,,2026-09-01
+Clair,4.0,710,,2026-09-01
+Tamar Trails,4.0,711,,2026-09-01
+Erddig,4.0,712,,2026-09-01
+Camperdown,4.0,713,,2026-09-01
+Westmill,4.0,714,,2026-09-01
+Cotsford Fields,4.0,715,,2026-09-01
+Nobles (Main),4.0,716,,2026-09-01
+Forest of Dean,4.0,717,,2026-09-01
+Bethlem Royal Hospital,4.0,718,,2026-09-01
+Trelai Park,4.0,719,,2026-09-01
+Mount Stuart (Summer),4.0,720,,2026-09-01
+Humber Bridge,4.0,721,,2026-09-01
+Letchworth,4.0,722,,2026-09-01
+Portrush,4.0,723,,2026-09-01
+Ellesmere Port,4.0,724,,2026-09-01
+Beacon Hill Country Park,4.1,725,,2026-09-01
+Beckenham Place,4.1,726,,2026-09-01
+Bedgebury Pinetum,4.2,727,,2026-09-01
+Conyngham Hall,4.2,728,,2026-09-01
+Stewart,4.2,729,,2026-09-01
+Clitheroe Castle,4.2,730,,2026-09-01
+Sunny Hill,4.2,731,,2026-09-01
+Kingdom,4.2,732,,2026-09-01
+Marlborough Common,4.2,733,,2026-09-01
+East Brighton (Summer),4.2,734,,2026-09-01
+East Brighton (Winter),4.2,735,,2026-09-01
+Lochend Woods,4.2,736,,2026-09-01
+Clifton,4.2,737,,2026-09-01
+Aston Hall,4.2,738,,2026-09-01
+Ganavan Sands,4.2,739,,2026-09-01
+Canterbury,4.2,740,,2026-09-01
+Dunstable Downs,4.2,741,,2026-09-01
+Wotton,4.2,742,,2026-09-01
+Hampstead Heath,4.3,743,,2026-09-01
+Itchen Valley Country,4.3,744,,2026-09-01
+Jesmond Dene,4.4,745,,2026-09-01
+Sharpham Estate,4.4,746,,2026-09-01
+Oakwell Hall,4.4,747,,2026-09-01
+Sheringham,4.4,748,,2026-09-01
+Thornham Walks,4.4,749,,2026-09-01
+Alderford Lake,4.4,750,,2026-09-01
+Malling Rec,4.4,751,,2026-09-01
+Lews Castle,4.4,752,,2026-09-01
+Royal Tunbridge Wells,4.4,753,,2026-09-01
+Colin Glen,4.5,754,,2026-09-01
+Crathes Castle,4.5,755,,2026-09-01
+Rostrevor,4.5,756,,2026-09-01
+Nobles (Alternative),4.5,757,,2026-09-01
+Larne,4.5,758,,2026-09-01
+Cliffe Castle,4.6,759,,2026-09-01
+"Queen’s, Glasgow",4.6,760,,2026-09-01
+Witton,4.6,761,,2026-09-01
+Highwoods,4.6,762,,2026-09-01
+Hockley Woods,4.6,763,,2026-09-01
+Rushmere,4.6,764,,2026-09-01
+Wyre Forest,4.6,765,,2026-09-01
+Chopwell Wood,4.6,766,,2026-09-01
+Penryn Campus,4.6,767,,2026-09-01
+Mole Valley,4.6,768,,2026-09-01
+"Henley Wood, Oswestry",4.6,769,,2026-09-01
+Severn Valley Country,4.6,770,,2026-09-01
+Stonehaven,4.6,771,,2026-09-01
+Fort William,4.6,772,,2026-09-01
+Lloyd,4.6,773,,2026-09-01
+The Pastures,4.6,774,,2026-09-01
+South Oxhey,4.6,775,,2026-09-01
+Wolford Wood,4.6,776,,2026-09-01
+Vicar Water Country Park,4.7,777,,2026-09-01
+Clarence,4.7,778,,2026-09-01
+Crawfordsburn Country,4.8,779,,2026-09-01
+Bolton,4.8,780,,2026-09-01
+Homewood,4.8,781,,2026-09-01
+Newent,4.8,782,,2026-09-01
+Hoblingwell,4.8,783,,2026-09-01
+Plean,4.8,784,,2026-09-01
+Brentwood,4.8,785,,2026-09-01
+Thorp Perrow,4.8,786,,2026-09-01
+Gadebridge,4.8,787,,2026-09-01
+Lancaster,5.0,788,,2026-09-01
+Trelissick,5.0,789,,2026-09-01
+Wendover Woods,5.0,790,,2026-09-01
+Windy Nook,5.0,791,,2026-09-01
+Riverside Walk,5.0,792,,2026-09-01
+"Stratford Park, Stroud",5.0,793,,2026-09-01
+Marshall Drive,5.0,794,,2026-09-01
+Whitekirk Hill,5.0,795,,2026-09-01
+Chevin Forest,5.2,796,,2026-09-01
+Queen Elizabeth,5.2,797,,2026-09-01
+Marine Parade (Summer),5.2,798,,2026-09-01
+Ayr,5.4,799,,2026-09-01
+Blackhill,5.4,800,,2026-09-01
+Parke,5.5,801,,2026-09-01
+Skinadin,5.5,802,,2026-09-01
+Montalto Estate,5.6,803,,2026-09-01
+Sutton Manor,5.6,804,,2026-09-01
+Hadleigh,5.6,805,,2026-09-01
+Hyndburn,5.6,806,,2026-09-01
+Belvoir Castle (Summer),5.6,807,,2026-09-01
+Pendle,5.6,808,,2026-09-01
+Bestwood Village,5.7,809,,2026-09-01
+Henley-on-Thames,5.8,810,,2026-09-01
+Ludlow,5.8,811,,2026-09-01
+Faskally Forest,5.8,812,,2026-09-01
+Wepre,6.0,813,,2026-09-01
+Hamsterley Forest,6.0,814,,2026-09-01
+Chadderton Hall,6.2,815,,2026-09-01
+Drumchapel,6.2,816,,2026-09-01
+Lanark Moor,6.2,817,,2026-09-01
+Church Mead,6.2,818,,2026-09-01
+Uckfield,6.2,819,,2026-09-01
+Bevendean Down,6.4,820,,2026-09-01
+Watergrove,6.4,821,,2026-09-01
+Lullingstone,6.4,822,,2026-09-01
+East Grinstead,6.4,823,,2026-09-01
+Coed Cefn-pwll-du,6.6,824,,2026-09-01
+Lyme Park,6.6,825,,2026-09-01
+Lanhydrock,6.8,826,,2026-09-01
+Flatts Lane,6.8,827,,2026-09-01
+Greendale Farm Shop,6.8,828,,2026-09-01
+Cheadle Hulme,6.8,829,,2026-09-01
+Hafan Pwllheli,7.2,830,,2026-09-01
+Mount Edgcumbe,7.6,831,,2026-09-01
+Woolacombe Dunes,9.0,832,,2026-09-01
+Durlston Country Park,9.4,833,,2026-09-01
+Whinlatter Forest,10.0,834,,2026-09-01
+Great Yarmouth North Beach,11.6,835,,2026-09-01

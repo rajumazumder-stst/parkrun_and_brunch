@@ -72,6 +72,25 @@ re-points the hosted app at it.
 
 ---
 
+## What is and is not deployed
+
+Streamlit Cloud serves **`app.py` plus `data/parkrun_snapshot.duckdb` from the
+same commit**, which is why the code and the regenerated snapshot must be
+committed together (see the rollout note in the buggy-mode work).
+
+`label_impact.py` is **never** deployed in any meaningful sense. It is a second
+Streamlit entry point that only the local launcher starts, and it needs
+`v_head_to_head_legacy` — a view built solely by `ensure_legacy_views`, which is
+gated on `PARKRUN_LABEL_AUDIT=1` and is never called from `bootstrap` or
+`refresh`. So the legacy views cannot reach the source-of-truth DB or the
+snapshot, and the hosted app has nothing to serve even if the file is present.
+
+`scripts/dev_fake_labels.py` likewise never runs outside a dev database: it
+refuses to write to `~/.config/parkrun/parkrun_local.duckdb` or to the deploy
+snapshot.
+
+---
+
 ## Backends the app can read (`_resolve_db_path` in `app.py`)
 
 Priority order:
@@ -182,6 +201,7 @@ its own repo clone, pulled to `origin/main` before each run, and its own venv):
   "uncovered" and the next slot / login catch-up retries it.
 - **`parkrun_autorefresh.sh`** — scheduling policy only (the agents call it);
   it invokes the master.
+- **`sync_working_copy.sh`** — sourced by the master; see below.
 
 Everything logs to `~/Library/Logs/parkrun_refresh.log` (manual runs also
 print to the terminal). No token or network credential is needed. Diagnostics:
@@ -189,6 +209,42 @@ print to the terminal). No token or network credential is needed. Diagnostics:
 **self-sync**: each refresh pulls the clone and replaces them from
 `repo/scripts/` if they differ, so a script edit goes live one push + one
 refresh later (or immediately via a manual `scripts/parkrun_refresh.sh` run).
+
+### Working-copy sync (`scripts/sync_working_copy.sh`)
+
+The refresh commits and pushes from its **own** clone under
+`~/.config/parkrun/repo`, so the working copy you actually edit in
+(`~/Documents/repos/parkrun_and_brunch`) silently falls behind `origin/main` —
+two or three `data: local refresh` commits by Monday. After a successful push
+the master sources this helper and calls `sync_working_copy`, which:
+
+- **always fetches** (`--all --prune`), so `git status` and `run_local.sh` report
+  against fresh remote refs;
+- **fast-forwards only when it is safe** — the tree is clean **and** the branch is
+  `main`. Anything else (uncommitted work, a feature branch, a detached HEAD, a
+  diverged `main`) logs the reason and stops at the fetch.
+
+`dev` is deliberately **never** auto-advanced: it may be checked out in another
+worktree or sitting mid-feature, and auto-moving it loses work. The fetch keeps
+it aware; advancing it stays a manual `git merge --ff-only main`.
+
+Every path returns 0 and every git call is guarded. The master runs under
+`set -euo pipefail` and the call sits **after** `date +%s >"$STAMP"`, so a sync
+problem can never fail a refresh, block delivery or touch the freshness stamp.
+Override the target with `PARKRUN_WORKING_COPY`.
+
+`run_local.sh` sources the same helper in `--fetch-only` mode and prints how many
+commits behind `origin/main` you are.
+
+**Known limitation — this does not work under the scheduler.** macOS TCC blocks
+launchd agents from reading `~/Documents`, so under the *scheduled* agent every
+git call in the helper fails, logs
+`fetch failed (offline, or TCC blocked ~/Documents) — skipped`, and returns 0.
+It works on **manual/terminal** runs of `scripts/parkrun_refresh.sh`. That
+asymmetry is expected, not a bug: granting launchd Full Disk Access would fix it
+and is deliberately not done.
+
+---
 
 **Status: proven 19 Jul 2026** — first real weekend exercised the hard path:
 the Mac was off through both slots, the login agent detected STALE (last

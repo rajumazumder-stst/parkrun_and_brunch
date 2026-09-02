@@ -10,7 +10,8 @@
 # source-of-truth DB from the committed snapshot if it doesn't exist yet →
 # pipeline refresh against that local DB → auto-commit + push the regenerated
 # audit CSV/snapshot → stamp success (so the scheduler knows the weekend is
-# covered) → macOS notification either way.
+# covered) → fast-forward the ~/Documents working copy when safe → macOS
+# notification either way.
 #
 # The push IS the delivery step: the hosted app serves the committed
 # data/parkrun_snapshot.duckdb, and Streamlit Cloud redeploys on push. A push
@@ -55,7 +56,8 @@ notify() { # $1 title, $2 body
 # delivery step for the hosted app, so the caller treats failure as fatal.
 push_audit_files() {
   cd "$REPO"
-  git add data/parkrun_results.csv data/parkrun_snapshot.duckdb
+  git add data/parkrun_results.csv data/parkrun_run_modes.csv \
+          data/parkrun_snapshot.duckdb
   if git diff --cached --quiet; then
     log "audit files unchanged — nothing to commit"
     return 0
@@ -80,6 +82,15 @@ if [[ ! -r "$REPO/parkrun_pipeline.py" ]]; then
   log "ERROR: cannot read $REPO — re-clone with: git clone https://github.com/rajumazumder-stst/parkrun_and_brunch.git $REPO"
   notify "parkrun refresh" "❌ Agent repo clone missing/unreadable — see log"
   exit 1
+fi
+
+# Working-copy sync helper (Phase 1). Guarded: an older clone won't have it,
+# and a missing helper must not fail the refresh.
+if [[ -r "$REPO/scripts/sync_working_copy.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "$REPO/scripts/sync_working_copy.sh"
+else
+  sync_working_copy() { log "working copy sync: helper not in this clone — skipped"; return 0; }
 fi
 
 # Run the deployed pipeline code (origin/main). Pull failure (offline etc.)
@@ -127,6 +138,8 @@ fi
 # leaves the weekend "uncovered" and the next slot / login catch-up retries.
 if push_audit_files; then
   date +%s >"$STAMP"
+  # After the stamp, never before: a sync problem must not touch freshness.
+  sync_working_copy
   notify "parkrun refresh" "✅ parkrun data refreshed"
 else
   notify "parkrun refresh" "❌ Refresh ran but push FAILED — hosted app is stale, see log"

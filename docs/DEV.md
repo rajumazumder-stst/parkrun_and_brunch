@@ -56,3 +56,91 @@ tracked snapshot on the next `python parkrun_pipeline.py snapshot` (for release)
 When a change is ready: commit on `dev`, merge to `main`, and (if the change
 touched the data model/views) regenerate `data/parkrun_snapshot.duckdb` via
 `python parkrun_pipeline.py snapshot` so the deployable snapshot matches.
+
+## The label-impact app (dev only)
+
+```bash
+PARKRUN_LABEL_AUDIT=1 ./scripts/run_local.sh
+```
+
+Starts **two** apps: the real one on `:8501` and the comparison on `:8502`
+(`PARKRUN_PORT` / `PARKRUN_LABEL_PORT` to move them). It is a separate app
+rather than a sixth tab because it is a development instrument, not part of the
+product — and keeping it out of `app.py` means there is no gate to get wrong at
+deploy time.
+
+`label_impact.py` has **two tabs**. *Head-to-head impact* compares the live head-to-head against
+`v_head_to_head_legacy` — the frozen pre-buggy method (a single pooled 91-day
+median, no mode split, no handicap bridge). Per occasion it reports whether the
+winner, the places, the ranked roster or just the margin moved, and draws the
+old and new victory charts stacked on a shared x-axis for whichever contest you
+pick. The dropdown is in date order, most recent first, matching the table.
+Two checkboxes filter it — what changed, and what used the handicap bridge —
+ANDed rather than exclusive, because "a bridged target that changed the result"
+is the cell worth looking at.
+
+*Buggy handicap* is the working behind `buggy_handicap`. For every athlete with
+a buggy label it takes the runs between their first and last buggy run, splits
+them by mode, and reports mean/SD/median, density curves with a rug of the real
+runs, and three estimates: the raw difference in means, the same-course estimate
+(course fixed effects, which keeps only courses run both ways), and the same
+with a linear form-drift term. It recommends a value only when the estimates
+agree in sign, the raw interval clears zero, and there are at least 8 buggy
+runs; otherwise it says hold the default and why. Nothing on the tab is
+hardcoded — correct a label and every number moves. Needs `scipy`, which the
+dev venv has and `requirements.txt` deliberately does not.
+
+`run_local.sh` builds the legacy views into the dev DB when the var is set;
+nothing builds them into the source of truth or the deploy snapshot, so the
+hosted app can never serve them. If they are missing the app says so and stops.
+
+**With no labels written it must report every occasion `Unchanged`.** That is
+the zero-label equivalence check as a live page: the new views have to reproduce
+the old ones exactly until a label says otherwise. A `Lost` occasion should be
+impossible — the bridge only ever makes *more* contests rankable — and it is
+called out in red if one appears.
+
+## Fake labels for previewing the buggy UI
+
+Until the real labels come back there is nothing for the buggy-mode UI to show:
+
+```bash
+python scripts/dev_fake_labels.py           # writes plausible fake labels
+python scripts/dev_fake_labels.py --clear   # start over
+```
+
+It labels runs that were slow *relative to that athlete's trailing 20-run
+median*, so the fakes track contemporaneous form rather than a flat time:
+Duncan gets a sustained era (what a real buggy looks like), George scattered
+one-offs, a quarter of them `estimated` so that marker is exercised too. It
+refuses to write to the source of truth or the deploy snapshot.
+
+Delete `data/parkrun_dev.duckdb` when you are done — it is disposable, and
+leaving fake labels in it is a trap.
+
+## Screenshots
+
+Playwright drives the running app for phone-sized captures (390×844, 3×), which
+is the only reliable way to see the layout as it lands on a phone — the tabs,
+popovers, legend isolation and map tooltips all need real interaction. Install
+it into a throwaway venv rather than the project one; it is not a runtime
+dependency:
+
+```bash
+python3 -m venv /tmp/shotenv
+/tmp/shotenv/bin/pip install playwright
+/tmp/shotenv/bin/playwright install chromium
+```
+
+Hide Streamlit's own chrome first, or the shots look like a dev session rather
+than the app:
+
+```python
+p.add_style_tag(content='[data-testid="stToolbar"],[data-testid="stDecoration"],'
+                        '.modebar-container{display:none!important}')
+```
+
+Two gotchas. `full_page=True` gives you only the viewport — Streamlit scrolls an
+inner container, not the document — so scroll the target into view and take a
+normal screenshot. And every tab's DOM is present at once, so scope selectors
+with `:visible` or you will match a hidden element on another tab.

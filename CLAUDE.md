@@ -55,9 +55,39 @@ where they differ from the original brief, **the spec wins**.
   stamp is written only after it succeeds. The hosted app's `PARKRUN_DB` /
   `motherduck_token` secrets are removed — it serves the bundled snapshot
   again (`docs/DEPLOY.md` § History).
+- 🔨 **Buggy mode — built on `dev`, not yet promoted** (1 Sep 2026). George and
+  Duncan sometimes run pushing a buggy, which parkrun records nothing about, so
+  their times were being pooled into a single form target that flattered the
+  buggy runs and penalised the rest. Built: the `run_modes` label store,
+  `course_difficulty` and `buggy_handicap` tables, the `current_targets` primary
+  key migration, the mode-aware views (`v_results_moded` + per-mode targets and
+  the symmetric handicap bridge), the review-sheet export/import tooling, and
+  the whole UI surface. **Waiting on George and Duncan to return the review
+  spreadsheet** — until a label exists the app is byte-identical to before,
+  which is asserted rather than assumed (see *zero-label equivalence* below).
+  The estimator that fills in future runs is deliberately unwritten: it is
+  supervised, and there is nothing yet to train it on.
 - 🧪 Local dev/test workflow: work on the `dev` branch, `./scripts/run_local.sh` serves
-  the app against an isolated `data/parkrun_dev.duckdb` (gitignored copy of the
-  snapshot) so previews never touch `main` or the deploy snapshot. See `docs/DEV.md`.
+  the app against an isolated `data/parkrun_dev.duckdb` (built through
+  `pipeline seed`, gitignored) so previews never touch `main` or the deploy
+  snapshot. `PARKRUN_LABEL_AUDIT=1` additionally starts `label_impact.py` on a
+  second port. See `docs/DEV.md`.
+- 🧪 **Zero-label equivalence** — with `run_modes` empty the mode-aware views
+  must reproduce the old ones **row for row** (verified: `v_head_to_head`
+  433 = 433, `v_saturday_targets` 1185 = 1185, zero rows either way). It still
+  holds after a full `default` backfill, since those rows are all `FALSE`; it is
+  spent by the first confirmed **buggy** label. `label_impact.py` renders the
+  same check as a live page.
+- ✅ **Labels imported; handicaps set** (2 Sep 2026). George and Duncan returned
+  the review sheet fully answered — 160 `manual` labels (George 31 buggy / 44
+  not, Duncan 5 / 80), the remaining 681 runs `default`. Measured from the runs
+  between each athlete's first and last buggy run: **George 0.13**
+  (`measured`, 31 labels — raw +12.0%, course fixed effects +15.3%, +12.7% once
+  form drift is allowed for; 0.13 is inside all three intervals), **Duncan held
+  at the 0.15 `default`** — five buggy runs, an interval crossing zero, and his
+  one course run both ways pointing the other way (−3.7%), which is the course
+  confound rather than the buggy. Zero-label equivalence is now **spent**: 175
+  of 205 occasions unchanged, 6 winners flipped, 0 lost.
 
 ---
 
@@ -96,6 +126,30 @@ name** (verified), which is why a hand-maintained `country_lookup` exists.
    `seriesid = 1` filter is required so a name can't match an adult + junior
    event. The join **must never filter on `live`** — defunct events still need
    to resolve historical results.
+
+   **Known issue — not fixed, deliberately deferred (1 Sep 2026).** That
+   uniqueness is *validated but not enforced*. `resolve_event_ids` builds the
+   name → id map with last-write-wins over an **unordered** `SELECT`, so if two
+   `seriesid = 1` events ever share a short name (a new event taking a defunct
+   one's name is the realistic route — the join never filters on `live`), which
+   id wins can flip between refreshes with no data change at all. It logs
+   `WARN: duplicate short_name … ambiguous match` and resolves anyway.
+
+   Because every refresh re-resolves **all** historical names from scratch and
+   the UPSERT keys on `(athlete_id, run_date, event_id)`, a flipped id does not
+   move the existing row — it **inserts a second row for the same physical
+   run**, and nothing deletes the first. One run then counts twice in `results`,
+   `v_overlap` and potentially both sides of a head-to-head. Curation changes
+   (editing `short_name` in `parkrun_events.csv`, the Victoria Dock manual row,
+   or any future name-matching work) can trigger the same thing deliberately.
+
+   Fixes when it is worth doing: (a) treat `dupes` in `resolve_event_ids` as
+   fatal, or route those names to the unmatched report — never resolve a name
+   that maps to more than one id; (b) `ORDER BY event_id` so the map is at least
+   deterministic; (c) a refresh-time check for one athlete holding two rows with
+   the same `run_number`, which is unambiguous evidence of a re-keyed duplicate
+   (two rows for one `(athlete_id, run_date)` is *legal* — decision 7 allows
+   same-day doubles at different events — so `run_number` is the tell).
 4. **Country is stored as `country_code` (FK) on `events` only**, not on results.
    Names come from `country_lookup`.
 5. **Soft delete, never hard delete.** Events dropping out of `events.json` are
@@ -174,25 +228,96 @@ Hand-maintained (`data/athletes_lookup.csv`).
 | date_of_birth |
 
 ### `current_targets`
-Materialised by the refresh: each athlete's current-form target as of the
-refresh date (a snapshot — recomputing live would silently drift). Keyed on
-`(refresh_date, athlete_id)` so form history accumulates over refreshes.
+Materialised by the refresh: each athlete's current-form target **per mode** as
+of the refresh date (a snapshot — recomputing live would silently drift). Keyed
+on `(refresh_date, athlete_id, mode)` so form history accumulates over refreshes.
 
 | Column | Notes |
 |---|---|
 | refresh_date | PK part; the date the snapshot was taken |
 | athlete_id | PK part |
-| target_seconds | 91-day median of `time_seconds` over `[refresh_date−91, refresh_date−1]`; NULL if no runs in window |
+| mode | PK part; `buggy` or `nonbuggy` |
+| target_seconds | 91-day median of same-mode `time_seconds` over `[refresh_date−91, refresh_date−1]`; NULL if no runs in window |
 | n_window | Runs found in the window (target valid when ≥ 1) |
+
+Only athletes who actually use a buggy get a `buggy` row — Raju never does, so
+storing a permanently empty row for him would be noise in a table that grows
+every refresh. George and Duncan **do** get an empty buggy row when they have no
+buggy runs in the window: that is a real "none in the last 91 days", not an
+impossibility. The app filters on `n_window >= 1`.
+
+Historic rows (pre-mode) were migrated as `mode = 'nonbuggy'` and **not
+recomputed** — they record what the targets *were* on those dates, which is the
+entire reason this is a table and not a view.
+
+### `run_modes`
+The per-run buggy label. One row per run once backfilled; **an absent row means
+non-buggy** and `is_buggy` is `NOT NULL` — there is no third state.
+
+| Column | Notes |
+|---|---|
+| athlete_id, run_date, event_id | PK — same natural key as `results` |
+| is_buggy | NOT NULL |
+| source | `manual` \| `estimated` \| `default` — **not interchangeable**, see below |
+| confidence | `max(p, 1−p)`; NULL for `manual`/`default` |
+| reason | Free text |
+| set_at | When the label was written |
+
+| `source` | Written by | Trains the model? |
+|---|---|---|
+| `manual` | Spreadsheet import, or a hand SQL correction | **yes** |
+| `estimated` | The model, on new runs | **yes** |
+| `default` | Backfill of unreviewed runs; Raju's rows | **no** — an assumption, not an observation |
+
+Exported to `data/parkrun_run_modes.csv` on every refresh, so hand-entered
+labels have a diffable git history rather than living only inside a binary DB.
+
+### `course_difficulty`
+External per-course difficulty score, used as a covariate by the buggy
+estimator. Deliberately **its own table, not a column on `events`** —
+`reconcile_events` inserts into `events` *positionally* inside a try/except that
+only logs, so a 15th column would become a silent weekly "reconcile rolled back"
+and new parkruns would stop appearing.
+
+| Column | Notes |
+|---|---|
+| event_id | PK |
+| parkrun_name | Name as published by the source |
+| difficulty | 0.8 – 11.6 on a 0–12 scale; 12 = hardest |
+| speed_rank | 1 = fastest; reference only |
+| source, fetched_at | |
+
+### `buggy_handicap`
+Each athlete's multiplicative cost of pushing a buggy — the bridge used by
+`v_head_to_head` when one mode has no runs in the window.
+
+| Column | Notes |
+|---|---|
+| athlete_id | PK |
+| handicap | `0.15` = a buggy costs 15% |
+| n_buggy_labels | Labels the measurement was based on |
+| method | `default` (the placeholder) \| `measured` |
+| computed_at | |
+
+Seeded with one row per athlete at the placeholder, `INSERT OR IGNORE` so a
+measured value is never overwritten. The row **must** exist: a missing one would
+NULL a head-to-head target and silently drop that runner from the contest.
 
 ---
 
 ## Analytics layer
 
 The comparison features are **derived from `results`**. They are deterministic
-from the stored data, so they are DuckDB **views** (`v_overlap`,
-`v_head_to_head`, `v_saturday_targets`) — always live, no duplication, no
-staleness; only the date-anchored `current_targets` is materialised.
+from the stored data, so they are DuckDB **views** (`v_results_moded`,
+`v_overlap`, `v_head_to_head`, `v_saturday_targets`) — always live, no
+duplication, no staleness; only the date-anchored `current_targets` is
+materialised.
+
+`v_results_moded` is the base view the mode-aware queries read: `results` plus
+`coalesce(is_buggy, FALSE)` and a `mode` of `buggy`/`nonbuggy`. It is created
+**first** in `ensure_views()` — DuckDB resolves a view body at creation time, so
+anything referencing it must come after. The `coalesce` is deliberate: a missing
+label degrades to the old non-buggy behaviour rather than NULLing a mode.
 Created/refreshed by `ensure_views()` and `update_current_targets()`. The cohort
 is fixed (3 athletes); `ATHLETE_NAMES` in the pipeline is the single source for
 the per-athlete column names. The **cumulative 1st-place trend** (Tab 2) and the
@@ -213,34 +338,73 @@ A **head-to-head** is an occasion where ≥ 2 of the cohort ran. Placing is
 **form-adjusted**, not actual finish order (the three differ hugely in pace):
 
 1. **Target** per participant = **median** `time_seconds` over their runs in
-   `[date−91, date−1]` (min **1** run). Window excludes the event day.
-2. **`pct_diff` = round((actual − target) / target × 100, 2)** — faster than form
-   is negative.
-3. **Placing** = `rank()` over `pct_diff` **ascending** (most-beat-your-form = 1st);
-   **standard competition ranking** (ties share a rank, e.g. 1-1-3).
-4. **Demote rule** — only participants with a valid target are ranked. Need ≥ 2
+   `[date−91, date−1]` **of the same mode** (buggy / non-buggy — see
+   `run_modes`), min **1** run. Window excludes the event day.
+2. **Handicap bridge** — when that mode has **no** runs in the window, the
+   target is bridged from the *other* mode using the athlete's `buggy_handicap`
+   `h`: a buggy run gets `× (1 + h)`, a non-buggy run `÷ (1 + h)`. Division, not
+   `× (1 − h)`: only division makes the two directions compose back to the
+   starting value. `target_basis` records which of the four cases applied —
+   `buggy`, `nonbuggy`, `nonbuggy+handicap`, `buggy-handicap`.
+3. **`pct_diff` = round((actual − target) / target × 100, 2)** — faster than form
+   is negative. **Unchanged** by the mode split.
+4. **Placing** = `rank()` over `pct_diff` **ascending** (most-beat-your-form = 1st);
+   **standard competition ranking** (ties share a rank, e.g. 1-1-3). **Unchanged.**
+5. **Demote rule** — only participants with a valid target are ranked. Need ≥ 2
    rankable for a contest; a 3-way where one lacks a target becomes a 2-way
-   (and `classification` reflects the ranked set).
+   (and `classification` reflects the ranked set). **Unchanged**, but it now
+   bites far less often — see below.
+
+The change is scoped to **the target only**. Steps 3–5 are the same arithmetic
+they always were.
 
 Each row carries `classification` (e.g. `George vs Raju`, `Duncan vs George vs
 Raju`), `n_ranked`, `actual_seconds`, `target_seconds`, `n_window`, `pct_diff`,
-`place_rank`. The app shows a per-head-to-head table + a 1sts/2nds/3rds leaderboard.
+`place_rank`, `is_buggy`, `target_basis`. The app shows a per-head-to-head table
++ a 1sts/2nds/3rds leaderboard.
+
+**The bridge makes *more* contests rankable, not fewer.** Previously a
+participant with no same-mode history had `n_window = 0` and was demoted; now
+they get a bridged target instead. Only a participant with **no runs at all** in
+the window is still demoted.
+
+**Labelling a past run retroactively changes the record.** A new `run_modes` row
+changes that run's target, therefore its `pct_diff`, possibly its `place_rank`,
+and therefore the head-to-head leaderboard and the cumulative-1sts curve — back
+to 2023. This is intended (the old numbers pooled buggy and non-buggy runs into
+one target, which flattered buggy runs and penalised non-buggy ones), but it
+means head-to-head results are **not** immutable. The tab-2 explainer says so.
 
 Note: `v_overlap` counts **all** co-participations; `v_head_to_head` counts only
-**rankable** ones — so the two totals can differ (occasions with no valid target).
+**rankable** ones — so the two totals can differ (occasions where a participant
+has no runs at all in the window). Bridged targets narrow that gap without
+closing it.
 
 Caveat (accepted): the target averages across all courses in the window, but a
-head-to-head is at one specific course — course difficulty is not adjusted for.
+head-to-head is at one specific course — **course difficulty is still not
+adjusted for here.** `course_difficulty` exists, but it is a covariate for the
+buggy *estimator*, not an adjustment to the head-to-head target. Do not read the
+table's presence as a fix for this.
 
 ### Feature 3 — Saturday form targets (`v_saturday_targets`)
-Each athlete's current-form **target** evaluated on **every Saturday** in the
-data span, using the **same 91-day median** as the head-to-head target:
+Each athlete's current-form **target per mode** evaluated on **every Saturday**
+in the data span, using the **same 91-day median** as the head-to-head target:
 `median(time_seconds)` over `[Saturday−91, Saturday−1]` (excludes the day),
 valid when ≥ 1 run in the window. Saturdays with no runs in the window are
 omitted (the Form-tab line breaks there, never drops to zero). Columns:
-`athlete_id`, `athlete_name`, `run_date` (the Saturday), `target_seconds`,
-`n_window`. By construction it equals `v_head_to_head.target_seconds` exactly on
-shared athlete/date pairs (verified).
+`athlete_id`, `athlete_name`, `run_date` (the Saturday), `mode`,
+`target_seconds`, `n_window`.
+
+That `n_window >= 1` filter is also what stops an athlete who has never pushed a
+buggy getting a phantom buggy line — no special-casing by athlete is needed.
+
+**The handicap bridge is deliberately NOT applied here** (nor in
+`current_targets`). Bridging every Saturday would draw an imaginary buggy form
+line back to 2017, for a buggy that did not exist. A bridge is a device for
+judging one specific contest fairly, not a claim about historical form. So this
+view equals `v_head_to_head.target_seconds` on shared athlete/date pairs **only
+where the head-to-head used a same-mode target** (`target_basis` of `buggy` or
+`nonbuggy`); on a bridged row the two legitimately differ.
 
 ---
 
@@ -311,6 +475,8 @@ are (re)created on every connection via `ensure_views()`.
 |---|---|
 | `data/parkrun_events.csv` (incl. Victoria Dock) | `*.duckdb` (binary source of truth) |
 | `data/parkrun_results.csv` (versioned snapshots) | `data/events.json` (transient download) |
+| `data/parkrun_run_modes.csv` (label audit trail) | |
+| `data/course_difficulty.csv` (cached scores + aliases) | |
 | `data/country_lookup.csv` | |
 | `data/athletes_lookup.csv` | |
 | `data/parkrun_snapshot.duckdb` (read-only, deploy snapshot) | |
@@ -339,23 +505,32 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | Path | Purpose |
 |---|---|
 | `parkrun_pipeline.py` | Loader: `bootstrap` / `refresh` / `status` / `snapshot` / `seed` / `motherduck` (Path A/B, DuckDB) + analytics views/targets + deploy-snapshot build + parkrun-only MotherDuck upload (`build_motherduck`). Also owns scraping (`scrape_athlete`) and time parsing (`time_to_seconds`). |
-| `app.py` | Streamlit front end (5 tabs: overlap · personal bests + head-to-head summary · head-to-head detail · form/target-time · head-to-head map) reading the `parkrun` schema read-only; DB path resolved via `PARKRUN_DB` env/secret (incl. `md:` MotherDuck), else the bundled snapshot. Auto-reloads on new data via a `data_version()` (`max(scrape_timestamp)`, 60s TTL) cache key; 🔄 Reload button clears the cache manually |
-| `scripts/run_local.sh` | Local dev launcher: venv + isolated `data/parkrun_dev.duckdb` + `streamlit run` (see `docs/DEV.md`) |
+| `app.py` | Streamlit front end (5 tabs: overlap · personal bests + head-to-head summary · head-to-head detail · form/target-time · head-to-head map) reading the `parkrun` schema read-only; DB path resolved via `PARKRUN_DB` env/secret (incl. `md:` MotherDuck), else the bundled snapshot. Auto-reloads on new data via a `data_version()` cache key — `max(scrape_timestamp)` **plus `max(set_at)` and `count(*)` from `run_modes`**, since labels are edited out of band and never move the scrape timestamp — 60s TTL; 🔄 Reload button clears the cache manually |
+| `parkrun_ui.py` | Shared UI layer imported by **both** apps: DB resolution, `ATHLETE_COLORS`/`MEDAL`, `fmt_time`, the buggy display helpers (`BUGGY_GLYPH`, `mode_suffix`, `mode_text`, highlight colours), `_h2h_headline`, `_victory_fig` and `_winning_margin`. `_winning_margin` must exist **once only** — `label_impact.py` diffs old against new, so a second copy of that arithmetic would make a method difference indistinguishable from a rounding one |
+| `label_impact.py` | **Dev-only, separate app** (its own port), **2 tabs**: *head-to-head impact* — the pre-buggy method against the current one, per-occasion verdicts (filterable to what changed and/or what used the handicap bridge) and paired victory charts; *buggy handicap* — the measurement behind `buggy_handicap`, per athlete, recomputed live from the labels. Not a tab in `app.py` — keeping it in its own file means there is no deploy-time gate to get wrong. Tab 1 needs `v_head_to_head_legacy`, which only ever exists on a dev DB; the gate lives **inside** that tab and returns rather than calling `st.stop()`, which would take the other tab down with it. Needs `scipy` (Welch interval, course fixed effects, `gaussian_kde`), deliberately not in `requirements.txt` |
+| `scripts/run_local.sh` | Local dev launcher: venv + isolated `data/parkrun_dev.duckdb` (built via `pipeline seed`, **not** `cp` — the committed snapshot carries only the views it had when last rebuilt) + `streamlit run`. Under `PARKRUN_LABEL_AUDIT=1` it also builds the legacy views and starts `label_impact.py` on a second port (see `docs/DEV.md`) |
+| `scripts/dev_fake_labels.py` | Dev-only: plausible fake buggy labels for previewing the UI before the real ones arrive. Labels runs that were slow *relative to that athlete's trailing 20-run median*. Refuses to write to the source of truth or the deploy snapshot |
 | `scripts/parkrun_refresh.sh` | Master refresh from this Mac (manual or scheduled — the one code path): pull clone → seed the local source-of-truth DB if absent → pipeline → audit-file push (fatal; this is the deploy) → freshness stamp → notification |
 | `scripts/parkrun_autorefresh.sh` | Scheduling policy calling the master (launchd agents run self-syncing deployed copies at `~/.config/parkrun/`, Sat 14:30 + Sun 11:00 + missed-weekend login prompt — see `docs/DEPLOY.md` § Scheduled refresh) |
+| `scripts/sync_working_copy.sh` | `sync_working_copy()` — sourced by `parkrun_refresh.sh` (after the freshness stamp) and by `run_local.sh` (`--fetch-only`). Always fetches the `~/Documents` working copy; fast-forwards it only when the tree is clean **and** the branch is `main`. Every path returns 0 — it can never fail a refresh. No-op under launchd (TCC blocks `~/Documents`) |
+| `scripts/fetch_course_difficulty.py` | One-off fetch of the published UK course-difficulty scores to `data/course_difficulty.csv`. Run by hand; the refresh applies the cached CSV and never touches the network for it |
+| `scripts/export_buggy_review.py` | The buggy review sheet: **export** (one tab per athlete, evidence only — no estimate), **`--import`** a returned workbook, **`--backfill`** every unreviewed run as `default`. Dry-run by default, writes only with `--apply`, never overwrites an existing label, refuses to write to the deploy snapshot. Needs `openpyxl`, deliberately not in `requirements.txt` |
 | `scripts/build_logo.py` | Builds the app logo — two variants, `ACTIVE` (currently `toast`) is the one rasterised into `static/`. Lettering is converted from DejaVu Sans Bold to SVG paths at build time, so the committed SVG needs no font installed (DejaVu, not a system font like Arial, because its licence permits redistributing outlines). Build-time only; needs `cairosvg` + `fontTools` + `matplotlib`, deliberately **not** in `requirements.txt` |
 | `assets/logo-toast.svg` | Vector source, **active** logo: `PR&B` on a slice of toast, letters in the three athletes' colours (generated — edit `build_logo.py`, not this) |
 | `assets/logo-runners.svg` | Vector source, alternative logo: three runners in `ATHLETE_COLORS` on a fried egg (generated) |
 | `static/logo-512.png` | `page_icon` source: the browser-tab favicon |
 | `static/apple-touch-icon.png` | 180×180 for the iOS "Add to Home Screen" icon, served at `/app/static/` |
 | `.streamlit/config.toml` | `enableStaticServing = true` so `static/` is reachable at `/app/static/` |
-| `docs/DEV.md` | Local dev workflow |
+| `docs/DEV.md` | Local dev workflow (incl. `PARKRUN_LABEL_AUDIT=1` for the label-impact app and the fake-label script) |
+| `docs/DATA.md` | The buggy labels: what each `source` means, how the training set grows, how to correct a label by hand |
 | `docs/DEPLOY.md` | Deploy/ops: local source-of-truth DB + snapshot delivery, scheduled refresh, rebuilding/seeding, retired MotherDuck path (secret flip, tokens, re-seed) |
 | `requirements.txt` | Pinned runtime deps for hosting (Streamlit Cloud etc.) |
 | `data/parkrun_events.csv` | Event catalogue (events.json dump + Victoria Dock) |
 | `data/country_lookup.csv` | country_code → country_name |
 | `data/athletes_lookup.csv` | Athlete names + DOB |
 | `data/parkrun_results.csv` | Results snapshot exported by the pipeline (keyed on event_id) |
+| `data/parkrun_run_modes.csv` | Buggy labels exported by the pipeline — the audit trail for hand-entered labels |
+| `data/course_difficulty.csv` | Cached course-difficulty scores + hand-maintained `alias_of` column |
 | `data/parkrun_snapshot.duckdb` | Read-only, parkrun-only DuckDB the deployed app serves |
 | `adhoc/` | One-off investigations using the parkrun data but **outside the app** — see `adhoc/README.md` |
 
@@ -388,28 +563,32 @@ Streamlit · plotly · matplotlib-venn · folium/streamlit-folium (map).
 
 ## Visualisations
 
-**Built (local Streamlit, `app.py`, 5 tabs)**:
+**Built (local Streamlit, `app.py`, 5 tabs)** — plus `label_impact.py`, a
+**separate dev-only app** on its own port (`docs/DEV.md`):
 - **Tab 1** participation overlap / Venn (`v_overlap`) + per-athlete company.
 - **Tab 2** form-adjusted head-to-head summary (`v_head_to_head`,
   `current_targets`): **personal bests** (top of the tab — see below), the
-  head-to-head explainer, current-form targets — each a `st.popover` (**click "N
-  runs in window"** to list that athlete's window runs, date desc, with the
-  median time(s) highlighted; the two middle runs for an even count) — latest
-  head-to-head, record leaderboard (3rd place shown only for the 3-way / All),
-  and a **cumulative 1st-place finishes** trend (requires a head-to-head;
-  year/season filterable; hover names the winning parkrun).
+  head-to-head explainer, current-form targets (see **Buggy mode in the UI**),
+  latest head-to-head, record leaderboard (3rd place shown only for the 3-way /
+  All, each placing annotated with how many were run with a buggy), and a
+  **cumulative 1st-place finishes** trend (requires a head-to-head; year/season
+  filterable; hover names the winning parkrun).
 - **Tab 3** head-to-head detail (drill into a single contest): a scoreline
   one-liner (winner, % vs form, winning margin, note on any 3rd-placed
   finisher — all 2 dp), a **victory lollipop chart** (raw `pct_diff` per
   athlete from the on-form baseline, x-axis reversed so faster-than-form
   points right, 1st–2nd winning margin bracketed, winner on top), then the
   results table.
-- **Tab 4** **form — target time by Saturday** (`v_saturday_targets`): per-athlete
-  target line, mm:ss axis, year/season filter, line breaks across >91-day gaps,
-  axes rescale when an athlete is hidden via the legend.
+- **Tab 4** **form — target time by Saturday** (`v_saturday_targets`): one line
+  per **(athlete, mode)** — solid regular, dotted with a buggy — mm:ss axis,
+  year/season filter, line breaks across >91-day gaps, axes rescale when an
+  athlete is hidden via the legend (one `legendgroup` per athlete, so a click
+  hides both their lines).
 - **Tab 5** **map — where the head-to-heads happen** (Folium + OpenStreetMap):
   one pie marker per venue, sized by count and split by wins per athlete; shown
-  once a head-to-head classification is selected.
+  once a head-to-head classification is selected. Tooltips count buggy wins
+  **per athlete** (`George 2 (1 🛒)`) — a trailing total would be ambiguous
+  about whose wins it counted.
 
 **Personal bests** (Tab 2, `load_personal_bests()` + `render_personal_bests()`
 in `app.py` — no view; the SQL lives in the loader). Each athlete's **fastest**
@@ -429,6 +608,38 @@ label and venue/date share one type size (`PB_SMALL`); the time is larger
 (`PB_BIG`) with tabular numerals. The block leads the tab because it motivates
 the head-to-head: their bests sit minutes apart, so ranking a shared parkrun by
 finish time would be meaningless — the explainer says so directly.
+
+### Buggy mode in the UI
+
+One glyph everywhere: **🛒**. The rule is that it marks the *exception*, and
+that a label is only shown for an athlete who actually uses a buggy — Raju's UI
+is unchanged from before the feature, as is everyone's on a database with no
+labels.
+
+- **Current-form targets** (Tab 2) — one bordered box per athlete, ordered by
+  their regular target, showing **`21:36 / 🛒 24:37`** on one line. An athlete
+  with no buggy runs shows a single time and no separator: a slash would imply a
+  second target exists.
+- **Runs in window** — *one* popover per athlete covering the whole 91-day span,
+  not one per target. Buggy runs carry 🛒 after the parkrun name, and the
+  highlight is computed **per mode**: 🟨 the run(s) forming the regular target,
+  🟦 the run(s) forming the buggy one (the median, or the two averaged for an
+  even count). One highlight across both would misrepresent which runs made
+  which number.
+- **Tables** carry no Mode column: 🛒 goes after the runner's name in the
+  head-to-head table and after the parkrun name in the window-runs table. A
+  column earns its width only if most rows use it.
+- **Scorelines and charts** — 🛒 after the name in the `_h2h_headline` sentence
+  and on the victory chart's axis labels; the hover names the mode and the
+  target basis, so a **bridged** target (form borrowed from the other mode via
+  the handicap) is never mistaken for a measured one. `render_occasion` also
+  prints a note in words whenever a target was bridged.
+- **Estimated labels read differently** from confirmed ones (`🛒 (est.)`).
+  Given how poorly a per-run rule separates a buggy from a hard course, a guess
+  has to be visibly a guess.
+- Words, not the glyph, in the **explainer prose**, the bridged-target note and
+  the `title` tooltip that explains the glyph — those are read rather than
+  scanned.
 
 All date-filtered tabs share one mutually-exclusive Year/Season control
 (`year_season_filters`); "Season" is year-qualified (e.g. `2018/19 Winter`,
