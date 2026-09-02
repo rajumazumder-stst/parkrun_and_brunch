@@ -1,0 +1,842 @@
+athlete_id,run_date,event_id,is_buggy,source,confidence,reason,set_at
+5672,2007-07-14,2,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2015-11-14,474,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2016-01-23,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2016-02-20,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2016-02-27,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2016-03-12,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2016-03-19,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2016-03-26,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2016-04-23,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2016-04-30,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2016-05-21,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2016-06-04,1395,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2016-06-25,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2016-07-09,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2016-07-16,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2016-10-15,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2016-12-31,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2017-01-07,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2017-01-21,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2017-01-28,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2017-02-18,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2017-02-25,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2017-03-18,56,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2017-03-25,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2017-04-01,2,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2017-04-08,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2017-04-15,191,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2017-04-22,56,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2017-04-29,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2017-05-06,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2017-07-01,474,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2017-08-19,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2017-08-26,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2017-09-02,1,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2017-09-23,390,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2017-10-14,75,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2017-10-21,343,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2017-10-28,4,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2017-11-11,302,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2017-11-25,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2017-12-02,472,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2017-12-23,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2017-12-25,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2017-12-30,52,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-01-06,878,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-01-20,25,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-01-27,1,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-02-17,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-02-24,300,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-03-10,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-03-31,344,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-04-07,190,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-04-21,682,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-04-28,882,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-05-05,551,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-06-16,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-07-21,655,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-07-28,440,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-08-11,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-08-18,527,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-09-01,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-09-08,1312,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-09-15,1868,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-09-29,76,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-10-06,126,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-10-13,1139,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-10-20,389,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-10-27,468,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-11-10,24,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-11-17,403,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-11-24,254,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-12-01,154,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-12-08,133,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-12-15,1945,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-12-22,72,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-12-25,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2018-12-29,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-01-01,184,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-01-05,406,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-01-12,391,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-01-19,309,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-01-26,15,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-02-02,191,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-02-09,31,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-02-23,2024,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-03-02,1,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-03-09,581,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-03-16,442,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-03-23,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-03-30,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-04-06,1876,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-04-13,72,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-04-20,56,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-04-27,2259,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-05-11,29,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-05-18,230,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-05-25,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-06-01,2314,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-06-08,51,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-06-15,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-06-22,450,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-06-29,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-07-06,96,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-07-13,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-07-20,50,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-07-27,99,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-08-03,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-08-10,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-08-17,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-08-24,27,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-08-31,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-09-14,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-09-21,275,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-10-05,1006,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-10-26,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-11-02,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-11-09,2522,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2019-11-16,1884,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2020-02-22,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2020-02-29,1882,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2020-03-07,60,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2021-07-24,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2021-08-14,234,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2021-08-21,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2021-08-28,2051,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2021-09-04,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2021-09-11,2,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2021-09-18,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2021-09-25,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2021-10-02,378,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2021-10-16,2314,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2021-10-23,2907,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2021-10-30,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2021-11-06,53,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2021-11-13,265,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2021-12-11,44,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-01-01,392,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-01-08,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-01-15,19,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-01-22,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-01-29,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-02-05,2,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-02-19,2968,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-02-26,2352,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-03-05,1882,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-03-12,183,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-03-19,241,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-03-26,2204,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-04-02,461,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-04-09,218,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-04-16,1882,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-04-23,1882,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-04-30,12,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-05-14,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-05-21,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-05-28,1876,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-06-11,1882,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-06-18,3035,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-06-25,1882,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-07-02,95,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-07-09,407,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-07-16,1882,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-07-23,518,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-07-30,2886,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-08-13,1882,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-08-20,2719,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-08-27,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-09-03,24,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-09-10,373,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-09-17,1109,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-09-24,2,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-10-01,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-10-15,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-11-05,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-11-12,2026,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-11-19,474,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-11-26,15,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-12-17,191,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-12-24,274,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-12-25,1906,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2022-12-31,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-01-07,343,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-01-14,2894,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-01-21,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-01-28,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-02-04,1849,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-02-11,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-02-18,76,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-02-25,3154,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-03-11,3184,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-03-18,814,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-03-25,3163,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-04-01,2481,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-04-08,39,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-04-15,2,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-04-22,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-04-29,3,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-06-10,1882,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-06-17,4,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-06-24,1904,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-07-08,75,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-07-15,543,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-07-22,183,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-07-29,406,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-08-05,468,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-08-12,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-08-19,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-08-26,2,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-09-02,3272,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-09-09,191,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-09-16,183,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-11-04,4,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-11-11,15,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-12-16,31,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-12-23,1395,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2023-12-30,390,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-01-06,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-01-13,191,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-01-20,56,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-01-27,344,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-02-03,363,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-02-10,2968,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-02-17,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-03-02,2053,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-03-09,2352,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-03-16,2180,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-03-23,1876,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-03-30,75,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-04-06,931,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-04-13,49,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-04-27,27,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-05-04,133,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-05-11,1,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-05-18,440,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-05-25,154,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-06-01,2314,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-06-08,392,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-06-15,3184,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-06-22,126,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-06-29,3481,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-07-06,882,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-07-27,1,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-08-03,422,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-08-10,3163,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-08-17,75,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-08-24,392,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-08-31,1,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-09-14,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-09-21,218,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-10-05,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-10-12,1945,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-10-19,2907,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-10-26,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-11-02,294,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-11-16,2180,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-12-07,1868,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-12-21,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2024-12-28,4,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-01-11,3557,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-01-18,882,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-01-25,2314,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-02-08,3481,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-02-15,133,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-03-08,3590,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-03-22,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-03-29,107,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-04-05,191,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-04-12,4,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-04-19,1,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-04-26,3614,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-05-10,191,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-05-17,204,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-05-24,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-06-07,3557,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-06-14,2995,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-06-28,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-07-05,3557,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-07-12,3,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-07-19,1300,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-07-26,2182,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-08-02,3614,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-08-09,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-08-16,1,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-08-23,3718,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-09-06,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-09-20,75,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-09-27,254,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-10-11,45,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-10-18,22,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-11-01,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-11-08,2928,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-11-15,125,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-11-22,2180,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-12-06,1245,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-12-13,75,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2025-12-27,210,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2026-01-01,191,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2026-01-10,1316,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2026-01-17,2993,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2026-01-24,1031,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2026-01-31,3801,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2026-02-07,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2026-02-21,377,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2026-02-28,3557,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2026-03-07,3163,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2026-03-14,4,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2026-03-21,1876,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2026-04-25,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2026-05-30,2253,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2026-07-04,183,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2026-07-18,22,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2026-07-25,56,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2026-08-01,2084,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2026-08-08,1876,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2026-08-15,292,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2026-08-22,931,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5672,2026-08-29,3446,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-01-14,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-02-18,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-02-25,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-03-04,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-03-11,4,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-03-18,56,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-03-25,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-04-01,2,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-04-08,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-04-15,191,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-04-22,56,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-05-06,4,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-05-13,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-05-20,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-05-27,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-06-03,4,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-06-10,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-06-17,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-06-24,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-07-01,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-07-08,4,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-07-15,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-07-22,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-08-05,755,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-08-12,56,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-08-19,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-08-26,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-09-02,1,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-09-09,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-09-23,390,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-09-30,4,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-10-07,1,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-10-14,75,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-10-21,343,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-10-28,312,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-11-04,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-11-11,302,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-11-25,56,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-12-02,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-12-16,191,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-12-23,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2017-12-30,56,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-01-01,1,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-01-01,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-01-06,4,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-01-20,15,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-01-27,1,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-02-17,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-02-24,300,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-03-10,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-03-17,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-03-24,1,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-03-31,344,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-04-14,1197,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-04-21,682,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-04-28,882,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-05-05,551,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-05-12,4,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-05-19,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-05-26,72,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-06-02,56,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-06-09,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-06-16,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-06-23,1197,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-06-30,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-07-07,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-07-14,468,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-07-21,1395,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-07-28,440,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-08-18,527,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-08-25,204,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-09-01,1,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-09-08,1312,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-09-15,1868,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-09-22,71,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-09-29,76,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-10-06,126,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-10-13,1139,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-10-20,389,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-11-03,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-11-10,24,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-11-17,403,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-11-24,254,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-12-01,154,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-12-08,133,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-12-15,1945,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-12-25,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2018-12-29,190,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-01-01,184,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-01-05,406,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-01-12,391,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-01-19,309,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-02-02,191,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-02-09,31,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-02-23,2024,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-03-02,190,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-03-09,581,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-03-16,442,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-03-23,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-03-30,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-04-20,2295,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-04-27,2259,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-05-04,931,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-05-11,29,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-05-18,230,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-05-25,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-06-01,2314,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-06-08,51,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-06-15,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-06-22,450,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-06-29,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-07-06,96,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-07-13,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-07-27,99,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-08-17,2253,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-08-24,27,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-08-31,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-09-07,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-09-14,1876,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-09-21,275,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-09-28,1152,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-10-05,1,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-10-12,932,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-10-26,126,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-11-09,2522,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-11-16,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-11-23,22,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-11-30,282,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-12-07,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-12-14,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-12-21,1109,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-12-25,39,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2019-12-28,125,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2020-01-01,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2020-01-01,2026,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2020-01-04,1882,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2020-01-11,2446,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2020-01-18,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2020-01-25,1267,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2020-02-01,2180,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2020-02-08,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2020-02-15,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2020-02-22,422,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2020-02-29,1882,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2020-03-07,60,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2021-07-24,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2021-07-31,49,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2021-08-14,234,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2021-08-21,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2021-08-28,2051,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2021-09-04,4,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2021-09-18,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2021-09-25,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2021-10-02,378,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2021-10-09,2578,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2021-10-16,2314,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2021-10-23,2907,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2021-11-06,53,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2021-11-13,265,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2021-11-20,210,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2021-12-11,44,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2021-12-18,20,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2021-12-25,1,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-01-01,392,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-01-08,15,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-01-15,19,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-01-22,15,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-01-29,430,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-02-12,2084,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-02-19,2968,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-02-26,2352,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-03-12,183,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-03-19,241,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-03-26,2993,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-04-02,461,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-04-09,218,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-04-16,274,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-04-30,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-05-14,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-05-21,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-05-28,1876,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-06-04,2690,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-06-11,1876,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-06-18,3035,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-06-25,1876,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-07-02,95,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-07-09,407,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-07-23,518,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-07-30,2886,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-08-20,2180,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-08-27,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-09-10,56,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-09-17,1109,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-09-24,15,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-10-01,15,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-10-08,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-10-15,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-10-22,843,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-11-05,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-11-12,2026,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-11-26,15,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-12-24,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-12-25,1,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2022-12-31,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-01-07,11,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-01-14,2894,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-01-21,2180,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-01-28,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-02-04,1849,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-02-25,3154,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-03-11,3184,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-03-25,3163,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-04-01,2481,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-04-08,3184,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-04-15,2,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-04-22,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-04-29,3,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-05-06,814,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-05-13,2180,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-05-20,1876,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-05-27,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-06-03,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-06-10,1882,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-06-24,1904,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-07-08,75,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-07-15,2180,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-08-05,1876,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-08-26,2,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-09-02,3272,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-09-09,191,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-09-16,2894,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-09-23,2180,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-10-07,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-10-28,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-11-04,4,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-11-11,15,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-11-25,2180,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-12-02,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-12-09,1,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-12-16,31,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-12-23,1876,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-12-25,1197,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2023-12-30,390,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-01-01,1,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-01-06,2180,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-01-20,56,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-01-27,15,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-02-03,363,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-02-17,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-03-16,2180,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-03-23,1876,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-03-30,75,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-04-06,931,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-04-13,49,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-04-20,2180,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-04-27,2180,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-05-18,2180,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-06-01,2314,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-06-15,3184,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-06-29,3481,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-07-13,2180,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-07-27,1,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-08-03,422,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-08-10,3163,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-08-17,75,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-08-31,1,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-09-07,2180,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-09-14,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-10-05,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-11-02,294,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-11-16,2180,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-11-30,15,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-12-21,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2024-12-28,4,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+3087156,2025-01-11,3557,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-01-25,2314,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-02-08,3614,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-02-15,3614,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-02-22,620,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-03-01,3614,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-03-08,620,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-03-15,620,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-03-22,620,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-04-05,191,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-04-12,4,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-04-26,3614,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-05-03,3614,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-05-10,191,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-05-17,620,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-05-24,3614,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-05-31,2180,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-06-14,2180,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-06-21,620,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-06-28,3614,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-07-12,2180,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-07-26,2182,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-08-02,3614,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-08-16,1,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-08-23,3614,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-08-30,2180,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-09-06,81,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-09-20,2180,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-09-27,1030,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-10-04,15,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-10-11,45,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-10-18,22,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-10-25,3614,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-11-01,620,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-11-08,620,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-11-15,125,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-11-22,2180,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-11-29,3614,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-12-06,2993,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-12-13,75,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-12-25,2993,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2025-12-27,210,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-01-01,191,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-01-10,620,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-01-17,2993,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-01-24,2180,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-01-31,3801,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-02-07,1,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-02-14,620,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-02-21,377,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-02-28,620,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-03-07,2180,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-03-14,4,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-03-21,1876,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-03-28,3614,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-04-04,2180,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-04-11,1876,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-04-18,3830,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-04-25,3614,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-05-02,2180,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-05-16,3614,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-05-23,911,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-05-30,2253,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-06-06,2180,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-06-13,3614,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-06-20,49,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-07-04,2993,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-07-11,3614,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-07-18,22,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-07-25,56,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-08-01,2084,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-08-08,1876,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-08-15,2671,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-08-22,931,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+3087156,2026-08-29,620,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2019-07-06,2165,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2019-11-09,1211,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2020-01-18,674,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-01-07,343,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-01-14,24,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-01-21,48,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-01-28,3163,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-02-04,300,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-02-11,254,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-02-18,76,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-02-25,126,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-03-04,184,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-03-11,3184,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-03-18,154,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-03-25,183,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-04-01,1,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-04-08,275,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-04-15,2896,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-04-22,29,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-04-29,461,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-05-13,44,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-05-27,51,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-06-03,1527,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-06-05,292,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-06-10,1882,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-06-17,4,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-06-24,632,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-07-01,442,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-07-08,75,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-07-15,2051,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-07-22,68,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-07-29,406,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-08-05,468,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-08-12,620,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-08-19,1353,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-08-26,1905,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-09-02,3272,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-09-30,682,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-10-03,2204,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-10-07,241,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-10-14,2481,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-10-21,527,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-10-28,389,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-11-04,391,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-11-11,15,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-11-18,581,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-11-25,96,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-12-16,31,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-12-23,1395,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-12-25,1369,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2023-12-30,390,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-01-01,230,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-01-06,309,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-01-13,191,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-01-20,378,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-01-27,344,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-02-03,53,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-02-10,2968,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-02-17,2510,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-02-24,190,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-03-02,2684,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-03-09,2352,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-03-16,2180,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-03-23,1876,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-04-13,1605,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-04-20,99,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-04-27,27,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-05-04,1839,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-05-09,3047,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-05-11,2917,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-05-18,440,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-05-25,2185,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-06-01,3126,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-06-08,474,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-08-24,392,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-08-31,403,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-09-07,19,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-09-14,2189,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-09-21,218,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-09-28,2719,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-10-05,2,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-10-12,1945,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-10-19,2907,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-10-26,162,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-11-02,294,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-11-09,302,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-11-16,3549,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-11-23,56,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-11-30,2740,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2024-12-07,1868,false,default,,not reviewed — assumed non-buggy,2026-09-02 18:29:09.827493+01
+5462426,2025-01-11,3557,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-01-18,882,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-01-25,2314,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-02-01,2029,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-02-08,3481,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-02-15,133,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-02-22,2259,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-03-01,2886,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-03-08,3590,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-03-15,72,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-03-22,620,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-03-29,107,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-04-05,48,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-04-12,2170,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-04-19,2170,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-04-26,1819,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-05-03,52,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-05-10,191,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-05-17,204,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-05-24,2204,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-05-31,1139,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-06-14,2995,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-06-21,3154,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-06-28,1152,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-07-05,1267,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-07-12,3,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-07-19,1300,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-07-26,2182,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-08-02,3614,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-08-16,3163,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-08-23,51,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-08-30,3163,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-09-06,3163,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-09-13,3163,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-09-20,3163,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-09-27,254,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-10-04,3163,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-10-11,451,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-10-18,3163,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-11-01,1018,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-11-08,2928,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-11-15,125,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-11-22,3163,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-11-29,3163,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-12-06,1245,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-12-13,1422,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-12-20,961,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-12-25,1001,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2025-12-27,3804,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-01-01,191,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-01-03,654,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-01-10,22,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-01-17,2993,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-01-24,1031,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-01-31,3801,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-02-07,2053,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-02-14,2168,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-02-21,1874,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-02-28,2073,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-03-07,3163,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-03-14,4,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-03-21,3600,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-03-28,95,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-04-04,2323,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-04-11,2179,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-04-18,3830,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-04-25,3163,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-05-02,3163,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-05-09,3753,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-05-16,3691,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-05-23,2522,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-05-30,2253,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-06-06,3163,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-06-13,3163,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-06-20,3163,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-06-27,3490,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-07-04,183,true,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-07-11,3329,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-07-18,3642,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-07-25,2423,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-08-01,2084,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-08-08,3163,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-08-15,3860,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-08-22,3163,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-08-29,620,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01

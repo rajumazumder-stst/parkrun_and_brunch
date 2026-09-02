@@ -67,6 +67,13 @@ where they differ from the original brief, **the spec wins**.
   which is asserted rather than assumed (see *zero-label equivalence* below).
   The estimator that fills in future runs is deliberately unwritten: it is
   supervised, and there is nothing yet to train it on.
+- 📋 **TODO — a URL for the label-impact app.** It runs on `:8502` on this Mac
+  and nowhere else, so the buggy-handicap tab — the argument for the numbers
+  George and Duncan are judged by — can only be shared as a screenshot. Blocked
+  on three things, listed in `docs/DEV.md`; the cheap version is to host the
+  handicap tab alone (needs `scipy` in `requirements.txt`) and keep the
+  comparison local, since tab 1 needs `v_head_to_head_legacy`, which is
+  deliberately absent from the deploy snapshot.
 - 🧪 Local dev/test workflow: work on the `dev` branch, `./scripts/run_local.sh` serves
   the app against an isolated `data/parkrun_dev.duckdb` (built through
   `pipeline seed`, gitignored) so previews never touch `main` or the deploy

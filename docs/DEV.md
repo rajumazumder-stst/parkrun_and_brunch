@@ -100,6 +100,35 @@ the old ones exactly until a label says otherwise. A `Lost` occasion should be
 impossible — the bridge only ever makes *more* contests rankable — and it is
 called out in red if one appears.
 
+## TODO — give the label-impact app a URL
+
+It has no hosted address: it runs on `:8502` on this Mac and nowhere else, so
+sharing either tab means sharing a screenshot. Worth fixing — the buggy-handicap
+tab is the argument for the numbers George and Duncan are being judged by, and
+they cannot see it.
+
+Three things stand in the way, and the first is the real one:
+
+1. **Tab 1 needs `v_head_to_head_legacy`, which by design exists only on a dev
+   DB.** `build_snapshot` rebuilds views from `ensure_views` alone, so the legacy
+   pair never reaches the deploy snapshot — deliberately: they freeze a
+   superseded method, and a hosted app serving them invites someone to read the
+   old numbers as current. Hosting tab 1 means either shipping the legacy views
+   (and giving up that guarantee) or accepting that the hosted copy carries only
+   the handicap tab.
+2. **scipy is not in `requirements.txt`**, and the handicap tab needs it. Adding
+   it puts a ~40 MB dependency into an app that otherwise does no statistics —
+   fine if the tab is hosted, waste if it is not.
+3. **It is a development instrument**, which is the whole reason it is a separate
+   app on a separate port. A URL makes it a product surface, and the framing has
+   to change with it: "what the labels changed" is a question for whoever
+   maintains the labels, not for a visitor.
+
+The cheapest version that solves the actual problem: host **only** the buggy
+handicap tab as a second Streamlit page, leave the comparison local. That needs
+scipy in `requirements.txt` and nothing else — no legacy views, no guarantee
+given up.
+
 ## Fake labels for previewing the buggy UI
 
 Until the real labels come back there is nothing for the buggy-mode UI to show:
