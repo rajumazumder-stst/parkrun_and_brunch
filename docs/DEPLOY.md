@@ -74,7 +74,8 @@ re-points the hosted app at it.
 
 ## What is and is not deployed
 
-Streamlit Cloud serves **`app.py` plus `data/parkrun_snapshot.duckdb` from the
+Streamlit Cloud serves **`app.py` (router: `/` the five tabs, `/buggy-handicap`
+the handicap analysis) plus `data/parkrun_snapshot.duckdb` from the
 same commit**, which is why the code and the regenerated snapshot must be
 committed together (see the rollout note in the buggy-mode work).
 
@@ -91,7 +92,7 @@ snapshot.
 
 ---
 
-## Backends the app can read (`_resolve_db_path` in `app.py`)
+## Backends the app can read (`_resolve_db_path` in `parkrun_ui.py`)
 
 Priority order:
 

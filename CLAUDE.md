@@ -27,9 +27,9 @@ where they differ from the original brief, **the spec wins**.
 - ✅ Analytics layer — `v_overlap`, `v_head_to_head`, `v_saturday_targets` views
   and the `current_targets` table, built and wired into refresh (see Analytics
   layer below).
-- ✅ Streamlit front end — `app.py`, **5 tabs** (overlap/Venn · head-to-head
+- ✅ Streamlit front end — `parkrun_app.py`, **5 tabs** (overlap/Venn · head-to-head
   summary · head-to-head detail · form target-time by Saturday · head-to-head
-  map). Deployable: `app.py` resolves its DB via `PARKRUN_DB` env var > Streamlit
+  map). Deployable: `parkrun_ui.py` resolves the DB via `PARKRUN_DB` env var > Streamlit
   secret > a bundled read-only snapshot (`data/parkrun_snapshot.duckdb`), so it
   can be hosted (e.g. Streamlit Community Cloud) from the repo alone.
   `requirements.txt` pins the runtime deps.
@@ -67,14 +67,16 @@ where they differ from the original brief, **the spec wins**.
   which is asserted rather than assumed (see *zero-label equivalence* below).
   The estimator that fills in future runs is deliberately unwritten: it is
   supervised, and there is nothing yet to train it on.
-- ✅ **Buggy handicap hosted as its own app** (2 Sep 2026) — `handicap_app.py`,
-  a **second** Streamlit Cloud deployment from this repo with its own URL, so
-  the working behind each athlete's handicap is shareable rather than a
-  screenshot of `localhost:8502`. It was briefly a `pages/` entry; that put a
-  nav link in `app.py`'s sidebar, which made a piece of working-out look like a
-  sixth feature of the product. A separate app has no nav, no link, and no
-  bearing on the main site. The analysis lives in `buggy_handicap.py`, imported
-  by both it and `label_impact.py`. The head-to-head method comparison is
+- ✅ **Buggy handicap hosted at `/buggy-handicap`** (2 Sep 2026) — the working
+  behind each athlete's handicap, on the main app's own domain, so it is
+  shareable rather than a screenshot of `localhost:8502`. `app.py` is now a
+  router: `st.navigation([...], position="hidden")` over `parkrun_app.py` (the
+  five tabs, at `/`) and `handicap_page.py`. Hidden navigation is the point —
+  a `pages/` directory gives the same URLs but forces a nav list into the
+  sidebar, putting a statistical argument about two named people in front of
+  every visitor who came for parkrun results. The page is **unlisted, not
+  access-controlled**. The analysis lives in `buggy_handicap.py`, imported by
+  both it and `label_impact.py`. The head-to-head method comparison is
   deliberately **not** hosted: it needs `v_head_to_head_legacy`, which the
   deploy snapshot never carries.
 - 🧪 Local dev/test workflow: work on the `dev` branch, `./scripts/run_local.sh` serves
@@ -331,7 +333,7 @@ label degrades to the old non-buggy behaviour rather than NULLing a mode.
 Created/refreshed by `ensure_views()` and `update_current_targets()`. The cohort
 is fixed (3 athletes); `ATHLETE_NAMES` in the pipeline is the single source for
 the per-athlete column names. The **cumulative 1st-place trend** (Tab 2) and the
-**head-to-head map** (Tab 5) are derived in `app.py` from `v_head_to_head`
+**head-to-head map** (Tab 5) are derived in `parkrun_app.py` from `v_head_to_head`
 (+ `events` coordinates for the map) — no extra views.
 
 ### Feature 1 — participation overlap (`v_overlap`)
@@ -515,11 +517,12 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | Path | Purpose |
 |---|---|
 | `parkrun_pipeline.py` | Loader: `bootstrap` / `refresh` / `status` / `snapshot` / `seed` / `motherduck` (Path A/B, DuckDB) + analytics views/targets + deploy-snapshot build + parkrun-only MotherDuck upload (`build_motherduck`). Also owns scraping (`scrape_athlete`) and time parsing (`time_to_seconds`). |
-| `app.py` | Streamlit front end (5 tabs: overlap · personal bests + head-to-head summary · head-to-head detail · form/target-time · head-to-head map) reading the `parkrun` schema read-only; DB path resolved via `PARKRUN_DB` env/secret (incl. `md:` MotherDuck), else the bundled snapshot. Auto-reloads on new data via a `data_version()` cache key — `max(scrape_timestamp)` **plus `max(set_at)` and `count(*)` from `run_modes`**, since labels are edited out of band and never move the scrape timestamp — 60s TTL; 🔄 Reload button clears the cache manually |
-| `buggy_handicap.py` | The handicap measurement, imported by **both** `label_impact.py` and `handicap_app.py`: per athlete, the runs between their first and last buggy run, split by mode — mean/SD/median, density curves with a rug of the real runs, and three estimates (raw difference in means, course fixed effects, the same plus a form-drift term). Recommends a value only when the estimates agree in sign, the raw interval clears zero, and there are ≥ 8 buggy runs. **One implementation only** — the `_winning_margin` rule applies: a second copy would make a method difference indistinguishable from a rounding one. Needs `scipy` |
-| `handicap_app.py` | Standalone Streamlit entrypoint — a thin wrapper over `render_handicap`, deployed as a **second** Cloud app from this repo so it has its own URL and appears nowhere in `app.py`. Not a `pages/` entry: that would add a sidebar nav link to the main app. The head-to-head comparison is **not** hosted beside it — that needs `v_head_to_head_legacy`, absent from the deploy snapshot by design |
+| `app.py` | **Entrypoint and router only.** `st.set_page_config` (one call is legal per run) + `st.navigation([...], position="hidden")` mapping `/` → `parkrun_app.py` and `/buggy-handicap` → `handicap_page.py`. Hidden, not a `pages/` directory, so the analysis has a URL but no nav link |
+| `parkrun_app.py` | Streamlit front end (5 tabs: overlap · personal bests + head-to-head summary · head-to-head detail · form/target-time · head-to-head map) reading the `parkrun` schema read-only; DB path resolved via `PARKRUN_DB` env/secret (incl. `md:` MotherDuck), else the bundled snapshot. Auto-reloads on new data via a `data_version()` cache key — `max(scrape_timestamp)` **plus `max(set_at)` and `count(*)` from `run_modes`**, since labels are edited out of band and never move the scrape timestamp — 60s TTL; 🔄 Reload button clears the cache manually. A page script: no `set_page_config` of its own |
+| `buggy_handicap.py` | The handicap measurement, imported by **both** `label_impact.py` and `handicap_page.py`: per athlete, the runs between their first and last buggy run, split by mode — mean/SD/median, density curves with a rug of the real runs, and three estimates (raw difference in means, course fixed effects, the same plus a form-drift term). Recommends a value only when the estimates agree in sign, the raw interval clears zero, and there are ≥ 8 buggy runs. **One implementation only** — the `_winning_margin` rule applies: a second copy would make a method difference indistinguishable from a rounding one. Needs `scipy` |
+| `handicap_page.py` | Page script at `/buggy-handicap` — a thin wrapper over `render_handicap`. Unlisted by design; the audience is the two people it is about, reached by a link they are sent. The head-to-head comparison is **not** hosted beside it — that needs `v_head_to_head_legacy`, absent from the deploy snapshot by design |
 | `parkrun_ui.py` | Shared UI layer imported by **both** apps: DB resolution, `ATHLETE_COLORS`/`MEDAL`, `fmt_time`, the buggy display helpers (`BUGGY_GLYPH`, `mode_suffix`, `mode_text`, highlight colours), `_h2h_headline`, `_victory_fig` and `_winning_margin`. `_winning_margin` must exist **once only** — `label_impact.py` diffs old against new, so a second copy of that arithmetic would make a method difference indistinguishable from a rounding one |
-| `label_impact.py` | **Dev-only, separate app** (its own port), **2 tabs**: *head-to-head impact* — the pre-buggy method against the current one, per-occasion verdicts (filterable to what changed and/or what used the handicap bridge) and paired victory charts; *buggy handicap* — `render_handicap` from `buggy_handicap.py`, the same code the hosted page runs. Not a tab in `app.py` — keeping it in its own file means there is no deploy-time gate to get wrong. Tab 1 needs `v_head_to_head_legacy`, which only ever exists on a dev DB; the gate lives **inside** that tab and returns rather than calling `st.stop()`, which would take the other tab down with it. Its statistics come from `buggy_handicap.py`, so `scipy` is now a hosted dependency rather than a dev-only one |
+| `label_impact.py` | **Dev-only, separate app** (its own port), **2 tabs**: *head-to-head impact* — the pre-buggy method against the current one, per-occasion verdicts (filterable to what changed and/or what used the handicap bridge) and paired victory charts; *buggy handicap* — `render_handicap` from `buggy_handicap.py`, the same code the hosted page runs. Not part of the hosted site — keeping it in its own file means there is no deploy-time gate to get wrong. Tab 1 needs `v_head_to_head_legacy`, which only ever exists on a dev DB; the gate lives **inside** that tab and returns rather than calling `st.stop()`, which would take the other tab down with it. Its statistics come from `buggy_handicap.py`, so `scipy` is now a hosted dependency rather than a dev-only one |
 | `scripts/run_local.sh` | Local dev launcher: venv + isolated `data/parkrun_dev.duckdb` (built via `pipeline seed`, **not** `cp` — the committed snapshot carries only the views it had when last rebuilt) + `streamlit run`. Under `PARKRUN_LABEL_AUDIT=1` it also builds the legacy views and starts `label_impact.py` on a second port (see `docs/DEV.md`) |
 | `scripts/dev_fake_labels.py` | Dev-only: plausible fake buggy labels for previewing the UI before the real ones arrive. Labels runs that were slow *relative to that athlete's trailing 20-run median*. Refuses to write to the source of truth or the deploy snapshot |
 | `scripts/parkrun_refresh.sh` | Master refresh from this Mac (manual or scheduled — the one code path): pull clone → seed the local source-of-truth DB if absent → pipeline → audit-file push (fatal; this is the deploy) → freshness stamp → notification |
@@ -546,7 +549,7 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | `data/parkrun_snapshot.duckdb` | Read-only, parkrun-only DuckDB the deployed app serves |
 | `adhoc/` | One-off investigations using the parkrun data but **outside the app** — see `adhoc/README.md` |
 
-**`adhoc/` is not part of the app.** Nothing there is imported by `app.py` or
+**`adhoc/` is not part of the app.** Nothing there is imported by `parkrun_app.py` or
 `parkrun_pipeline.py`, nothing runs on the scheduled refresh, and its extra
 dependencies stay in per-topic `requirements.txt` files rather than the root one
 — the app must remain deployable if the whole folder is deleted. Each topic
@@ -575,7 +578,7 @@ Streamlit · plotly · matplotlib-venn · folium/streamlit-folium (map).
 
 ## Visualisations
 
-**Built (local Streamlit, `app.py`, 5 tabs)** — plus `label_impact.py`, a
+**Built (local Streamlit, `parkrun_app.py`, 5 tabs)** — plus `label_impact.py`, a
 **separate dev-only app** on its own port (`docs/DEV.md`):
 - **Tab 1** participation overlap / Venn (`v_overlap`) + per-athlete company.
 - **Tab 2** form-adjusted head-to-head summary (`v_head_to_head`,
@@ -603,7 +606,7 @@ Streamlit · plotly · matplotlib-venn · folium/streamlit-folium (map).
   about whose wins it counted.
 
 **Personal bests** (Tab 2, `load_personal_bests()` + `render_personal_bests()`
-in `app.py` — no view; the SQL lives in the loader). Each athlete's **fastest**
+in `parkrun_app.py` — no view; the SQL lives in the loader). Each athlete's **fastest**
 run in three scopes — **All time**, **Last 12 months**, **Last 3 months** — with
 the parkrun and the date. Both rolling windows are calendar intervals anchored
 on `max(refresh_date)` and **inclusive of the anchor day**, so a run earlier

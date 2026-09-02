@@ -66,7 +66,7 @@ PARKRUN_LABEL_AUDIT=1 ./scripts/run_local.sh
 Starts **two** apps: the real one on `:8501` and the comparison on `:8502`
 (`PARKRUN_PORT` / `PARKRUN_LABEL_PORT` to move them). It is a separate app
 rather than a sixth tab because it is a development instrument, not part of the
-product — and keeping it out of `app.py` means there is no gate to get wrong at
+product — and keeping it off the hosted site means there is no gate to get wrong at
 deploy time.
 
 `label_impact.py` has **two tabs**. *Head-to-head impact* compares the live head-to-head against
@@ -100,22 +100,29 @@ the old ones exactly until a label says otherwise. A `Lost` occasion should be
 impossible — the bridge only ever makes *more* contests rankable — and it is
 called out in red if one appears.
 
-## The hosted buggy-handicap app
+## The hosted buggy-handicap page
 
-`handicap_app.py` is a **second** Streamlit Cloud app deployed from this repo,
-with its own URL, so George and Duncan can read the argument for the numbers
-they are judged by instead of being sent a screenshot.
+`handicap_page.py` is served at **`/buggy-handicap`** on the main app's own
+domain, so George and Duncan can read the argument for the numbers they are
+judged by instead of being sent a screenshot.
 
-Deploy it once: Streamlit Cloud → New app → this repo → main file
-`handicap_app.py` → its own subdomain. Same `requirements.txt`, same bundled
-snapshot, no secrets. After that it redeploys on push like the main app.
+`app.py` is now an entrypoint and router — `st.set_page_config` plus
+`st.navigation([...], position="hidden")` over `parkrun_app.py` (the five tabs,
+at `/`) and `handicap_page.py`. The five-tab app moved to `parkrun_app.py` and
+lost its own `set_page_config`; only one call is legal per run, and it belongs
+to the entrypoint. Each page's browser-tab title comes from its `st.Page(title=)`.
 
-It is **not** a `pages/` entry. That was the first attempt, and it added a nav
-link to `app.py`'s sidebar — which made a piece of working-out look like a
-sixth feature of the product, and put it in front of visitors who have no idea
-who George and Duncan are. A separate app has no nav and no link.
+**Hidden navigation is the whole point.** A `pages/` directory produces the same
+URLs but forces a nav list into the sidebar, which put a statistical argument
+about two named people in front of every visitor who came to look at parkrun
+results. `position="hidden"` keeps the path reachable by anyone sent the link
+and invisible to everyone else.
 
-The analysis itself lives in `buggy_handicap.py`, imported by **both** that app
+**The page is unlisted, not access-controlled.** Anyone with the URL can read
+it, and it is not behind a login. That is the intended trade — but it is worth
+saying out loud before the link goes anywhere wider than the two of them.
+
+The analysis itself lives in `buggy_handicap.py`, imported by **both** that page
 and `label_impact.py`'s second tab. One implementation, for the same reason
 `_winning_margin` exists once: two copies of this arithmetic would make a method
 difference indistinguishable from a rounding one.
@@ -125,8 +132,8 @@ difference indistinguishable from a rounding one.
 freeze a superseded method, and hosting them invites a reader to take the old
 numbers as current.
 
-scipy is in `requirements.txt` for this app. It is the only runtime dependency
-there that `app.py` itself does not use — both apps share one requirements file.
+scipy is in `requirements.txt` for this page — the only runtime dependency there
+that the five-tab app does not itself use.
 
 ## Fake labels for previewing the buggy UI
 
