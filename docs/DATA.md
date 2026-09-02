@@ -3,6 +3,27 @@
 What cannot be read off the schema. For the schema itself see the data-model
 tables in `CLAUDE.md`; for the method see *Feature 2 — head-to-head* there.
 
+## Where things stand (2 Sep 2026)
+
+The review sheet came back fully answered and is imported. `run_modes` holds
+**841** rows — every run the three athletes have:
+
+| `source` | `is_buggy` | Rows |
+|---|---|---|
+| `manual` | TRUE | 36 (George 31, Duncan 5) |
+| `manual` | FALSE | 124 |
+| `default` | FALSE | 681 |
+
+No `estimated` rows: the estimator is still unwritten. Handicaps measured from
+those labels — **George 0.13 (`measured`)**, Duncan and Raju on the `0.15`
+`default`; Duncan's five buggy runs are below the 8-per-class gate and his only
+course run both ways points the *other* way, so there is nothing to measure yet.
+The working is at `/buggy-handicap` on the hosted app, recomputed live from
+whatever `run_modes` currently says.
+
+Labelling changed the record, as it was always going to: 175 of 205 occasions
+unchanged, 6 winners flipped, 3 with places reordered, none lost.
+
 ## Why labels exist
 
 George and Duncan sometimes run pushing a buggy. parkrun records nothing about

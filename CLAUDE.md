@@ -55,18 +55,17 @@ where they differ from the original brief, **the spec wins**.
   stamp is written only after it succeeds. The hosted app's `PARKRUN_DB` /
   `motherduck_token` secrets are removed — it serves the bundled snapshot
   again (`docs/DEPLOY.md` § History).
-- 🔨 **Buggy mode — built on `dev`, not yet promoted** (1 Sep 2026). George and
-  Duncan sometimes run pushing a buggy, which parkrun records nothing about, so
-  their times were being pooled into a single form target that flattered the
-  buggy runs and penalised the rest. Built: the `run_modes` label store,
+- ✅ **Buggy mode — promoted and live** (2 Sep 2026). George and Duncan
+  sometimes run pushing a buggy, which parkrun records nothing about, so their
+  times were being pooled into a single form target that flattered the buggy
+  runs and penalised the rest. Shipped: the `run_modes` label store,
   `course_difficulty` and `buggy_handicap` tables, the `current_targets` primary
   key migration, the mode-aware views (`v_results_moded` + per-mode targets and
   the symmetric handicap bridge), the review-sheet export/import tooling, and
-  the whole UI surface. **Waiting on George and Duncan to return the review
-  spreadsheet** — until a label exists the app is byte-identical to before,
-  which is asserted rather than assumed (see *zero-label equivalence* below).
-  The estimator that fills in future runs is deliberately unwritten: it is
-  supervised, and there is nothing yet to train it on.
+  the whole UI surface. The estimator that would label future runs automatically
+  is still deliberately unwritten — it is supervised, and 36 buggy labels across
+  two athletes is not yet a training set (Duncan's 5 are below the 8-per-class
+  gate).
 - ✅ **Buggy handicap hosted at `/buggy-handicap`** (2 Sep 2026) — the working
   behind each athlete's handicap, on the main app's own domain, so it is
   shareable rather than a screenshot of `localhost:8502`. `app.py` is now a
@@ -84,12 +83,15 @@ where they differ from the original brief, **the spec wins**.
   `pipeline seed`, gitignored) so previews never touch `main` or the deploy
   snapshot. `PARKRUN_LABEL_AUDIT=1` additionally starts `label_impact.py` on a
   second port. See `docs/DEV.md`.
-- 🧪 **Zero-label equivalence** — with `run_modes` empty the mode-aware views
-  must reproduce the old ones **row for row** (verified: `v_head_to_head`
-  433 = 433, `v_saturday_targets` 1185 = 1185, zero rows either way). It still
-  holds after a full `default` backfill, since those rows are all `FALSE`; it is
-  spent by the first confirmed **buggy** label. `label_impact.py` renders the
-  same check as a live page.
+- 📕 **Zero-label equivalence — spent** (2 Sep 2026), as designed. While
+  `run_modes` was empty the mode-aware views reproduced the old ones **row for
+  row** (verified: `v_head_to_head` 433 = 433, `v_saturday_targets` 1185 = 1185,
+  zero rows either way), and that survived a full `default` backfill since those
+  rows are all `FALSE`. The first confirmed **buggy** labels ended it: 175 of
+  205 occasions unchanged, 6 winners flipped, 3 with places reordered, 0 lost.
+  The check cannot be re-run against live data — it is kept documented because
+  it is the reason the promotion was safe to make in stages, and
+  `label_impact.py` still renders the comparison it was built on.
 - ✅ **Labels imported; handicaps set** (2 Sep 2026). George and Duncan returned
   the review sheet fully answered — 160 `manual` labels (George 31 buggy / 44
   not, Duncan 5 / 80), the remaining 681 runs `default`. Measured from the runs

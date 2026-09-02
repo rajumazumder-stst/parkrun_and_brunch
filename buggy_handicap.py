@@ -1,8 +1,9 @@
 """Buggy handicap — what pushing a buggy actually costs each athlete.
 
 Imported by **two** apps: the dev-only `label_impact.py` (as a tab) and the
-hosted `handicap_app.py`. It lives here rather than in either of
-them for the same reason `_winning_margin` lives once in `parkrun_ui`: a second
+hosted `handicap_page.py`, served at `/buggy-handicap`. It lives here rather
+than in either of them for the same reason `_winning_margin` lives once in
+`parkrun_ui`: a second
 copy of this arithmetic would make a method difference indistinguishable from a
 rounding one, and this module's output is the argument for numbers two named
 people are judged by.

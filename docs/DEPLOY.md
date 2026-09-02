@@ -258,6 +258,23 @@ changed.
 
 ---
 
+## Two known warts
+
+**The working-copy sync helper is tested before the pull.**
+`parkrun_refresh.sh` sources `scripts/sync_working_copy.sh` at line ~89 but
+pulls the clone at ~98, so the run that first brings a new helper into the
+clone always installs the no-op stub instead and logs `working copy sync:
+helper not in this clone — skipped`. It self-heals on the next run, and the
+guard exists precisely because an older clone will not have the file — but the
+ordering means a freshly-deployed helper is always skipped once. Moving the
+check below the pull is a one-line fix if it ever matters.
+
+**`st.components.v1.html` is past its removal date.** `parkrun_app.py` uses it
+to inject the home-screen icons, and Streamlit says it "will be removed after
+2026-06-01" — a date now passed. It works only because `requirements.txt` pins
+`streamlit==1.58.0`. The first time that pin is bumped, expect the icon
+injection to break; `st.iframe` is the replacement.
+
 ## Ad-hoc refresh from your Mac
 
 ```bash
