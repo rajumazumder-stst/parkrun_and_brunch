@@ -33,9 +33,15 @@ where they differ from the original brief, **the spec wins**.
   secret > a bundled read-only snapshot (`data/parkrun_snapshot.duckdb`), so it
   can be hosted (e.g. Streamlit Community Cloud) from the repo alone.
   `requirements.txt` pins the runtime deps.
-- ✅ Deployed to Streamlit Community Cloud —
-  <https://parkrun-and-brunch.streamlit.app/> (serves the bundled read-only
-  snapshot; auto-redeploys on push to the deployed branch).
+- ✅ Deployed to Streamlit Community Cloud (serves the bundled read-only
+  snapshot; auto-redeploys on push to the deployed branch). Two routes, from one
+  app — `app.py` is a router, `st.navigation(..., position="hidden")`:
+  - <https://parkrun-and-brunch.streamlit.app/> — the five tabs
+    (`parkrun_app.py`)
+  - <https://parkrun-and-brunch.streamlit.app/buggy-handicap> — the buggy
+    labels: what the buggy costs · what labelling changed (`handicap_page.py`).
+    **Unlisted, not access-controlled** — no link points at it, but anyone with
+    the URL can read it.
 - ✅ MotherDuck migration — `python parkrun_pipeline.py motherduck` (re)seeds a
   **parkrun-only** cloud DB (`md:parkrun_snapshot`; catalog name ≠ the `parkrun`
   schema so `parkrun.v_overlap` stays unambiguous). Was the runtime source of
@@ -586,8 +592,11 @@ Streamlit · plotly · matplotlib-venn · folium/streamlit-folium (map).
 
 ## Visualisations
 
-**Built (local Streamlit, `parkrun_app.py`, 5 tabs)** — plus `label_impact.py`, a
-**separate dev-only app** on its own port (`docs/DEV.md`):
+**Built (local Streamlit, `parkrun_app.py`, 5 tabs)** — plus the buggy-labels
+page at `/buggy-handicap` (`handicap_page.py`, 2 tabs: *What the buggy costs* ·
+*What labelling changed*) and its dev twin `label_impact.py` on its own port,
+both layout over the shared `buggy_handicap.py` / `method_impact.py`
+(`docs/DEV.md`):
 - **Tab 1** participation overlap / Venn (`v_overlap`) + per-athlete company.
 - **Tab 2** form-adjusted head-to-head summary (`v_head_to_head`,
   `current_targets`): **personal bests** (top of the tab — see below), the

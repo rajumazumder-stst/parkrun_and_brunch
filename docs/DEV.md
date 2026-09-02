@@ -57,92 +57,75 @@ When a change is ready: commit on `dev`, merge to `main`, and (if the change
 touched the data model/views) regenerate `data/parkrun_snapshot.duckdb` via
 `python parkrun_pipeline.py snapshot` so the deployable snapshot matches.
 
-## The label-impact app (dev only)
+## The buggy-labels page, and its dev twin
+
+Two tabs, two questions about the hand-written labels:
+
+| Tab | Module | Question |
+|---|---|---|
+| What the buggy costs | `buggy_handicap.py` | how much slower is a buggy run? |
+| What labelling changed | `method_impact.py` | what did labelling do to the record? |
+
+**Hosted** at `/buggy-handicap` (`handicap_page.py`). **Dev twin** at
+`localhost:8502` (`label_impact.py`), started by:
 
 ```bash
 PARKRUN_LABEL_AUDIT=1 ./scripts/run_local.sh
 ```
 
-Starts **two** apps: the real one on `:8501` and the comparison on `:8502`
-(`PARKRUN_PORT` / `PARKRUN_LABEL_PORT` to move them). It is a separate app
-rather than a sixth tab because it is a development instrument, not part of the
-product — and keeping it off the hosted site means there is no gate to get wrong at
-deploy time.
+which runs the real app on `:8501` and the twin on `:8502` (`PARKRUN_PORT` /
+`PARKRUN_LABEL_PORT` to move them). Both files are layout only — same tabs, same
+modules — so the local instrument and the hosted page cannot drift apart on the
+arithmetic. The twin exists to drive them against an isolated dev DB.
 
-`label_impact.py` has **two tabs**. *Head-to-head impact* compares the live head-to-head against
-`v_head_to_head_legacy` — the frozen pre-buggy method (a single pooled 91-day
-median, no mode split, no handicap bridge). Per occasion it reports whether the
-winner, the places, the ranked roster or just the margin moved, and draws the
-old and new victory charts stacked on a shared x-axis for whichever contest you
-pick. The dropdown is in date order, most recent first, matching the table.
-Two checkboxes filter it — what changed, and what used the handicap bridge —
-ANDed rather than exclusive, because "a bridged target that changed the result"
-is the cell worth looking at.
+### What the buggy costs
 
-*Buggy handicap* is the working behind `buggy_handicap`. For every athlete with
-a buggy label it takes the runs between their first and last buggy run, splits
-them by mode, and reports mean/SD/median, density curves with a rug of the real
-runs, and three estimates: the raw difference in means, the same-course estimate
-(course fixed effects, which keeps only courses run both ways), and the same
-with a linear form-drift term. It recommends a value only when the estimates
-agree in sign, the raw interval clears zero, and there are at least 8 buggy
-runs; otherwise it says hold the default and why. Nothing on the tab is
-hardcoded — correct a label and every number moves. Needs `scipy`, which the
-dev venv has and `requirements.txt` deliberately does not.
+For every athlete with a buggy label: the runs between their first and last
+buggy run, split by mode, with mean/SD/median, density curves over a rug of the
+real runs, and three estimates — the raw difference in means, the same-course
+estimate (course fixed effects, which keeps only courses run both ways), and the
+same with a linear form-drift term. It recommends a value only when the
+estimates agree in sign, the raw interval clears zero, and there are at least 8
+buggy runs; otherwise it says hold the default, and why. Nothing is hardcoded:
+correct a label and every number moves.
 
-`run_local.sh` builds the legacy views into the dev DB when the var is set;
-nothing builds them into the source of truth or the deploy snapshot, so the
-hosted app can never serve them. If they are missing the app says so and stops.
+Runs beyond Q3 + 3·IQR are set aside and listed. Three IQRs, not the usual 1.5,
+because a parkrun field legitimately contains slow days — only a run that is not
+a race at all should fall out.
 
-**With no labels written it must report every occasion `Unchanged`.** That is
-the zero-label equivalence check as a live page: the new views have to reproduce
-the old ones exactly until a label says otherwise. A `Lost` occasion should be
-impossible — the bridge only ever makes *more* contests rankable — and it is
-called out in red if one appears.
+### What labelling changed
 
-## The hosted buggy-handicap page
+The live head-to-head against `v_head_to_head_legacy` — the frozen pre-buggy
+method (one pooled 91-day median, no mode split, no handicap bridge). Per
+occasion it reports whether the winner, the places, the ranked roster or just
+the margin moved, and stacks the old and new victory charts on a shared x-axis
+for whichever contest you pick. Two checkboxes filter it — what changed, and
+what used the handicap bridge — ANDed rather than exclusive, because "a bridged
+target that changed the result" is the cell worth looking at.
 
-`handicap_page.py` is served at **`/buggy-handicap`** on the main app's own
-domain, so George and Duncan can read the argument for the numbers they are
-judged by instead of being sent a screenshot.
+**These are retired numbers on a public page.** The legacy views ship in the
+deploy snapshot (`build_snapshot` calls `ensure_legacy_views(force=True)`) purely
+so this tab can exist; they were previously kept out of anything hosted so a
+superseded method could not be queried. What guards against misreading them is
+now the framing — the tab title, the `Old winner` / `New winner` columns, the
+docstring in `method_impact.py`. Loosen that and the protection goes with it.
 
-`app.py` is now an entrypoint and router — `st.set_page_config` plus
-`st.navigation([...], position="hidden")` over `parkrun_app.py` (the five tabs,
-at `/`) and `handicap_page.py`. The five-tab app moved to `parkrun_app.py` and
-lost its own `set_page_config`; only one call is legal per run, and it belongs
-to the entrypoint. Each page's browser-tab title comes from its `st.Page(title=)`.
+`run_local.sh` still builds the views into a dev DB under
+`PARKRUN_LABEL_AUDIT=1`, because `pipeline seed` copies tables and rebuilds
+views from `ensure_views` alone. They are **not** built into the source of
+truth. If they are missing, the tab says so and returns — never `st.stop()`,
+which would take the other tab down with it.
 
-**Hidden navigation is the whole point.** A `pages/` directory produces the same
-URLs but forces a nav list into the sidebar, which put a statistical argument
-about two named people in front of every visitor who came to look at parkrun
-results. `position="hidden"` keeps the path reachable by anyone sent the link
-and invisible to everyone else.
+**A `Lost` occasion should be impossible** — the bridge only ever makes *more*
+contests rankable — and one is called out in red if it appears.
 
-**The page is unlisted, not access-controlled.** Anyone with the URL can read
-it, and it is not behind a login. That is the intended trade — but it is worth
-saying out loud before the link goes anywhere wider than the two of them.
+Historical note: while `run_modes` was empty this tab had to report every
+occasion `Unchanged`. That was the zero-label equivalence check as a live page,
+and it is spent — the confirmed buggy labels ended it, which is what the tab now
+exists to show.
 
-The analysis itself lives in `buggy_handicap.py`, imported by **both** that page
-and `label_impact.py`'s second tab. One implementation, for the same reason
-`_winning_margin` exists once: two copies of this arithmetic would make a method
-difference indistinguishable from a rounding one.
-
-**The comparison is hosted too, and that cost something.** The second tab reads
-`v_head_to_head_legacy`, so `build_snapshot` now calls
-`ensure_legacy_views(force=True)` and the frozen pre-buggy views travel in the
-deploy snapshot. They were previously kept out of it precisely so a hosted app
-could not serve a superseded method. That guarantee is gone; what replaces it is
-presentation — the tab is titled *What labelling changed*, the columns are
-`Old winner` / `New winner`, and `method_impact.py` says in its docstring that
-those are retired numbers. If the framing ever gets loosened, the protection
-goes with it.
-
-The views are still **not** built into the source-of-truth DB: nothing there
-needs them, and a stored view of a retired method is one more thing a future
-migration has to carry.
-
-scipy is in `requirements.txt` for this page — the only runtime dependency there
-that the five-tab app does not itself use.
+scipy is a **hosted** dependency, pinned in `requirements.txt`. It is the only
+one there that the five-tab app does not itself use.
 
 ## Fake labels for previewing the buggy UI
 
