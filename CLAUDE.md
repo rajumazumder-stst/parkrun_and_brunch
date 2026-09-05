@@ -69,9 +69,11 @@ where they differ from the original brief, **the spec wins**.
   key migration, the mode-aware views (`v_results_moded` + per-mode targets and
   the symmetric handicap bridge), the review-sheet export/import tooling, and
   the whole UI surface. The estimator that would label future runs automatically
-  is still deliberately unwritten — it is supervised, and 36 buggy labels across
-  two athletes is not yet a training set (Duncan's 5 are below the 8-per-class
-  gate).
+  is still deliberately unwritten — it is supervised, and 37 buggy labels across
+  two athletes is not yet a training set (Duncan's 6 are below the 8-per-class
+  gate, and that gate is a **disjunction** — his raw interval also crosses zero
+  and his course-controlled estimates point the other way, so removing the
+  count clause alone would change nothing).
 - ✅ **Buggy handicap hosted at `/buggy-handicap`** (2 Sep 2026) — the working
   behind each athlete's handicap, on the main app's own domain, so it is
   shareable rather than a screenshot of `localhost:8502`. `app.py` is now a
@@ -112,7 +114,9 @@ where they differ from the original brief, **the spec wins**.
   at the 0.15 `default`** — five buggy runs, an interval crossing zero, and his
   one course run both ways pointing the other way (−3.7%), which is the course
   confound rather than the buggy. Zero-label equivalence is now **spent**: 175
-  of 205 occasions unchanged, 6 winners flipped, 0 lost.
+  of 205 occasions unchanged, 6 winners flipped, 0 lost. *(Counts as at the
+  import. Duncan gained a sixth buggy label by hand on 5 Sep 2026 — see
+  `docs/DATA.md` — which does not move him off the default.)*
 
 ---
 
@@ -531,11 +535,11 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 |---|---|
 | `parkrun_pipeline.py` | Loader: `bootstrap` / `refresh` / `status` / `snapshot` / `seed` / `motherduck` (Path A/B, DuckDB) + analytics views/targets + deploy-snapshot build + parkrun-only MotherDuck upload (`build_motherduck`). Also owns scraping (`scrape_athlete`) and time parsing (`time_to_seconds`). |
 | `app.py` | **Entrypoint and router only.** `st.set_page_config` (one call is legal per run) + `st.navigation([...], position="hidden")` mapping `/` → `parkrun_app.py` and `/buggy-handicap` → `handicap_page.py`. Hidden, not a `pages/` directory, so the analysis has a URL but no nav link |
-| `parkrun_app.py` | Streamlit front end (5 tabs: overlap · personal bests + head-to-head summary · head-to-head detail · form/target-time · head-to-head map) reading the `parkrun` schema read-only; DB path resolved via `PARKRUN_DB` env/secret (incl. `md:` MotherDuck), else the bundled snapshot. Auto-reloads on new data via a `data_version()` cache key — `max(scrape_timestamp)` **plus `max(set_at)` and `count(*)` from `run_modes`**, since labels are edited out of band and never move the scrape timestamp — 60s TTL; 🔄 Reload button clears the cache manually. A page script: no `set_page_config` of its own |
+| `parkrun_app.py` | Streamlit front end (5 tabs: overlap · personal bests + head-to-head summary · head-to-head detail · form/target-time · head-to-head map) reading the `parkrun` schema read-only; DB path resolved via `PARKRUN_DB` env/secret (incl. `md:` MotherDuck), else the bundled snapshot. Auto-reloads on new data via the shared `data_version()` cache key (**`parkrun_ui.py`** — see that row); 🔄 Reload button clears the cache manually. A page script: no `set_page_config` of its own |
 | `buggy_handicap.py` | The handicap measurement, imported by **both** `label_impact.py` and `handicap_page.py`: per athlete, the runs between their first and last buggy run, split by mode — mean/SD/median, density curves with a rug of the real runs, and three estimates (raw difference in means, course fixed effects, the same plus a form-drift term). Recommends a value only when the estimates agree in sign, the raw interval clears zero, and there are ≥ 8 buggy runs. **One implementation only** — the `_winning_margin` rule applies: a second copy would make a method difference indistinguishable from a rounding one. Needs `scipy` |
 | `handicap_page.py` | Page script at `/buggy-handicap` — **2 tabs**, *What the buggy costs* (`render_handicap`) and *What labelling changed* (`render_impact`). Layout only; both analyses are shared modules. Unlisted by design; the audience is the two people it is about, reached by a link they are sent — unlisted is **not** access-controlled |
 | `method_impact.py` | The pre-buggy head-to-head method against the current one: per-occasion verdicts (filterable to what changed and/or what used the handicap bridge) and paired victory charts. Imported by `handicap_page.py` and `label_impact.py`. Reads `v_head_to_head_legacy` — **retired numbers**, which is why every column and caption here says old-against-new |
-| `parkrun_ui.py` | Shared UI layer imported by **both** apps: DB resolution, `ATHLETE_COLORS`/`MEDAL`, `fmt_time`, the buggy display helpers (`BUGGY_GLYPH`, `mode_suffix`, `mode_text`, highlight colours), `_h2h_headline`, `_victory_fig` and `_winning_margin`. `_winning_margin` must exist **once only** — `label_impact.py` diffs old against new, so a second copy of that arithmetic would make a method difference indistinguishable from a rounding one |
+| `parkrun_ui.py` | Shared UI layer imported by **both** apps: DB resolution, `data_version`, `ATHLETE_COLORS`/`MEDAL`, `fmt_time`, the buggy display helpers (`BUGGY_GLYPH`, `mode_suffix`, `mode_text`, highlight colours), `_h2h_headline`, `_victory_fig` and `_winning_margin`. **`data_version` is the cache key for both apps** — `max(scrape_timestamp)` plus `max(set_at)` and `count(*)` from `run_modes`, since labels are edited out of band and never move the scrape timestamp; 60s TTL. It lives here for the `_winning_margin` reason: two copies that drifted would have the two apps disagreeing about whether the data had changed. `_winning_margin` must exist **once only** — `label_impact.py` diffs old against new, so a second copy of that arithmetic would make a method difference indistinguishable from a rounding one |
 | `label_impact.py` | **Dev-only twin of the hosted page** (its own port): the same two tabs, the same shared modules, driven against an isolated dev DB so the comparison can be exercised without touching the deploy snapshot. Layout only |
 | `scripts/run_local.sh` | Local dev launcher: venv + isolated `data/parkrun_dev.duckdb` (built via `pipeline seed`, **not** `cp` — the committed snapshot carries only the views it had when last rebuilt) + `streamlit run`. Under `PARKRUN_LABEL_AUDIT=1` it also builds the legacy views and starts `label_impact.py` on a second port (see `docs/DEV.md`) |
 | `scripts/dev_fake_labels.py` | Dev-only: plausible fake buggy labels for previewing the UI before the real ones arrive. Labels runs that were slow *relative to that athlete's trailing 20-run median*. Refuses to write to the source of truth or the deploy snapshot |

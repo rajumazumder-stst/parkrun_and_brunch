@@ -24,9 +24,9 @@ from __future__ import annotations
 
 import streamlit as st
 
-from buggy_handicap import data_version, render_handicap
+from buggy_handicap import render_handicap
 from method_impact import render_impact
-from parkrun_ui import BUGGY_GLYPH
+from parkrun_ui import BUGGY_GLYPH, data_version
 
 st.title(f"{BUGGY_GLYPH} The buggy labels")
 st.caption(

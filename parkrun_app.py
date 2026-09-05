@@ -20,7 +20,6 @@ Run:  streamlit run app.py
 from __future__ import annotations
 
 import math
-import os
 from datetime import datetime, timezone
 from html import escape
 from pathlib import Path
@@ -57,8 +56,8 @@ from parkrun_ui import (  # shared with label_impact.py — see that module
     HL_REGULAR,
     REGULAR_LABEL,
     UK_TZ,
+    data_version,
     fmt_time,
-    mode_badge,
     mode_suffix,
 )
 
@@ -122,30 +121,6 @@ _inject_home_screen_icons()
 # --------------------------------------------------------------------------- #
 # Data access (read-only; cached so the DB lock is held only briefly)
 # --------------------------------------------------------------------------- #
-@st.cache_data(ttl=60, show_spinner=False)
-def data_version() -> str:
-    """Cheap change-detector: the latest scrape timestamp, re-checked at most
-    once a minute. Passed as a *hashed* cache-key arg into the heavy loaders
-    below, so they auto-refetch exactly when a refresh writes new data and serve
-    cache otherwise (an out-of-band pipeline refresh updates the backend; this is
-    how the running app notices without a manual reload). Must NOT start with an
-    underscore — Streamlit skips underscore-prefixed args when hashing the key."""
-    df = _read_sql(
-        """
-        SELECT (SELECT max(scrape_timestamp) FROM parkrun.results) AS scraped,
-               (SELECT max(set_at) FROM parkrun.run_modes)         AS labelled,
-               (SELECT count(*)    FROM parkrun.run_modes)         AS n_labels
-        """
-    )
-    # run_modes is included because labels are edited OUT OF BAND (direct SQL
-    # against the source-of-truth DB — see docs/DATA.md), which never advances
-    # scrape_timestamp. count(*) as well as max(set_at): deleting a row does not
-    # move the maximum. Moot on the deployed instance, which only changes on
-    # redeploy, but it is the local editing workflow that needs it.
-    r = df.iloc[0]
-    return f"{r['scraped']}|{r['labelled']}|{r['n_labels']}"
-
-
 @st.cache_data(show_spinner=False)
 def load_data_meta(version) -> pd.Series:
     """Update markers from the data: the latest parkrun date and when the

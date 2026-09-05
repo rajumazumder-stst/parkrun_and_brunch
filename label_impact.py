@@ -17,9 +17,9 @@ from __future__ import annotations
 
 import streamlit as st
 
-from buggy_handicap import data_version, render_handicap
+from buggy_handicap import render_handicap
 from method_impact import render_impact
-from parkrun_ui import DB_PATH
+from parkrun_ui import DB_PATH, data_version
 
 st.set_page_config(page_title="Label impact", page_icon="🧪", layout="wide")
 

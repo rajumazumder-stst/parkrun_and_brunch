@@ -28,19 +28,6 @@ from scipy import stats as sps
 
 from parkrun_ui import BUGGY_GLYPH, _read_sql, fmt_time
 
-
-@st.cache_data(ttl=60, show_spinner=False)
-def data_version() -> str:
-    df = _read_sql(
-        """
-        SELECT (SELECT max(scrape_timestamp) FROM parkrun.results) AS scraped,
-               (SELECT max(set_at) FROM parkrun.run_modes)         AS labelled,
-               (SELECT count(*)    FROM parkrun.run_modes)         AS n_labels
-        """
-    )
-    r = df.iloc[0]
-    return f"{r['scraped']}|{r['labelled']}|{r['n_labels']}"
-
 # One pair for both athletes: the series here is the MODE, not the runner, so
 # the same two colours must mean the same two things on every chart it draws.
 # Validated as a categorical pair (CVD ΔE 24.7, normal-vision ΔE 33.6).

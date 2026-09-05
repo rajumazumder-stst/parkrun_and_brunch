@@ -126,8 +126,18 @@ def load_results(db: str) -> pd.DataFrame:
 
 
 def fmt_time(seconds: float) -> str:
+    """Deliberately a second copy of `parkrun_ui.fmt_time`, not an import:
+    `parkrun_ui` pulls in streamlit and plotly, and this script is a CLI tool
+    that must run without either (openpyxl is not in requirements.txt for the
+    same reason). **Keep the two in step** — they diverged once, this one
+    lacking the hour and NaN branches, which would have written a 1:03:20 run
+    into the review sheet as "63:20"."""
+    if pd.isna(seconds):
+        return "—"
     s = int(round(seconds))
-    return f"{s // 60}:{s % 60:02d}"
+    h, rem = divmod(s, 3600)
+    m, sec = divmod(rem, 60)
+    return f"{h}:{m:02d}:{sec:02d}" if h else f"{m}:{sec:02d}"
 
 
 def add_baselines(df: pd.DataFrame) -> pd.DataFrame:

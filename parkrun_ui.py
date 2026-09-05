@@ -87,6 +87,35 @@ def _read_sql(sql: str) -> pd.DataFrame:
 
 
 
+@st.cache_data(ttl=60, show_spinner=False)
+def data_version() -> str:
+    """Cheap change-detector, re-checked at most once a minute. Passed as a
+    *hashed* cache-key arg into the heavy loaders in both apps, so they
+    auto-refetch exactly when a refresh writes new data and serve cache
+    otherwise (an out-of-band pipeline refresh updates the backend; this is how
+    a running app notices without a manual reload). Must NOT start with an
+    underscore — Streamlit skips underscore-prefixed args when hashing the key.
+
+    `run_modes` is included because labels are edited OUT OF BAND (direct SQL
+    against the source-of-truth DB — see docs/DATA.md), which never advances
+    `scrape_timestamp`. `count(*)` as well as `max(set_at)`: deleting a row does
+    not move the maximum. Moot on the deployed instance, which only changes on
+    redeploy, but it is the local editing workflow that needs it.
+
+    Lives here, once, for the same reason `_winning_margin` does: both apps key
+    their caches on this string, and two copies that drifted would have them
+    disagreeing about whether the data had changed.
+    """
+    r = _read_sql(
+        """
+        SELECT (SELECT max(scrape_timestamp) FROM parkrun.results) AS scraped,
+               (SELECT max(set_at) FROM parkrun.run_modes)         AS labelled,
+               (SELECT count(*)    FROM parkrun.run_modes)         AS n_labels
+        """
+    ).iloc[0]
+    return f"{r['scraped']}|{r['labelled']}|{r['n_labels']}"
+
+
 def fmt_time(sec) -> str:
     if pd.isna(sec):
         return "—"
@@ -112,18 +141,6 @@ BUGGY_GLYPH = "🛒"
 # and naming it by what it lacks makes the buggy the default in the reader's
 # head. Raju has no buggy runs at all, so he is never labelled either way.
 REGULAR_LABEL = "regular"
-
-
-def mode_badge(is_buggy, source: str | None = None) -> str:
-    """HTML glyph for a run's mode. NEVER emoji-alone: the glyph always carries
-    a title, because an unexplained icon is worse than no icon."""
-    if not is_buggy:
-        return ""
-    what = "with buggy"
-    if source == "estimated":
-        what += ", estimated"
-    return (f"<span title='{escape(what)}' "
-            f"style='cursor:help'>{BUGGY_GLYPH}</span>")
 
 
 def mode_suffix(is_buggy, source: str | None = None) -> str:
