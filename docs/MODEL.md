@@ -305,11 +305,17 @@ George          0.90          0.49
 Duncan          0.77          0.81
 ```
 
-**George is the one at risk**, which is not where the risk was expected. He
-pushes at a consistent handful of courses, so `event_buggy_share` is
-high-leverage for him: mislabel one run at Osterley and Osterley's share rises,
-which makes the next Osterley run more likely to be flagged. Duncan's model
-leans on course difficulty — a fixed external number — so his loop is inert.
+**George is the one whose errors compound**, which is not where the risk was
+expected. He pushes at a consistent handful of courses, so `event_buggy_share`
+is high-leverage for him: mislabel one run at Osterley and Osterley's share
+rises, which makes the next Osterley run more likely to be flagged. Duncan's
+model leans on course difficulty — a fixed external number — so his loop is
+inert.
+
+**Compounding is not the same as frequency, and conflating the two gives the
+wrong advice.** Duncan's model is wrong *more often*: 6 of his 11 buggy calls
+against George's 5 of 33. Each of those still misstates a head-to-head result
+until someone corrects it; it simply does not also degrade the next fit.
 
 That bound **overstates the danger**: the simulation discards confirmed labels
 as it walks, whereas `run_modes` is write-once and every `user` label is a
@@ -325,7 +331,13 @@ Two countermeasures, both live:
   The first drifting above the second is the model scoring well against its own
   opinions, which is what self-reinforcement looks like from the inside.
 
-**Practically: George's buggy calls are the ones worth checking.**
+**Practically: both athletes' buggy calls need review, for different reasons.**
+Duncan's are more likely to be wrong; George's do more damage when they are.
+
+The rule that needs no caveat is narrower and more useful: **it is always a
+buggy call that goes wrong.** A `regular` call is right 95% of the time for
+George and 100% for Duncan (15 of 15), and every error either model has made,
+in either direction, was a run it called buggy.
 
 ---
 

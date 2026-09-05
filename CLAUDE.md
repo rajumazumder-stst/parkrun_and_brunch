@@ -120,8 +120,13 @@ where they differ from the original brief, **the spec wins**.
   falls 0.90 → 0.49 (his `event_buggy_share` is high-leverage, so a mislabel at
   a course he frequents breeds more) while Duncan is stable at 0.81. That bound
   overstates — write-once means every `user` label is a permanent anchor the
-  model cannot overwrite — but it names the direction: **George's buggy calls
-  are the ones worth checking.** The notification is the countermeasure: every
+  model cannot overwrite — but it names the direction. **Both athletes' buggy
+  calls need review, for different reasons**: Duncan's are wrong more often
+  (6 of his 11, against George's 5 of 33) and each misstates a past result,
+  while George's are wrong far less often but compound. Neither is the safe
+  one, and it is specifically the *buggy* calls — a `regular` call is right
+  95-100% of the time for both, and every mistake either model has made was a
+  buggy call. The notification is the countermeasure: every
   call reaches the phone the same day with its confidence and that call type's
   measured reliability, and each refresh logs the walk-forward accuracy twice —
   training on `user`+`model`, and on `user` only. Those two agreeing is what
