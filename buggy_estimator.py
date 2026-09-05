@@ -62,8 +62,10 @@ BASE_WINDOW_DAYS = 182
 # the pipeline pulls in requests and bs4, which this module must not need.
 TARGET_WINDOW_DAYS = 91
 PRIOR_RATE_N = 10          # feature 5 looks back this many labelled runs
+EVENT_RATE_PRIOR = 3.0     # pseudo-runs of shrinkage for feature 6
 
-FEATURES = ["excess", "form_resid", "course_diff", "run_len", "prior_rate"]
+FEATURES = ["excess", "form_resid", "course_diff", "run_len", "prior_rate",
+            "event_buggy_share"]
 
 # Only these sources train. A `rule` row is what a deterministic rule says
 # must be true — Raju has never pushed a buggy — so it is a statement about the
@@ -223,8 +225,48 @@ def _prior_rate(history: pd.DataFrame) -> float:
     return float(labelled.is_buggy.astype(bool).mean())
 
 
+def _event_buggy_share(row, history: pd.DataFrame) -> tuple[float, float]:
+    """Share of this athlete's runs *at this event* that were pushed, counted
+    from their first buggy run onward. Returns (share, n runs there).
+
+    Aimed squarely at the course confound, which is the estimator's largest
+    known failure: Duncan's false positives are almost all slow runs at
+    Lordship, a hard course he has never taken a buggy to. The other course
+    feature, `course_diff`, only knows a course is hard in general — it cannot
+    know this athlete goes there alone. This can.
+
+    Two decisions inside it:
+
+    **The era starts at the first buggy run**, not at the start of history.
+    Before that every run is non-buggy because no buggy existed, so including
+    those years would drown a real 3-of-4 at a course under a decade of zeroes
+    and make the feature a proxy for how long ago the athlete started running.
+    The start date is read from the *prior* runs only, so it moves forward as
+    history accumulates rather than being imposed from the future.
+
+    **The share is shrunk toward the athlete's era-wide rate** by
+    `EVENT_RATE_PRIOR` pseudo-runs, which is how the run count earns its say.
+    A raw share cannot distinguish 1-of-1 from 8-of-8, and a first visit to a
+    course would otherwise assert 0% — a confident claim from no evidence.
+    Shrinkage makes an unvisited course say exactly what is true of it: nothing
+    beyond what the athlete does in general. It also keeps the feature defined
+    everywhere, so no run drops out of training over it.
+    """
+    lab = history[history.source.isin(TRAINING_SOURCES) & history.is_buggy.notna()]
+    if lab.empty:
+        return 0.0, 0.0
+    buggy = lab[lab.is_buggy.astype(bool)]
+    if buggy.empty:
+        return 0.0, 0.0          # pre-era: no buggy has ever been pushed
+    era = lab[lab.run_date >= buggy.run_date.min()]
+    base = float(era.is_buggy.astype(bool).mean())
+    here = era[era.event_id == row.event_id]
+    k, n = float(here.is_buggy.astype(bool).sum()), float(len(here))
+    return (k + EVENT_RATE_PRIOR * base) / (n + EVENT_RATE_PRIOR), n
+
+
 def build_features(athlete: pd.DataFrame) -> pd.DataFrame:
-    """Attach the five features to one athlete's runs, causally.
+    """Attach the six features to one athlete's runs, causally.
 
     Walks the runs in date order; every value for a run is derived only from
     rows above it. `_resid` is carried alongside because the streak feature
@@ -238,6 +280,7 @@ def build_features(athlete: pd.DataFrame) -> pd.DataFrame:
         expected, basis, n_base = (
             baseline_for(row, hist) if len(hist) else (np.nan, "none", 0)
         )
+        ev_share, ev_n = _event_buggy_share(row, hist) if len(hist) else (0.0, 0.0)
         rows.append(
             {
                 "excess": row.time_seconds / expected - 1 if expected == expected else np.nan,
@@ -246,6 +289,8 @@ def build_features(athlete: pd.DataFrame) -> pd.DataFrame:
                 # here would duplicate the name and make row lookups ambiguous.
                 "run_len": _same_sign_run(hist) if len(hist) else 0.0,
                 "prior_rate": _prior_rate(hist) if len(hist) else np.nan,
+                "event_buggy_share": ev_share,
+                "event_n": ev_n,
                 "basis": basis,
                 "n_base": n_base,
             }

@@ -147,6 +147,51 @@ class TestFeatures:
     def test_prior_rate_is_nan_with_no_evidence(self):
         assert np.isnan(be._prior_rate(runs((0, 1, 1200, False, "rule"))))
 
+    def test_event_share_is_zero_before_any_buggy_exists(self):
+        """A decade of runs before the first buggy is not evidence that this
+        course is buggy-free — no course was. It is simply the pre-era."""
+        h = runs(*[(i * 7, 1, 1200, False) for i in range(20)])
+        share, n = be._event_buggy_share(runs((200, 1, 1200)).iloc[0], h)
+        assert share == 0.0 and n == 0.0
+
+    def test_event_share_counts_only_from_the_first_buggy_run(self):
+        """Five clean years at a course, then two of three pushed. The era
+        rule must see 2/3, not 2/8."""
+        h = runs(
+            *[(i * 7, 1, 1200, False) for i in range(5)],       # pre-era
+            (100, 1, 1200, True), (107, 1, 1200, True), (114, 1, 1200, False),
+        )
+        share, n = be._event_buggy_share(runs((200, 1, 1200)).iloc[0], h)
+        assert n == 3.0
+        assert share > 0.5                                       # nowhere near 2/8
+
+    def test_event_share_shrinks_toward_the_athletes_own_rate(self):
+        """An unvisited course asserts nothing of its own: the run count is
+        zero, so the value collapses to what the athlete does in general."""
+        h = runs(
+            (0, 1, 1200, True), (7, 1, 1200, True),
+            (14, 2, 1200, False), (21, 2, 1200, False),
+        )
+        base = 0.5
+        unvisited, n = be._event_buggy_share(runs((100, 99, 1200)).iloc[0], h)
+        assert n == 0.0 and unvisited == pytest.approx(base)
+
+    def test_event_share_needs_repeat_visits_to_move_far(self):
+        """One run at a course cannot swing the feature to a certainty — that
+        is what EVENT_RATE_PRIOR buys. Eight can."""
+        pre = [(0, 1, 1200, True)] + [(7 + i, 2, 1200, False) for i in range(9)]
+        once = be._event_buggy_share(runs(*pre, (200, 3, 1200)).iloc[0], runs(*pre, (100, 3, 1200, True)))[0]
+        many = be._event_buggy_share(
+            runs((200, 3, 1200)).iloc[0],
+            runs(*pre, *[(100 + i, 3, 1200, True) for i in range(8)]),
+        )[0]
+        assert once < 0.5 < many
+
+    def test_event_share_ignores_rule_rows(self):
+        h = runs((0, 1, 1200, True, "user"), (7, 1, 1200, False, "rule"))
+        share, n = be._event_buggy_share(runs((14, 1, 1200)).iloc[0], h)
+        assert n == 1.0                                          # the rule row is not counted
+
 
 # --------------------------------------------------------------------------- #
 # Weighting — class balance and recency
@@ -232,6 +277,13 @@ class TestContracts:
         src = (be.REPO / "parkrun_pipeline.py").read_text()
         line = next(l for l in src.splitlines() if l.startswith("TARGET_WINDOW_DAYS"))
         assert int(line.split("=")[1].split("#")[0].strip()) == be.TARGET_WINDOW_DAYS
+
+    def test_every_feature_is_produced_by_build_features(self):
+        """FEATURES is the contract between build_features, the fit and the
+        report. A feature named but not built would silently become its own
+        median for every run."""
+        f = be.build_features(runs((0, 1, 1200, False), (7, 2, 1300, True), (14, 1, 1250)))
+        assert set(be.FEATURES) <= set(f.columns)
 
     def test_rule_rows_never_train(self):
         assert "rule" not in be.TRAINING_SOURCES

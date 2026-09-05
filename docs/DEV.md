@@ -242,7 +242,7 @@ is with a comment naming `TARGET_WINDOW_DAYS` as its source of truth.
 ### 2. Test coverage is thin
 
 **Partly addressed.** `tests/test_buggy_estimator.py` now covers the estimator
-(27 cases, no DB). Everything else remains untested: the pipeline's views, the
+(34 cases, no DB). Everything else remains untested: the pipeline's views, the
 head-to-head arithmetic, `_winning_margin`, the handicap gate. The reasoning
 below still applies to those.
 
