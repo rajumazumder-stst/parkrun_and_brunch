@@ -106,9 +106,11 @@ They are still **not** built into the source-of-truth DB; `bootstrap` and
 `/buggy-handicap` that only the local launcher starts, running the same two
 shared modules against an isolated dev DB.
 
-`scripts/dev_fake_labels.py` likewise never runs outside a dev database: it
-refuses to write to `~/.config/parkrun/parkrun_local.duckdb` or to the deploy
-snapshot.
+The same guard applies to any tool that writes labels.
+`scripts/export_buggy_review.py` refuses to write to the deploy snapshot — it is
+rebuilt from the source of truth on every refresh, so a label written there
+would be silently destroyed. (`scripts/dev_fake_labels.py` carried the same
+guard and was removed once real labels existed — see `docs/DEV.md`.)
 
 ---
 

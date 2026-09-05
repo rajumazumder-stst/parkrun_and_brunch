@@ -127,26 +127,25 @@ exists to show.
 scipy is a **hosted** dependency, pinned in `requirements.txt`. It is the only
 one there that the five-tab app does not itself use.
 
-## Fake labels for previewing the buggy UI
+## Fake labels — removed
 
-Until the real labels come back there is nothing for the buggy-mode UI to show:
+There was a `scripts/dev_fake_labels.py` that fabricated plausible buggy labels
+so the buggy-mode UI had something to show before the real ones existed. It
+labelled runs that were slow relative to each athlete's trailing form, and
+marked a quarter of them `estimated` so the old `🛒 (est.)` marker could be
+seen on screen.
 
-```bash
-python scripts/dev_fake_labels.py           # writes plausible fake labels
-python scripts/dev_fake_labels.py --clear   # start over
-```
+Both reasons are spent. The review sheet came back on 2 Sep 2026, so the deploy
+snapshot now ships **161 real labels, 37 of them buggy** — a dev DB seeded from
+it has plenty for the UI to render. And the `(est.)` marker was deleted rather
+than wired up: an estimate is checked in the database (`docs/DATA.md`), not read
+off the page.
 
-It labels runs that were slow *relative to that athlete's trailing 20-run
-median*, so the fakes track contemporaneous form rather than a flat time:
-Duncan gets a sustained era (what a real buggy looks like), George scattered
-one-offs, a quarter of them `estimated` with a populated `confidence` so both
-`source` values travel through the views, the CSV export and the snapshot.
-There is no UI marker to exercise — an estimate renders identically to a
-confirmation, by design. It refuses to write to the source of truth or the
-deploy snapshot.
-
-Delete `data/parkrun_dev.duckdb` when you are done — it is disposable, and
-leaving fake labels in it is a trap.
+It is not worth reviving to test the estimator, either. It planted "slow
+relative to form" as its buggy signal, which is close to what the estimator
+looks for, so a model tested against it would score well for circular reasons.
+The walk-forward over real labels is the honest measure. Recover it from git
+history if some future need proves otherwise.
 
 ## Screenshots
 
