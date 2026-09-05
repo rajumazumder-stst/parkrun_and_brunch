@@ -169,9 +169,10 @@ mechanics:
 * **causality** — appending a later run must leave every earlier row's features
   byte-identical. This is the property the whole walk-forward rests on; break it
   and the model quietly scores itself using answers it could not have had.
-* **`default` rows never train** — they are assumptions, not observations
-  (`CLAUDE.md`'s three-source rule). They *are* still used for features: a
-  default row is a real run with a real time.
+* **`rule` rows never train** — a `rule` row records what a rule dictates, not
+  what anyone observed (`CLAUDE.md`'s three-source rule). They *are* still used
+  for features: a real run with a real time belongs in a form window whoever
+  labelled it.
 * **effective positives ignores class balancing** — balancing rescales the
   positives to match the negatives, so folding it in would hide exactly the
   loss the half-life floor exists to catch.

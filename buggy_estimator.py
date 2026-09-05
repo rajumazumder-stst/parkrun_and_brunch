@@ -65,13 +65,13 @@ PRIOR_RATE_N = 10          # feature 5 looks back this many labelled runs
 
 FEATURES = ["excess", "form_resid", "course_diff", "run_len", "prior_rate"]
 
-# Only these sources train. `default` rows are the backfill of runs nobody
-# reviewed — an assumption that a run was not a buggy, not an observation of it
-# — and training on several hundred of them would assert unverified negatives as
-# confirmed fact. They are still used for FEATURES: a default row is a real run
-# with a real time, so it belongs in a form window and a course baseline. It is
-# only its label that is not evidence.
-TRAINING_SOURCES = ("manual", "estimated")
+# Only these sources train. A `rule` row is what a deterministic rule says
+# must be true — Raju has never pushed a buggy — so it is a statement about the
+# rule, not evidence about the run, and hundreds of them would swamp the
+# evidence that exists. `rule` rows are still used for FEATURES: a real run with
+# a real time belongs in a form window and a course baseline whoever labelled
+# it. It is only its label that carries no information.
+TRAINING_SOURCES = ("user", "model")
 
 # --- fitting ----------------------------------------------------------------
 L2 = 1.0                   # ridge penalty on the coefficients, not the intercept
@@ -521,8 +521,8 @@ def report(db: str, only: str | None = None) -> None:
         feat = build_features(runs[runs.athlete_id == aid])
         labelled = feat[feat.source.isin(TRAINING_SOURCES)]
         print(f"\n{'=' * 92}\n{name} — {len(labelled)} runs with evidence "
-              f"(manual/estimated; {int((feat.source == 'default').sum())} "
-              f"pre-review 'default' rows excluded from training), "
+              f"(user/model; {int((feat.source == 'rule').sum())} "
+              f"'rule' rows excluded from training), "
               f"{int(labelled.is_buggy.sum())} buggy "
               f"({labelled.is_buggy.mean():.0%})\n{'=' * 92}")
 

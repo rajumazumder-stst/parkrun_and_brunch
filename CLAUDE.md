@@ -96,6 +96,16 @@ where they differ from the original brief, **the spec wins**.
   `pipeline seed`, gitignored) so previews never touch `main` or the deploy
   snapshot. `PARKRUN_LABEL_AUDIT=1` additionally starts `label_impact.py` on a
   second port. See `docs/DEV.md`.
+- ✅ **Label sources renamed and widened** (5 Sep 2026). `manual`/`estimated`/
+  `default` became **`user`/`model`/`rule`**, named for who said so — which is
+  what `source` means. `migrate_label_sources` renames old values in place and
+  is idempotent. At the same time the 681 former `default` rows became `user`
+  evidence: neither George nor Duncan had a buggy before 2025 and Raju never
+  has, so those are blanket confirmations about an era rather than assumptions,
+  and they now train the estimator. Folding them in lifted George's walk-forward
+  recall 0.78 → 0.93 (precision 0.78 → 0.74, accuracy unchanged at 0.83) and
+  left Duncan unchanged. `apply_rule_labels` runs every refresh so Raju's new
+  runs get a `rule` row without anyone doing anything.
 - 📕 **Fake dev labels — removed** (5 Sep 2026). `scripts/dev_fake_labels.py`
   fabricated plausible buggy labels so the buggy-mode UI had something to render
   before the real ones existed, a quarter of them `estimated` so the old
@@ -297,16 +307,23 @@ non-buggy** and `is_buggy` is `NOT NULL` — there is no third state.
 |---|---|
 | athlete_id, run_date, event_id | PK — same natural key as `results` |
 | is_buggy | NOT NULL |
-| source | `manual` \| `estimated` \| `default` — **not interchangeable**, see below |
-| confidence | `max(p, 1−p)`; NULL for `manual`/`default` |
+| source | `user` \| `model` \| `rule` — **not interchangeable**, see below |
+| confidence | `max(p, 1−p)`; NULL for `user`/`rule` |
 | reason | Free text |
 | set_at | When the label was written |
 
-| `source` | Written by | Trains the model? |
+| `source` | Written by | Trains the estimator? |
 |---|---|---|
-| `manual` | Spreadsheet import, or a hand SQL correction | **yes** |
-| `estimated` | The model, on new runs | **yes** |
-| `default` | Backfill of unreviewed runs; Raju's rows | **no** — an assumption, not an observation |
+| `user` | You — the review sheet, a hand SQL correction, or a blanket assertion about an era | **yes** |
+| `model` | `buggy_estimator.py`, on runs with no label | **yes** |
+| `rule` | A deterministic rule, no judgement involved — Raju has never pushed a buggy | **no** — a statement about the rule, not evidence about the run |
+
+Renamed from `manual` / `estimated` / `default` on 5 Sep 2026, and named for
+**who said so**, which is what `source` means. `parkrun_pipeline.migrate_label_sources`
+renames old values in place and is idempotent. `rule` rows are excluded from
+training but still used for **features** — a real run with a real time belongs
+in a form window and a course baseline whoever labelled it; it is only its
+label that carries no information.
 
 Exported to `data/parkrun_run_modes.csv` on every refresh, so hand-entered
 labels have a diffable git history rather than living only inside a binary DB.
@@ -489,7 +506,7 @@ Saturday" (a skipped gate doesn't advance it).
 4. Wrap all three athletes in **one** transaction; if any athlete's page fails,
    roll back all three and retry (results stay internally consistent).
 
-After Path B, the refresh runs `update_current_targets()` (snapshots today's
+After Path B, the refresh runs `apply_rule_labels()` (labels any unlabelled run whose answer follows from a rule rather than a judgement — Raju has never pushed a buggy; write-once, so a correction always outranks it), then `update_current_targets()` (snapshots today's
 current-form targets), exports the results snapshot CSV and rebuilds
 `data/parkrun_snapshot.duckdb`; `scripts/parkrun_refresh.sh` then commits and
 pushes both — that push is what deploys the new data. The analytics views
@@ -557,7 +574,7 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | `scripts/parkrun_autorefresh.sh` | Scheduling policy calling the master (launchd agents run self-syncing deployed copies at `~/.config/parkrun/`, Sat 14:30 + Sun 11:00 + missed-weekend login prompt — see `docs/DEPLOY.md` § Scheduled refresh) |
 | `scripts/sync_working_copy.sh` | `sync_working_copy()` — sourced by `parkrun_refresh.sh` (after the freshness stamp) and by `run_local.sh` (`--fetch-only`). Always fetches the `~/Documents` working copy; fast-forwards it only when the tree is clean **and** the branch is `main`. Every path returns 0 — it can never fail a refresh. No-op under launchd (TCC blocks `~/Documents`) |
 | `scripts/fetch_course_difficulty.py` | One-off fetch of the published UK course-difficulty scores to `data/course_difficulty.csv`. Run by hand; the refresh applies the cached CSV and never touches the network for it |
-| `scripts/export_buggy_review.py` | The buggy review sheet: **export** (one tab per athlete, evidence only — no estimate), **`--import`** a returned workbook, **`--backfill`** every unreviewed run as `default`. Dry-run by default, writes only with `--apply`, never overwrites an existing label, refuses to write to the deploy snapshot. Needs `openpyxl`, deliberately not in `requirements.txt` |
+| `scripts/export_buggy_review.py` | The buggy review sheet: **export** (one tab per athlete, evidence only — no estimate), **`--import`** a returned workbook, **`--backfill`** every unreviewed run as `rule` (largely superseded — the refresh now applies rule labels itself). Dry-run by default, writes only with `--apply`, never overwrites an existing label, refuses to write to the deploy snapshot. Needs `openpyxl`, deliberately not in `requirements.txt` |
 | `scripts/build_logo.py` | Builds the app logo — two variants, `ACTIVE` (currently `toast`) is the one rasterised into `static/`. Lettering is converted from DejaVu Sans Bold to SVG paths at build time, so the committed SVG needs no font installed (DejaVu, not a system font like Arial, because its licence permits redistributing outlines). Build-time only; needs `cairosvg` + `fontTools` + `matplotlib`, deliberately **not** in `requirements.txt` |
 | `assets/logo-toast.svg` | Vector source, **active** logo: `PR&B` on a slice of toast, letters in the three athletes' colours (generated — edit `build_logo.py`, not this) |
 | `assets/logo-runners.svg` | Vector source, alternative logo: three runners in `ATHLETE_COLORS` on a fried egg (generated) |

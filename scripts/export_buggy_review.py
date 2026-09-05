@@ -21,15 +21,15 @@ something. What is left is the evidence: `Baseline` and `Excess`, whose real
 signal is a **run of consecutive same-sign deviations**, not any single row.
 
 **Import.** Reads a returned sheet and writes parkrun.run_modes three ways:
-  1. answered  -> source='manual', is_buggy as stated. Trains the model.
-  2. blank     -> source='default', is_buggy=FALSE, and listed in the output.
-                  An unanswered row is an assumption, not a confirmation.
-  3. every run outside the sheet (Raju included) -> source='default', FALSE.
+  1. answered  -> source='user', is_buggy as stated. Trains the estimator.
+  2. blank     -> source='rule', is_buggy=FALSE, and listed in the output.
+                  An unanswered row is not a confirmation.
+  3. every run outside the sheet -> source='rule', FALSE.
 Prints what it would do; writes only with --apply.
 
-**Backfill.** Rule 3 on its own, so the ~681 runs outside the sheet can be
-labelled before it comes back — they are non-buggy whatever the answers, and
-writing them early makes the estimator's anti-join converge.
+**Backfill.** Rule 3 on its own. Largely superseded: the pipeline now applies
+rule labels on every refresh (`apply_rule_labels`), so this is only needed for a
+bulk catch-up.
 
 Writes go to the SOURCE OF TRUTH (~/.config/parkrun/parkrun_local.duckdb), never
 to the deploy snapshot; override with PARKRUN_DB for testing.
@@ -238,7 +238,7 @@ def _label_frame(con, sheet: pd.DataFrame | None) -> pd.DataFrame:
     ).fetchdf()
     runs["run_date"] = pd.to_datetime(runs["run_date"]).dt.date
     runs["is_buggy"] = False
-    runs["source"] = "default"
+    runs["source"] = "rule"
     runs["reason"] = "not reviewed — assumed non-buggy"
 
     if sheet is None or sheet.empty:
@@ -258,7 +258,7 @@ def _label_frame(con, sheet: pd.DataFrame | None) -> pd.DataFrame:
 
     on_sheet = merged["_merge"] == "both"
     answered = on_sheet & merged["confirmed"].isin([WITH_BUGGY, WITHOUT_BUGGY])
-    merged.loc[answered, "source"] = "manual"
+    merged.loc[answered, "source"] = "user"
     merged.loc[answered, "is_buggy"] = merged.loc[answered, "confirmed"] == WITH_BUGGY
     merged.loc[answered, "reason"] = "confirmed by the athlete"
     merged["blank_on_sheet"] = on_sheet & ~answered
@@ -324,7 +324,7 @@ def report(rows: pd.DataFrame) -> None:
     """
     print("\n  per athlete:")
     for name, g in rows.groupby("athlete_name"):
-        man = g[g.source == "manual"]
+        man = g[g.source == "user"]
         buggy = int(man.is_buggy.sum())
         nonbuggy = int((~man.is_buggy).sum())
         thin = "" if min(buggy, nonbuggy) >= 8 else "   <- thin for one class"
@@ -393,7 +393,7 @@ def main() -> None:
     ap.add_argument("--import", dest="import_path", type=Path, default=None,
                     help="import a returned review workbook")
     ap.add_argument("--backfill", action="store_true",
-                    help="label every run 'default' non-buggy, no sheet needed")
+                    help="label every unreviewed run 'rule' non-buggy, no sheet needed")
     ap.add_argument("--apply", action="store_true",
                     help="actually write (import/backfill print a dry run "
                          "otherwise)")

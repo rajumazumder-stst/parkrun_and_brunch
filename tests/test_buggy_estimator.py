@@ -24,7 +24,7 @@ def runs(*specs, athlete_id=1):
     for i, spec in enumerate(specs):
         day, event, secs = spec[0], spec[1], spec[2]
         is_buggy = spec[3] if len(spec) > 3 else None
-        source = spec[4] if len(spec) > 4 else ("manual" if is_buggy is not None else None)
+        source = spec[4] if len(spec) > 4 else ("user" if is_buggy is not None else None)
         rows.append(
             dict(
                 athlete_id=athlete_id,
@@ -129,23 +129,23 @@ class TestFeatures:
     def test_same_sign_run_is_zero_without_history(self):
         assert be._same_sign_run(pd.DataFrame({"_resid": []})) == 0.0
 
-    def test_prior_rate_ignores_default_rows(self):
-        """`default` is an assumption that a run was not a buggy, not an
-        observation of it — CLAUDE.md's three-source rule. Counting those
-        would drag the rate toward zero on unreviewed history."""
+    def test_prior_rate_ignores_rule_rows(self):
+        """A `rule` row is what a rule says must be true, not evidence about
+        the run — CLAUDE.md's three-source rule. Counting them would drag the
+        rate toward zero on runs nobody assessed."""
         h = runs(
-            (0, 1, 1200, False, "default"),
-            (7, 1, 1200, False, "default"),
-            (14, 1, 1200, True, "manual"),
+            (0, 1, 1200, False, "rule"),
+            (7, 1, 1200, False, "rule"),
+            (14, 1, 1200, True, "user"),
         )
         assert be._prior_rate(h) == pytest.approx(1.0)
 
-    def test_prior_rate_counts_estimated_alongside_manual(self):
-        h = runs((0, 1, 1200, True, "manual"), (7, 1, 1200, False, "estimated"))
+    def test_prior_rate_counts_model_alongside_user(self):
+        h = runs((0, 1, 1200, True, "user"), (7, 1, 1200, False, "model"))
         assert be._prior_rate(h) == pytest.approx(0.5)
 
     def test_prior_rate_is_nan_with_no_evidence(self):
-        assert np.isnan(be._prior_rate(runs((0, 1, 1200, False, "default"))))
+        assert np.isnan(be._prior_rate(runs((0, 1, 1200, False, "rule"))))
 
 
 # --------------------------------------------------------------------------- #
@@ -233,9 +233,16 @@ class TestContracts:
         line = next(l for l in src.splitlines() if l.startswith("TARGET_WINDOW_DAYS"))
         assert int(line.split("=")[1].split("#")[0].strip()) == be.TARGET_WINDOW_DAYS
 
-    def test_default_rows_never_train(self):
-        assert "default" not in be.TRAINING_SOURCES
-        assert set(be.TRAINING_SOURCES) == {"manual", "estimated"}
+    def test_rule_rows_never_train(self):
+        assert "rule" not in be.TRAINING_SOURCES
+        assert set(be.TRAINING_SOURCES) == {"user", "model"}
+
+    def test_the_three_sources_agree_with_the_pipeline(self):
+        """One vocabulary. The pipeline owns the migration that renames old
+        values, so a third spelling appearing anywhere is a bug."""
+        src = (be.REPO / "parkrun_pipeline.py").read_text()
+        line = next(l for l in src.splitlines() if l.startswith("LABEL_SOURCES"))
+        assert set(be.TRAINING_SOURCES) | {"rule"} == eval(line.split("=", 1)[1].strip())
 
     def test_raju_is_out_of_scope(self):
         """He has never pushed a buggy, so scoring him could only invent one."""

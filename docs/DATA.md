@@ -5,30 +5,31 @@ tables in `CLAUDE.md`; for the method see *Feature 2 — head-to-head* there.
 
 ## Where things stand (5 Sep 2026)
 
-The review sheet came back fully answered and is imported. `run_modes` holds
-**842** rows — every run the three athletes have:
+`run_modes` holds **843** rows — every run the three athletes have, bar one:
 
 | `source` | `is_buggy` | Rows |
 |---|---|---|
-| `manual` | TRUE | 37 (George 31, Duncan 6) |
-| `manual` | FALSE | 124 |
-| `default` | FALSE | 681 |
+| `user` | TRUE | 37 (George 31, Duncan 6) |
+| `user` | FALSE | 805 |
+| `rule` | FALSE | 1 (Raju, 2026-09-05) |
+| `model` | — | none yet |
 
-Duncan's sixth buggy label is 2026-09-05 at Lordship Recreation Ground, entered
-by hand and confirmed by the athlete. It is worth recording that the run did
-**not** look like a buggy run from the data: measured against his non-buggy
-form and the course, 29:21 sits on the buggy centroid, but the two confirmed
-non-buggy Lordship runs nearest it (27:24 and 28:56) score the same way — which
-is exactly why labels are supervised and no estimator writes them.
+George's 2026-09-05 run is the only unlabelled one: it is what the estimator
+will score first.
 
-No `estimated` rows: the estimator is still unwritten. Handicaps measured from
-those labels — **George 0.13 (`measured`)**, Duncan and Raju on the `0.15`
-`default`; Duncan's six buggy runs are below the 8-per-class gate, his raw
-interval crosses zero and his course-controlled estimates point the *other*
-way, so there is nothing to measure yet. Note the gate is a disjunction — the
-count is only one of three reasons he is held at the default, and removing it
-alone would change nothing. The working is at `/buggy-handicap` on the hosted
-app, recomputed live from whatever `run_modes` currently says.
+Two things produced the `user` rows. 161 came from the review sheet, answered
+run by run. The other 681 were a **blanket assertion about an era** — neither
+George nor Duncan had a buggy before 2025, and Raju never has — which is a
+confirmation, not an assumption, and so trains the estimator. Before 5 Sep those
+were `default` rows excluded from training; folding them in lifted George's
+recall from 0.78 to 0.93 and left Duncan unchanged.
+
+Handicaps measured from these labels — **George 0.13 (`measured`)**, Duncan and
+Raju on the `0.15` default; Duncan's six buggy runs are below the 8-per-class
+gate, his raw interval crosses zero and his course-controlled estimates point
+the *other* way. Note that gate is a disjunction — the count is only one of
+three reasons, and removing it alone would change nothing. The working is at
+`/buggy-handicap`, recomputed live.
 
 Labelling changed the record, as it was always going to: 175 of 205 occasions
 unchanged, 6 winners flipped, 3 with places reordered, none lost.
@@ -43,15 +44,18 @@ runs and penalises the non-buggy ones. `parkrun.run_modes` is the label store.
 
 ## The three `source` values are not interchangeable
 
-| `source` | Written by | Trains the model? |
+| `source` | Written by | Trains the estimator? |
 |---|---|---|
-| `manual` | The review spreadsheet import, or your own SQL correction | **yes** |
-| `estimated` | The model, on new runs | **yes** |
-| `default` | Backfill of runs nobody reviewed; Raju's rows | **no** |
+| `user` | You — the review sheet, a hand correction, or a blanket assertion about an era | **yes** |
+| `model` | `buggy_estimator.py`, on runs with no label | **yes** |
+| `rule` | A deterministic rule — Raju has never pushed a buggy | **no** |
 
-`default` is excluded from training on purpose. Those rows are *assumptions* —
-"probably not a buggy" — and training on them would assert several hundred
-unverified negatives as confirmed fact.
+Renamed from `manual` / `estimated` / `default` on 5 Sep 2026, for who said so.
+
+`rule` is excluded from training on purpose: it records what a rule dictates,
+not what anyone observed about that run, so it would add hundreds of rows of no
+information. It is still used for **features** — a real run with a real time
+belongs in a form window and a course baseline whoever labelled it.
 
 ## Importing the review sheet
 
@@ -59,7 +63,8 @@ unverified negatives as confirmed fact.
 # export the sheet for George and Duncan
 python scripts/export_buggy_review.py
 
-# label every run 'default' non-buggy — safe before the sheet comes back
+# bulk catch-up: label every unreviewed run 'rule' non-buggy. Largely
+# superseded — the refresh now applies rule labels itself.
 python scripts/export_buggy_review.py --backfill          # dry run
 python scripts/export_buggy_review.py --backfill --apply
 
@@ -75,17 +80,18 @@ correction outranks a re-import permanently and re-running is a no-op.
 Writes are refused against the deploy snapshot: it is rebuilt from the source of
 truth on every refresh, so a label written there would be silently destroyed.
 
-The backfill is safe to run early. Those rows are all `is_buggy = FALSE`, so the
-views produce byte-identical output to before — but the estimator's anti-join
-converges immediately, which is what makes its write-once path exercisable.
+Rule labels are applied automatically now: `apply_rule_labels` runs on every
+refresh and gives Raju's new runs a `rule` row. That keeps the table dense,
+which is what lets the estimator's anti-join scope itself to genuinely new runs
+rather than re-examining history.
 
 ## The training set grows two ways
 
-1. **A one-off backfill** — the review spreadsheet, imported once. It seeds the
-   set; it is not a recurring cycle.
-2. **Your corrections, thereafter.** The weekly refresh notification lists the
-   week's guesses. A wrong one is corrected by hand to `source='manual'`, which
-   outranks the estimate permanently.
+1. **What you have already asserted** — the review sheet run by run, plus the
+   blanket era assertion above. 842 rows, seeded once.
+2. **Your corrections, thereafter.** The refresh notification lists the week's
+   calls. A wrong one is corrected by hand to `source='user'`, which outranks
+   the estimate permanently.
 
 **A correction is worth far more than an agreement.** An estimated label agrees
 with the model by construction, so it adds sample size without moving the
@@ -110,7 +116,7 @@ FROM parkrun.run_modes m
 JOIN parkrun.results  r USING (athlete_id, run_date, event_id)
 JOIN parkrun.athletes a USING (athlete_id)
 JOIN parkrun.events   e USING (event_id)
-WHERE m.source = 'estimated'
+WHERE m.source = 'model'
 ORDER BY m.run_date DESC
 LIMIT 20;
 ```
@@ -140,7 +146,7 @@ INSERT OR REPLACE INTO parkrun.run_modes
       (athlete_id, run_date, event_id, is_buggy, source, confidence, reason, set_at)
 SELECT athlete_id, run_date, event_id,
        TRUE,                       -- the correct answer
-       'manual',                   -- outranks any estimate, permanently
+       'user',                     -- outranks any estimate, permanently
        NULL,
        'corrected by hand',
        now()
@@ -149,8 +155,8 @@ WHERE athlete_id = 5462426          -- Duncan
   AND run_date   = DATE '2026-03-14';
 ```
 
-Changing a `default` row to `manual` is how an assumption becomes evidence — one
-statement, and it starts training the model.
+Changing a `rule` row to `user` is how a rule becomes evidence — one statement,
+and it starts training the estimator.
 
 The change reaches the deployed app at the next refresh, which rebuilds
 `data/parkrun_snapshot.duckdb` and pushes it. `data/parkrun_run_modes.csv` is

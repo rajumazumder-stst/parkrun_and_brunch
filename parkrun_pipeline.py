@@ -243,8 +243,11 @@ def ensure_schema(con: duckdb.DuckDBPyConnection) -> None:
     # (a re-keyed run, a skipped estimator) degrades to non-buggy rather than
     # NULLing a target and silently dropping a runner from a contest.
     #
-    # `source` values are NOT interchangeable: 'manual' and 'estimated' train
-    # the model, 'default' never does — those are assumptions, not observations.
+    # `source` values are NOT interchangeable: 'user' and 'model' train the
+    # estimator, 'rule' never does. A 'rule' row is a label nobody looked at and
+    # no model produced — it is what a deterministic rule says must be true
+    # (Raju has never pushed a buggy), so it is a statement about the rule, not
+    # evidence about the run.
     con.execute(
         f"""
         CREATE TABLE IF NOT EXISTS {SCHEMA}.run_modes (
@@ -252,7 +255,7 @@ def ensure_schema(con: duckdb.DuckDBPyConnection) -> None:
             run_date   DATE,
             event_id   INTEGER,
             is_buggy   BOOLEAN     NOT NULL,
-            source     VARCHAR     NOT NULL,   -- 'manual' | 'estimated' | 'default'
+            source     VARCHAR     NOT NULL,   -- 'user' | 'model' | 'rule'
             confidence DOUBLE,                 -- max(p, 1-p); NULL for manual/default
             reason     VARCHAR,
             set_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -331,6 +334,8 @@ def ensure_migrations(con: duckdb.DuckDBPyConnection) -> None:
     # idempotent (INSERT OR IGNORE); a no-op while `athletes` is still empty.
     seed_buggy_handicap_defaults(con)
 
+    migrate_label_sources(con)
+
     has_mode = con.execute(
         """
         SELECT count(*) FROM information_schema.columns
@@ -375,6 +380,74 @@ def ensure_migrations(con: duckdb.DuckDBPyConnection) -> None:
         raise
     log(f"  migrated {_count(con, 'current_targets')} current_targets rows "
         f"as mode='nonbuggy'")
+
+
+# The three label sources, renamed 5 Sep 2026 from manual/estimated/default.
+# Named for who said so, because that is what `source` means:
+#   user   — you confirmed it (individually, or as a blanket assertion about an
+#            era: neither George nor Duncan had a buggy before 2025, Raju never)
+#   model  — buggy_estimator scored it
+#   rule   — a deterministic rule fixed it, no judgement involved
+LABEL_SOURCES = {"user", "model", "rule"}
+_SOURCE_RENAMES = {"manual": "user", "estimated": "model", "default": "rule"}
+
+# Raju (5672) has never pushed a buggy, so every run of his is non-buggy by
+# rule rather than by review or by estimate. Kept as an explicit mapping rather
+# than a bare id so adding a second such athlete is a one-line change.
+RULE_ATHLETES = {5672: (False, "Raju has never used a buggy")}
+
+
+def migrate_label_sources(con: duckdb.DuckDBPyConnection) -> None:
+    """Rename the old run_modes.source values in place. Idempotent."""
+    if not _count(con, "run_modes"):
+        return
+    renamed = 0
+    for old, new in _SOURCE_RENAMES.items():
+        n = con.execute(
+            f"SELECT count(*) FROM {SCHEMA}.run_modes WHERE source = ?", [old]
+        ).fetchone()[0]
+        if n:
+            con.execute(
+                f"UPDATE {SCHEMA}.run_modes SET source = ? WHERE source = ?",
+                [new, old],
+            )
+            renamed += n
+    if renamed:
+        log(f"  migrated {renamed} run_modes row(s) to user/model/rule")
+
+
+def apply_rule_labels(con: duckdb.DuckDBPyConnection) -> None:
+    """Label unlabelled runs whose answer follows from a rule, not a judgement.
+
+    Only Raju today: he has never pushed a buggy, so there is nothing to review
+    and nothing to estimate. Runs every refresh so his new runs never sit
+    unlabelled — an absent row already behaves as non-buggy, but a `rule` row
+    says so on purpose and keeps the table dense, which is what the estimator's
+    anti-join relies on to scope itself to genuinely new runs.
+
+    Write-once, like every other label path: an existing row is never touched,
+    so a hand correction always outranks this.
+    """
+    for athlete_id, (is_buggy, reason) in RULE_ATHLETES.items():
+        con.execute(
+            f"""
+            INSERT INTO {SCHEMA}.run_modes
+                  (athlete_id, run_date, event_id, is_buggy, source,
+                   confidence, reason, set_at)
+            SELECT r.athlete_id, r.run_date, r.event_id, ?, 'rule', NULL, ?, now()
+            FROM {SCHEMA}.results r
+            WHERE r.athlete_id = ?
+              AND NOT EXISTS (
+                    SELECT 1 FROM {SCHEMA}.run_modes m
+                    WHERE (m.athlete_id, m.run_date, m.event_id)
+                        = (r.athlete_id, r.run_date, r.event_id))
+            """,
+            [is_buggy, reason, athlete_id],
+        )
+    total = con.execute(
+        f"SELECT count(*) FROM {SCHEMA}.run_modes WHERE source = 'rule'"
+    ).fetchone()[0]
+    log(f"  rule labels: {total} row(s) total")
 
 
 def ensure_views(con: duckdb.DuckDBPyConnection) -> None:
@@ -1434,6 +1507,7 @@ def _finalize(con: duckdb.DuckDBPyConnection) -> None:
     """Post-write steps shared by bootstrap and refresh: snapshot current-form
     targets, export the results CSV, and rebuild the deploy snapshot."""
     apply_course_difficulty(con)
+    apply_rule_labels(con)
     update_current_targets(con)
     export_results_snapshot(con)
     export_run_modes(con)
