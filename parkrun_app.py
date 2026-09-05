@@ -37,21 +37,16 @@ import streamlit as st
 from matplotlib_venn import venn3
 from streamlit_folium import st_folium
 
+from parkrun_core import TARGET_WINDOW_DAYS
 from parkrun_ui import (  # shared with label_impact.py — see that module
     ATHLETE_COLORS,
-    BASIS_LABEL,
     BUGGY_GLYPH,
-    DB_PATH,
-    IS_MOTHERDUCK,
-    MEDAL,
     PLACE_COLORS,
     PLACE_LABEL,
     _h2h_headline,
     _read_sql,
     _render_basis_note,
-    _surface_color,
     _victory_fig,
-    _winning_margin,
     HL_BUGGY,
     HL_REGULAR,
     REGULAR_LABEL,
@@ -177,7 +172,7 @@ def load_target_window_runs(version) -> pd.DataFrame:
     in the window [latest refresh_date − 91, − 1] (the same window the target
     median is taken over). Drives the per-athlete 'runs in window' popover."""
     df = _read_sql(
-        """
+        f"""
         WITH latest AS (SELECT max(refresh_date) AS d FROM parkrun.current_targets)
         SELECT a.athlete_name, r.run_date, e.short_name, r.time_seconds,
                r.is_buggy, r.mode
@@ -185,7 +180,7 @@ def load_target_window_runs(version) -> pd.DataFrame:
         JOIN parkrun.athletes a USING (athlete_id)
         JOIN parkrun.events e USING (event_id)
         CROSS JOIN latest
-        WHERE r.run_date BETWEEN latest.d - 91 AND latest.d - 1
+        WHERE r.run_date BETWEEN latest.d - {TARGET_WINDOW_DAYS} AND latest.d - 1
         ORDER BY a.athlete_name, r.run_date DESC
         """
     )

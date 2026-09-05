@@ -73,9 +73,9 @@ excluding the day itself.
 
 91 days is `TARGET_WINDOW_DAYS`, matched to the head-to-head's form window on
 purpose: "slow" should mean the same thing in the estimator as it does in the
-app. A test reads the constant out of `parkrun_pipeline.py` to keep them in
-step, because this module cannot import the pipeline (it pulls in requests and
-bs4).
+app. It is defined once, in `parkrun_core.py` — a module with no third-party
+imports, which is what lets the pipeline, the app and this all read the same
+integer.
 
 Non-buggy runs only in the baseline, or a buggy spell drags its own reference
 upward and hides itself.
@@ -346,7 +346,7 @@ in either direction, was a run it called buggy.
 ```bash
 python buggy_estimator.py                 # walk-forward report, both athletes
 python buggy_estimator.py --athlete George   # or Duncan; default both
-pytest tests/                             # 43 cases, no database
+pytest tests/                             # 44 cases, no database
 ```
 
 The module writes nothing. `score_unlabelled` returns the calls and the

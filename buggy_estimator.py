@@ -33,20 +33,18 @@ Design notes that are not obvious from the code:
 from __future__ import annotations
 
 import argparse
-import os
-from pathlib import Path
 
 import duckdb
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
 
-REPO = Path(__file__).resolve().parent
-SNAPSHOT = REPO / "data" / "parkrun_snapshot.duckdb"
-
-# The two athletes with a buggy dimension. Raju has never pushed one, so every
-# run of his is non-buggy by construction and he is never scored.
-ATHLETES = {3087156: "George", 5462426: "Duncan"}
+from parkrun_core import (          # shared, dependency-free; see that module
+    BUGGY_ATHLETES as ATHLETES,      # Raju is absent: he has never pushed one,
+    TARGET_WINDOW_DAYS,              # so every run of his is non-buggy by
+    TRAINING_SOURCES,                # construction and he is never scored
+    resolve_db,
+)
 
 # --- baseline cascade (shared with scripts/export_buggy_review.py) ----------
 # `event` is the clean, course-controlled baseline; `window` is the fallback
@@ -56,11 +54,9 @@ BASE_MIN_WINDOW_RUNS = 8
 BASE_WINDOW_DAYS = 182
 
 # --- features ---------------------------------------------------------------
-# The form window matches the head-to-head's, deliberately: the estimator should
-# judge "slow" the same way the app does. Kept in step with
-# parkrun_pipeline.TARGET_WINDOW_DAYS by the test suite, not by importing it —
-# the pipeline pulls in requests and bs4, which this module must not need.
-TARGET_WINDOW_DAYS = 91
+# TARGET_WINDOW_DAYS is imported above, not restated: the estimator judges
+# "slow" on the same window the head-to-head does, and one definition is the
+# only way that stays true.
 EVENT_RATE_PRIOR = 3.0     # pseudo-runs of shrinkage on the per-event share
 
 FEATURES = ["excess", "form_resid", "course_diff", "event_buggy_share"]
@@ -92,14 +88,6 @@ FEATURES = ["excess", "form_resid", "course_diff", "event_buggy_share"]
 # precision and Duncan 8 of accuracy.
 RAW_FEATURES = ("event_buggy_share",)
 
-# Only these sources train. A `rule` row is what a deterministic rule says
-# must be true — Raju has never pushed a buggy — so it is a statement about the
-# rule, not evidence about the run, and hundreds of them would swamp the
-# evidence that exists. `rule` rows are still used for FEATURES: a real run with
-# a real time belongs in a form window and a course baseline whoever labelled
-# it. It is only its label that carries no information.
-TRAINING_SOURCES = ("user", "model")
-
 # --- fitting ----------------------------------------------------------------
 L2 = 1.0                   # ridge penalty on the coefficients, not the intercept
 HALF_LIVES_MONTHS = [3, 6, 9, 12, 18, 24, 36, None]   # None = no decay
@@ -113,17 +101,6 @@ DAYS_PER_MONTH = 30.44
 # --------------------------------------------------------------------------- #
 # Loading
 # --------------------------------------------------------------------------- #
-def resolve_db(db: str | None = None) -> str:
-    """Read-only target, in the same priority order the apps use."""
-    if db:
-        return os.path.expanduser(db)
-    env = os.environ.get("PARKRUN_DB")
-    if env:
-        return os.path.expanduser(env)
-    local = Path.home() / ".config" / "parkrun" / "parkrun_local.duckdb"
-    return str(local if local.exists() else SNAPSHOT)
-
-
 _RUNS_SQL = f"""
     SELECT r.athlete_id, a.athlete_name, r.run_date, r.event_id,
            e.short_name, r.time, r.time_seconds,

@@ -222,27 +222,24 @@ design decision 3) and the shell `log()` duplication (considered and rejected
 in `ca8ccf6`: sourcing a file for one `printf` adds a failure mode to a
 scheduled path that must not break).
 
-### 1. The 91-day window is a magic number in the app
+### 1. ~~The 91-day window is a magic number in the app~~ — DONE
 
-`parkrun_app.py`'s `load_target_window_runs()` hardcodes `latest.d - 91`, while
-the pipeline owns the same figure as `TARGET_WINDOW_DAYS`. That popover exists
-to show *which runs made the target*, so if the pipeline constant ever changed
-the popover would list a different window than the median was taken over — and
-it would look right. Silent, and exactly the kind of wrong this app is meant to
-avoid.
+**Done**, the shared-module way rather than the comment way, because the
+estimator made it worse: `TARGET_WINDOW_DAYS` had reached three copies, and two
+tests were reading `parkrun_pipeline.py`'s *source text* to check the constants
+still matched.
 
-Not a one-line import fix: `parkrun_pipeline.py` imports `requests` and `bs4` at
-module level, and the hosted app does not install those, so importing the
-constant would break the deploy. It needs a small shared constants module that
-neither side's dependencies reach into — or, cheaper, the literal kept where it
-is with a comment naming `TARGET_WINDOW_DAYS` as its source of truth.
-
-**Value: high. Risk: low. Size: small.**
+`parkrun_core.py` now holds the single definition and imports nothing but the
+standard library, which is what lets the pipeline (requests, bs4), the hosted
+app (neither) and the estimator all read from it. The same move deduplicated
+the cohort ids, the label vocabulary, and `resolve_db`. Both text-scraping
+tests were replaced with real imports, plus a guard asserting no module
+redefines the window.
 
 ### 2. Test coverage is thin
 
 **Partly addressed.** `tests/test_buggy_estimator.py` now covers the estimator
-(38 cases, no DB). Everything else remains untested: the pipeline's views, the
+(44 cases, no DB). Everything else remains untested: the pipeline's views, the
 head-to-head arithmetic, `_winning_margin`, the handicap gate. The reasoning
 below still applies to those.
 

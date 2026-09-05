@@ -41,13 +41,11 @@ convention as scripts/build_logo.py) — install it into the dev venv.
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from datetime import date, datetime
 from pathlib import Path
 
 import duckdb
-import numpy as np
 import pandas as pd
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
@@ -62,6 +60,7 @@ sys.path.insert(0, str(REPO))
 # — a reviewer disagreeing with the model should be looking at the same numbers
 # it did. `buggy_estimator` imports nothing this script cannot (no streamlit).
 from buggy_estimator import add_baselines  # noqa: E402
+import parkrun_core  # noqa: E402
 
 # The two athletes with a buggy dimension. Raju never uses one, so he is not
 # exported — every run of his is non-buggy by construction.
@@ -88,17 +87,14 @@ SNAPSHOT = REPO / "data" / "parkrun_snapshot.duckdb"
 
 
 def resolve_db(for_write: bool = False) -> str:
-    """Same fallback order as app.py: env var, local source of truth, snapshot.
+    """`parkrun_core.resolve_db` plus a write guard.
 
     A write must never land on the committed deploy snapshot — it is a build
     artefact, regenerated from the source of truth on every refresh, so a label
-    written there would be silently destroyed.
+    written there would be silently destroyed. Reading it is fine, which is why
+    the guard is here rather than in the shared resolver.
     """
-    env = os.environ.get("PARKRUN_DB")
-    db = os.path.expanduser(env) if env else None
-    if db is None:
-        local = Path.home() / ".config" / "parkrun" / "parkrun_local.duckdb"
-        db = str(local) if local.exists() else str(SNAPSHOT)
+    db = parkrun_core.resolve_db()
     if for_write and Path(db).resolve() == SNAPSHOT.resolve():
         raise SystemExit(
             f"refusing to write labels to the deploy snapshot ({SNAPSHOT}).\n"

@@ -251,13 +251,17 @@ class TestFit:
 # Contracts that must not drift
 # --------------------------------------------------------------------------- #
 class TestContracts:
-    def test_form_window_matches_the_pipeline(self):
+    def test_the_form_window_has_exactly_one_definition(self):
         """The estimator judges "slow" on the same window the head-to-head
-        does. The pipeline owns the constant; this module cannot import it
-        (parkrun_pipeline pulls in requests and bs4), so the check lives here."""
-        src = (be.REPO / "parkrun_pipeline.py").read_text()
-        line = next(l for l in src.splitlines() if l.startswith("TARGET_WINDOW_DAYS"))
-        assert int(line.split("=")[1].split("#")[0].strip()) == be.TARGET_WINDOW_DAYS
+        does. This used to be two literals kept in step by reading the
+        pipeline's source text; parkrun_core now holds the only copy, and this
+        asserts nobody has reintroduced a second."""
+        import parkrun_core
+
+        assert be.TARGET_WINDOW_DAYS is parkrun_core.TARGET_WINDOW_DAYS
+        for mod in ("parkrun_pipeline.py", "buggy_estimator.py", "parkrun_app.py"):
+            src = (parkrun_core.REPO / mod).read_text()
+            assert "TARGET_WINDOW_DAYS = 91" not in src, f"{mod} redefines it"
 
     def test_every_feature_is_produced_by_build_features(self):
         """FEATURES is the contract between build_features, the fit and the
@@ -270,12 +274,21 @@ class TestContracts:
         assert "rule" not in be.TRAINING_SOURCES
         assert set(be.TRAINING_SOURCES) == {"user", "model"}
 
-    def test_the_three_sources_agree_with_the_pipeline(self):
-        """One vocabulary. The pipeline owns the migration that renames old
-        values, so a third spelling appearing anywhere is a bug."""
-        src = (be.REPO / "parkrun_pipeline.py").read_text()
-        line = next(l for l in src.splitlines() if l.startswith("LABEL_SOURCES"))
-        assert set(be.TRAINING_SOURCES) | {"rule"} == eval(line.split("=", 1)[1].strip())
+    def test_the_three_sources_are_one_vocabulary(self):
+        """One vocabulary, one definition. The pipeline owns the migration that
+        renames old values; everyone reads the set from parkrun_core."""
+        import parkrun_core
+
+        assert be.TRAINING_SOURCES is parkrun_core.TRAINING_SOURCES
+        assert set(be.TRAINING_SOURCES) | {"rule"} == parkrun_core.LABEL_SOURCES
+
+    def test_the_cohort_has_one_definition(self):
+        """Three copies of "which athletes push a buggy" existed before
+        parkrun_core; a fourth would be the one that drifts."""
+        import parkrun_core
+
+        assert be.ATHLETES is parkrun_core.BUGGY_ATHLETES
+        assert set(parkrun_core.BUGGY_ATHLETES) <= set(parkrun_core.ATHLETE_NAMES)
 
     def test_raju_is_out_of_scope(self):
         """He has never pushed a buggy, so scoring him could only invent one."""

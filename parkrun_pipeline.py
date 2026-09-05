@@ -51,6 +51,8 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 
+import parkrun_core
+
 # --------------------------------------------------------------------------- #
 # Configuration
 # --------------------------------------------------------------------------- #
@@ -85,21 +87,19 @@ SEED_COLUMN_DEFAULTS = {
 # parkrun-ONLY tables + views — personal_finance can never reach the cloud.
 MD_DATABASE = "parkrun_snapshot"
 
-# Fixed cohort. The mapping drives the per-athlete columns in v_overlap.
-ATHLETE_NAMES = {5672: "raju", 5462426: "duncan", 3087156: "george"}
-ATHLETE_IDS = list(ATHLETE_NAMES)
-TARGET_WINDOW_DAYS = 91  # head-to-head / current-form lookback
+# Cohort, form window and label vocabulary live in parkrun_core so the app and
+# the estimator can read them without importing this file (it pulls in requests
+# and bs4; the hosted app installs neither).
+ATHLETE_NAMES = parkrun_core.ATHLETE_NAMES
+ATHLETE_IDS = parkrun_core.ATHLETE_IDS
+TARGET_WINDOW_DAYS = parkrun_core.TARGET_WINDOW_DAYS
 # Multiplicative cost of pushing a buggy, used to bridge a target when an
 # athlete has no runs of the run's own mode in the window. A placeholder until
 # measured per athlete from confirmed labels: the one course-controlled figure
 # available is Duncan at Lordship Rec (2025 median 1450s -> 2026 median 1636s,
 # +12.8%), rounded up so it errs in the buggy runner's favour.
 BUGGY_HANDICAP_DEFAULT = 0.15
-# Athletes who ever push a buggy: George and Duncan. Raju never does, so he has
-# no buggy form to record and gets no buggy row at all — not an empty one. The
-# analytics VIEWS stay symmetric (he falls out as all-nonbuggy on his own); this
-# only narrows what the materialised current_targets grid stores.
-BUGGY_ATHLETE_IDS = (3087156, 5462426)
+BUGGY_ATHLETE_IDS = parkrun_core.BUGGY_ATHLETE_IDS
 ATHLETE_URL = "https://www.parkrun.org.uk/parkrunner/{athlete_id}/all/"
 EVENTS_JSON_URL = "https://images.parkrun.com/events.json"
 
@@ -388,7 +388,7 @@ def ensure_migrations(con: duckdb.DuckDBPyConnection) -> None:
 #            era: neither George nor Duncan had a buggy before 2025, Raju never)
 #   model  — buggy_estimator scored it
 #   rule   — a deterministic rule fixed it, no judgement involved
-LABEL_SOURCES = {"user", "model", "rule"}
+LABEL_SOURCES = parkrun_core.LABEL_SOURCES
 _SOURCE_RENAMES = {"manual": "user", "estimated": "model", "default": "rule"}
 
 # Raju (5672) has never pushed a buggy, so every run of his is non-buggy by
