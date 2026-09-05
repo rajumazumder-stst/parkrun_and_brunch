@@ -63,8 +63,13 @@ where they differ from the original brief, **the spec wins**.
   again (`docs/DEPLOY.md` § History).
 - ✅ **Buggy mode — promoted and live** (2 Sep 2026). George and Duncan
   sometimes run pushing a buggy, which parkrun records nothing about, so their
-  times were being pooled into a single form target that flattered the buggy
-  runs and penalised the rest. Shipped: the `run_modes` label store,
+  times were being pooled into a single form target. Because that target is a
+  **median**, a minority of slow buggy runs barely shifted it, so the pooled
+  target sat close to ordinary form and the buggy runs were judged against a
+  time they could not hit. Measured on median `pct_diff` (the mean is unusable
+  — one 54:20 walk at +117% moves it several points), George's buggy runs read
+  **+7.3% pooled against +2.7% per-mode** and Duncan's **+8.8% against +4.4%**,
+  while their ordinary runs were flattered by 0.2pp and 0.0pp. Shipped: the `run_modes` label store,
   `course_difficulty` and `buggy_handicap` tables, the `current_targets` primary
   key migration, the mode-aware views (`v_results_moded` + per-mode targets and
   the symmetric handicap bridge), the review-sheet export/import tooling, and
@@ -452,7 +457,8 @@ the window is still demoted.
 changes that run's target, therefore its `pct_diff`, possibly its `place_rank`,
 and therefore the head-to-head leaderboard and the cumulative-1sts curve — back
 to 2023. This is intended (the old numbers pooled buggy and non-buggy runs into
-one target, which flattered buggy runs and penalised non-buggy ones), but it
+one target, which penalised buggy runs by ~4.5pp and flattered non-buggy ones
+by ~0.2pp — the median barely moves for a slow minority), but it
 means head-to-head results are **not** immutable. The tab-2 explainer says so.
 
 Note: `v_overlap` counts **all** co-participations; `v_head_to_head` counts only

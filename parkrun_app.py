@@ -1015,8 +1015,9 @@ A 3-way where someone has no recent form becomes a 2-way between the other two.
 **Running with a buggy** 🛒 — George and Duncan sometimes run pushing one, which
 costs them time parkrun records nothing about. So each of them has **two**
 targets: one for their runs with the buggy and one for without, and a run is
-always compared against the matching kind. Pooling the two would flatter the
-buggy runs and penalise the rest.
+always compared against the matching kind. The target is a median, so a few
+slow buggy runs barely move it — pooling the two would judge a buggy run
+against a time it cannot hit, and flatter the ordinary runs a little.
 
 When someone has no runs of the right kind in the 91 days before a race, we
 bridge from the other kind using their measured buggy **handicap** — the table

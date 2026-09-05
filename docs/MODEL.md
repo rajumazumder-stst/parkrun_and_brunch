@@ -1,8 +1,12 @@
 # The buggy estimator, as built
 
 George and Duncan sometimes run pushing a buggy. parkrun records nothing about
-it, so without a label their times pool into one form target that flatters the
-buggy runs and penalises the rest. This model supplies the missing label.
+it, so without a label their times pool into one form target. That target is a
+median, which a slow minority barely shifts — so the buggy runs end up measured
+against ordinary form and penalised by around 4.5 percentage points, while the
+ordinary runs are flattered by about 0.2. (Medians throughout: George has one
+54:20 buggy walk that puts the mean out by several points.) This model supplies
+the missing label.
 
 `buggy_estimator.py` holds the model; `parkrun_pipeline.apply_model_labels`
 does the writing. The split is deliberate — the model is side-effect free and

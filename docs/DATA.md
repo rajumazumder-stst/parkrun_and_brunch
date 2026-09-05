@@ -39,8 +39,10 @@ unchanged, 6 winners flipped, 3 with places reordered, none lost.
 George and Duncan sometimes run pushing a buggy. parkrun records nothing about
 it, so their times are slower for a reason the data cannot see. Every
 form-adjusted comparison in the app is built on a 91-day median, so without a
-label buggy and non-buggy runs pool into one target — which flatters the buggy
-runs and penalises the non-buggy ones. `parkrun.run_modes` is the label store.
+label buggy and non-buggy runs pool into one target. The target is a median, so
+a slow minority barely moves it: the buggy runs get judged against ordinary form
+and are penalised (~4.5pp on median `pct_diff`), while the ordinary runs are
+flattered slightly (~0.2pp). `parkrun.run_modes` is the label store.
 
 ## The three `source` values are not interchangeable
 
