@@ -93,7 +93,7 @@ class TestCausality:
         f = be.build_features(runs((0, 1, 1200)))
         assert np.isnan(f.loc[0, "excess"])
         assert np.isnan(f.loc[0, "form_resid"])
-        assert f.loc[0, "run_len"] == 0.0
+        assert f.loc[0, "event_buggy_share"] == 0.0
 
     def test_a_later_run_cannot_change_an_earlier_one(self):
         """The guard against lookahead. Appending a run must leave every
@@ -120,33 +120,6 @@ class TestCausality:
 # Individual features
 # --------------------------------------------------------------------------- #
 class TestFeatures:
-    def test_same_sign_run_counts_the_current_streak_and_signs_it(self):
-        h = pd.DataFrame({"_resid": [0.1, -0.2, -0.3, -0.4]})
-        assert be._same_sign_run(h) == -3.0
-        h = pd.DataFrame({"_resid": [-0.1, 0.2, 0.3]})
-        assert be._same_sign_run(h) == 2.0
-
-    def test_same_sign_run_is_zero_without_history(self):
-        assert be._same_sign_run(pd.DataFrame({"_resid": []})) == 0.0
-
-    def test_prior_rate_ignores_rule_rows(self):
-        """A `rule` row is what a rule says must be true, not evidence about
-        the run — CLAUDE.md's three-source rule. Counting them would drag the
-        rate toward zero on runs nobody assessed."""
-        h = runs(
-            (0, 1, 1200, False, "rule"),
-            (7, 1, 1200, False, "rule"),
-            (14, 1, 1200, True, "user"),
-        )
-        assert be._prior_rate(h) == pytest.approx(1.0)
-
-    def test_prior_rate_counts_model_alongside_user(self):
-        h = runs((0, 1, 1200, True, "user"), (7, 1, 1200, False, "model"))
-        assert be._prior_rate(h) == pytest.approx(0.5)
-
-    def test_prior_rate_is_nan_with_no_evidence(self):
-        assert np.isnan(be._prior_rate(runs((0, 1, 1200, False, "rule"))))
-
     def test_event_share_is_zero_before_any_buggy_exists(self):
         """A decade of runs before the first buggy is not evidence that this
         course is buggy-free — no course was. It is simply the pre-era."""
@@ -186,6 +159,14 @@ class TestFeatures:
             runs(*pre, *[(100 + i, 3, 1200, True) for i in range(8)]),
         )[0]
         assert once < 0.5 < many
+
+    def test_removed_features_are_really_gone(self):
+        """`run_len` and `prior_rate` were dropped after a walk-forward
+        ablation. A stale reference would be silently median-imputed rather
+        than raising, so the check has to be explicit."""
+        assert not hasattr(be, "_same_sign_run")
+        assert not hasattr(be, "_prior_rate")
+        assert {"run_len", "prior_rate"}.isdisjoint(be.FEATURES)
 
     def test_event_share_ignores_rule_rows(self):
         h = runs((0, 1, 1200, True, "user"), (7, 1, 1200, False, "rule"))
@@ -316,30 +297,32 @@ class TestContracts:
 # --------------------------------------------------------------------------- #
 class TestStandardise:
     def test_raw_features_keep_their_own_scale(self):
-        """`prior_rate` and `event_buggy_share` sit at 0 for the whole pre-buggy
-        era, so z-scoring them against that makes every real value an outlier.
-        Measured, it flipped prior_rate's coefficient negative."""
+        """`event_buggy_share` sits at 0 for the whole pre-buggy era, so
+        z-scoring against that makes every real value an outlier. Measured, it
+        flipped the since-removed prior_rate's coefficient negative."""
         X = pd.DataFrame({
-            "prior_rate": [0.0] * 18 + [0.4, 0.6],
+            "event_buggy_share": [0.0] * 18 + [0.4, 0.6],
             "excess": [0.0] * 18 + [0.4, 0.6],
         })
         Z, mu, sd = be.standardise(X)
-        assert mu["prior_rate"] == 0.0 and sd["prior_rate"] == 1.0
+        assert mu["event_buggy_share"] == 0.0 and sd["event_buggy_share"] == 1.0
         assert Z[-1, 0] == pytest.approx(0.6)      # passed through untouched
         assert Z[-1, 1] > 2.0                      # the z-scored twin, for contrast
 
     def test_raw_features_are_still_imputed(self):
         """Only the rescaling is skipped. A NULL must not reach the fit."""
-        X = pd.DataFrame({"prior_rate": [0.0, 0.5, np.nan]})
+        X = pd.DataFrame({"event_buggy_share": [0.0, 0.5, np.nan]})
         Z, _, _ = be.standardise(X)
         assert not np.isnan(Z).any()
 
     def test_reused_mu_and_sd_are_honoured(self):
         """The target run is standardised with the training set's parameters,
         never its own — a one-row frame has no spread to measure."""
-        train = pd.DataFrame({"excess": [0.0, 1.0, 2.0], "prior_rate": [0.0, 0.5, 1.0]})
+        train = pd.DataFrame({"excess": [0.0, 1.0, 2.0],
+                              "event_buggy_share": [0.0, 0.5, 1.0]})
         _, mu, sd = be.standardise(train)
-        Z, _, _ = be.standardise(pd.DataFrame({"excess": [1.0], "prior_rate": [0.5]}), mu, sd)
+        Z, _, _ = be.standardise(
+            pd.DataFrame({"excess": [1.0], "event_buggy_share": [0.5]}), mu, sd)
         assert Z[0, 0] == pytest.approx(0.0)       # the training median
         assert Z[0, 1] == pytest.approx(0.5)       # raw, unscaled
 

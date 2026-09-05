@@ -61,22 +61,36 @@ BASE_WINDOW_DAYS = 182
 # parkrun_pipeline.TARGET_WINDOW_DAYS by the test suite, not by importing it —
 # the pipeline pulls in requests and bs4, which this module must not need.
 TARGET_WINDOW_DAYS = 91
-PRIOR_RATE_N = 10          # feature 5 looks back this many labelled runs
-EVENT_RATE_PRIOR = 3.0     # pseudo-runs of shrinkage for feature 6
+EVENT_RATE_PRIOR = 3.0     # pseudo-runs of shrinkage on the per-event share
 
-FEATURES = ["excess", "form_resid", "course_diff", "run_len", "prior_rate",
-            "event_buggy_share"]
+FEATURES = ["excess", "form_resid", "course_diff", "event_buggy_share"]
 
-# Features left on their own scale rather than z-scored. Both are proportions
-# already bounded on [0, 1] and directly comparable, so standardising buys
+# Two features were removed on 5 Sep 2026 after a walk-forward ablation, and
+# the reasoning is kept here because both looked plausible enough to build:
+#
+# `run_len`, the signed length of the current same-sign form-residual streak,
+# was the one feature aimed at sequence rather than a single run — a buggy
+# comes in spells, so consecutive slow weeks should mean more than one. It
+# fitted with opposite signs for the two athletes, which is the signature of
+# noise, and dropping it improved every metric for both.
+#
+# `prior_rate`, the buggy share of the previous 10 labelled runs, turned out to
+# be a near-substitute for `event_buggy_share` — the same "is he in a buggy
+# phase" question asked temporally rather than by course. Keeping both was
+# worse than keeping either. `event_buggy_share` was kept because it also
+# carries where he pushes, which is the course confound the estimator has
+# always been weakest on.
+
+# Features left on their own scale rather than z-scored. A proportion already
+# bounded on [0, 1] is directly comparable as it stands, so standardising buys
 # nothing — and here it actively harms. Each sits at exactly 0 for the decade
 # before the athlete owned a buggy, which drags the median to 0 and the SD to a
 # fraction of the real spread, so every in-era value lands two standard
-# deviations out. Measured walk-forward, z-scoring these two flipped
-# `prior_rate`'s coefficient negative — the model asserting a recent buggy
-# spell makes a buggy *less* likely — and cost George 8 points of precision and
-# Duncan 8 of accuracy.
-RAW_FEATURES = ("prior_rate", "event_buggy_share")
+# deviations out. Measured walk-forward, z-scoring the rate features flipped
+# the since-removed `prior_rate`'s coefficient negative — the model asserting a
+# recent buggy spell makes a buggy *less* likely — and cost George 8 points of
+# precision and Duncan 8 of accuracy.
+RAW_FEATURES = ("event_buggy_share",)
 
 # Only these sources train. A `rule` row is what a deterministic rule says
 # must be true — Raju has never pushed a buggy — so it is a statement about the
@@ -198,44 +212,6 @@ def _form_residual(row, history: pd.DataFrame) -> float:
     return float(np.log(row.time_seconds / w.time_seconds.median()))
 
 
-def _same_sign_run(history: pd.DataFrame) -> float:
-    """Signed length of the current streak of same-sign form residuals.
-
-    The one feature aimed at *sequence* rather than a single run. A buggy tends
-    to come in spells — a child in it every week for months — so a run of
-    consecutive slow weeks is evidence a single slow week is not. Named as the
-    thing a human reviewer actually uses, in the review script's own notes, and
-    never previously computed.
-    """
-    resid = history["_resid"].dropna()
-    if not len(resid):
-        return 0.0
-    signs = np.sign(resid.values[::-1])
-    first = signs[0]
-    if first == 0:
-        return 0.0
-    n = 0
-    for s in signs:
-        if s != first:
-            break
-        n += 1
-    return float(n * first)
-
-
-def _prior_rate(history: pd.DataFrame) -> float:
-    """Buggy rate over the previous PRIOR_RATE_N *labelled* runs.
-
-    This is what lets the model learn an era rather than have one imposed on it:
-    an athlete who has used the buggy for the last six weeks is likely using it
-    today. It adapts to a regime change without discarding any history, which
-    is why recency weighting can then be kept modest.
-    """
-    labelled = history[history.source.isin(TRAINING_SOURCES)].tail(PRIOR_RATE_N)
-    if not len(labelled):
-        return np.nan
-    return float(labelled.is_buggy.astype(bool).mean())
-
-
 def _event_buggy_share(row, history: pd.DataFrame) -> tuple[float, float]:
     """Share of this athlete's runs *at this event* that were pushed, counted
     from their first buggy run onward. Returns (share, n runs there).
@@ -277,36 +253,28 @@ def _event_buggy_share(row, history: pd.DataFrame) -> tuple[float, float]:
 
 
 def build_features(athlete: pd.DataFrame) -> pd.DataFrame:
-    """Attach the six features to one athlete's runs, causally.
+    """Attach the four features to one athlete's runs, causally.
 
     Walks the runs in date order; every value for a run is derived only from
-    rows above it. `_resid` is carried alongside because the streak feature
-    needs each earlier run's own residual, not just the current one's.
+    rows above it.
     """
     a = athlete.sort_values("run_date").reset_index(drop=True).copy()
-    a["_resid"] = np.nan
     rows = []
     for i, row in a.iterrows():
         hist = a.iloc[:i]
-        expected, basis, n_base = (
+        expected, _, _ = (
             baseline_for(row, hist) if len(hist) else (np.nan, "none", 0)
         )
-        ev_share, ev_n = _event_buggy_share(row, hist) if len(hist) else (0.0, 0.0)
+        ev_share, _ = _event_buggy_share(row, hist) if len(hist) else (0.0, 0.0)
         rows.append(
             {
                 "excess": row.time_seconds / expected - 1 if expected == expected else np.nan,
                 "form_resid": _form_residual(row, hist) if len(hist) else np.nan,
                 # course_diff is already a column from load_runs — re-adding it
                 # here would duplicate the name and make row lookups ambiguous.
-                "run_len": _same_sign_run(hist) if len(hist) else 0.0,
-                "prior_rate": _prior_rate(hist) if len(hist) else np.nan,
                 "event_buggy_share": ev_share,
-                "event_n": ev_n,
-                "basis": basis,
-                "n_base": n_base,
             }
         )
-        a.loc[i, "_resid"] = rows[-1]["form_resid"]
     return pd.concat([a, pd.DataFrame(rows, index=a.index)], axis=1)
 
 
