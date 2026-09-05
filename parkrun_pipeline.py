@@ -450,6 +450,25 @@ def apply_rule_labels(con: duckdb.DuckDBPyConnection) -> None:
     log(f"  rule labels: {total} row(s) total")
 
 
+ESTIMATES_FILE = Path.home() / ".config" / "parkrun" / "last_estimates.txt"
+
+
+def _reliability_note(diag: dict, is_buggy: bool) -> str:
+    """`His buggy calls: right 45%` — the measured reliability of this *kind*
+    of call, not of this call.
+
+    A bare confidence would mislead. Duncan saying buggy at 0.84 sounds solid;
+    that kind of call has been right 45% of the time. Reporting both withholds
+    nothing and stops the number implying more than it has earned.
+    """
+    hit = diag.get("reliability", {}).get(is_buggy)
+    if not hit:
+        return ""
+    pct, n = hit
+    kind = "buggy" if is_buggy else "regular"
+    return f" Their {kind} calls: right {pct:.0%} of {n}."
+
+
 def apply_model_labels(con: duckdb.DuckDBPyConnection) -> None:
     """Label George's and Duncan's unlabelled runs with the estimator.
 
@@ -465,6 +484,13 @@ def apply_model_labels(con: duckdb.DuckDBPyConnection) -> None:
     abstention, because a withheld call is indistinguishable downstream from a
     confident "regular".
 
+    Each call is written to `ESTIMATES_FILE` for the notification, with the
+    measured reliability of that kind of call, and the drift check is logged.
+    That reporting is not decoration: `model` rows train later fits, so an
+    uncorrected wrong label becomes evidence for the next one, and the
+    notification is the only thing that puts a wrong call in front of anyone
+    the same day.
+
     Two ways this declines to run, both quiet by design:
 
     * `PARKRUN_ESTIMATOR=off` — the kill switch. Labels simply do not appear,
@@ -474,6 +500,7 @@ def apply_model_labels(con: duckdb.DuckDBPyConnection) -> None:
       delivery path for the whole app — a missing optional dependency must not
       cost a week's data.
     """
+    ESTIMATES_FILE.unlink(missing_ok=True)
     if os.environ.get("PARKRUN_ESTIMATOR") == "off":
         log("  estimator: skipped (PARKRUN_ESTIMATOR=off)")
         return
@@ -484,10 +511,32 @@ def apply_model_labels(con: duckdb.DuckDBPyConnection) -> None:
         return
 
     calls = be.score_unlabelled(con)
+
+    # Coverage guard. The estimator reads runs through joins to `events`,
+    # `athletes` and `results.time_seconds`; a row that fails one of them is
+    # invisible rather than an error, and an unlabelled run that nothing ever
+    # scores would go unnoticed indefinitely. Cheap to check, so check.
+    pending = con.execute(
+        f"""
+        SELECT count(*) FROM {SCHEMA}.results r
+        WHERE r.athlete_id IN ({','.join(str(a) for a in be.ATHLETES)})
+          AND NOT EXISTS (
+                SELECT 1 FROM {SCHEMA}.run_modes m
+                WHERE (m.athlete_id, m.run_date, m.event_id)
+                    = (r.athlete_id, r.run_date, r.event_id))
+        """
+    ).fetchone()[0]
+    if pending != len(calls):
+        log(f"  WARN: {pending} unlabelled run(s) but the estimator saw "
+            f"{len(calls)} — check for a missing event or a NULL time")
+
     if not calls:
         log("  estimator: no unlabelled runs")
         return
 
+    frames = be.athlete_frames(con)
+    diags: dict[int, dict] = {}
+    lines: list[str] = []
     written = 0
     for c in calls:
         if c["behind_frontier"]:
@@ -515,11 +564,37 @@ def apply_model_labels(con: duckdb.DuckDBPyConnection) -> None:
              c["athlete_id"], c["run_date"], c["event_id"]],
         )
         written += 1
-        log(f"  estimator: {c['athlete_name']} {c['time']} {c['short_name']} "
-            f"({c['run_date'].date()}) -> "
-            f"{'BUGGY' if c['is_buggy'] else 'regular'} "
-            f"at {c['confidence']:.2f} confidence")
+
+        aid = c["athlete_id"]
+        if aid not in diags:
+            diags[aid] = be.diagnose(frames[aid][1])
+        diag = diags[aid]
+        call = "BUGGY" if c["is_buggy"] else "regular"
+        lines.append(f"{c['athlete_name']} {c['time']} {c['short_name']} — "
+                     f"{call} ({c['confidence']:.2f})."
+                     f"{_reliability_note(diag, c['is_buggy'])}")
+        log(f"  estimator: {lines[-1]}")
+        # The feature values behind the call, so a surprising verdict can be
+        # traced from the log alone without re-running anything.
+        row = frames[aid][1]
+        row = row[(row.run_date == c["run_date"]) & (row.event_id == c["event_id"])]
+        if len(row):
+            vals = ", ".join(f"{f}={row.iloc[0][f]:+.3f}" for f in be.FEATURES)
+            log(f"    features: {vals}")
+
+    for aid, diag in diags.items():
+        if diag["acc_all"] is not None and diag["acc_user"] is not None:
+            log(f"  drift check {be.ATHLETES[aid]}: walk-forward "
+                f"{diag['acc_all']:.2f} training on user+model, "
+                f"{diag['acc_user']:.2f} on user labels only")
     log(f"  estimator: {written} label(s) written")
+
+    if lines:
+        try:
+            ESTIMATES_FILE.parent.mkdir(parents=True, exist_ok=True)
+            ESTIMATES_FILE.write_text("\n".join(lines) + "\n")
+        except OSError as exc:                       # pragma: no cover
+            log(f"  WARN: could not write {ESTIMATES_FILE} ({exc})")
 
 
 def ensure_views(con: duckdb.DuckDBPyConnection) -> None:

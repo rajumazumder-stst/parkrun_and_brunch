@@ -32,6 +32,7 @@ REPO="${PARKRUN_REPO:-$STATE_DIR/repo}"
 VENV="$STATE_DIR/venv"
 LOG="$HOME/Library/Logs/parkrun_refresh.log"
 STAMP="$STATE_DIR/last_refresh_epoch"
+ESTIMATES="$STATE_DIR/last_estimates.txt"
 LOCKDIR="$STATE_DIR/refresh.lock"
 # Source of truth. Filename (= DuckDB catalog name) must NOT be `parkrun`, else
 # `parkrun.v_overlap` is ambiguous against the `parkrun` schema.
@@ -47,8 +48,23 @@ fi
 
 log() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
 
-notify() { # $1 title, $2 body
+notify() { # $1 title, $2 body (single line)
   /usr/bin/osascript -e "display notification \"$2\" with title \"$1\"" >/dev/null 2>&1 || true
+}
+
+# Multi-line notification. AppleScript has no \n escape inside a string
+# literal, and a real newline in the -e source is a parse error, so each line
+# is concatenated with `return`. Quotes and backslashes in the body are
+# escaped first — a parkrun name is free text and one stray quote would
+# otherwise swallow the rest of the notification.
+notify_lines() { # $1 title, $2 body (may contain newlines)
+  local script
+  script=$(printf '%s' "$2" \
+    | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' \
+    | awk 'NR>1{printf " & return & "} {printf "\"%s\"", $0}')
+  [ -n "$script" ] || script='""'
+  /usr/bin/osascript -e "display notification $script with title \"$1\"" \
+    >/dev/null 2>&1 || true
 }
 
 # Commit + push the regenerated audit CSV and fallback snapshot from the
@@ -140,7 +156,17 @@ if push_audit_files; then
   date +%s >"$STAMP"
   # After the stamp, never before: a sync problem must not touch freshness.
   sync_working_copy
-  notify "parkrun refresh" "✅ parkrun data refreshed"
+  # The estimator's calls for this refresh, if it wrote any. Each carries the
+  # measured reliability of that kind of call, because a `model` label trains
+  # later fits — an uncorrected wrong one becomes evidence for the next, and
+  # this notification is the only thing that puts it in front of anyone the
+  # same day.
+  if [ -s "$ESTIMATES" ]; then
+    notify_lines "parkrun refresh" "✅ refreshed
+$(cat "$ESTIMATES")"
+  else
+    notify "parkrun refresh" "✅ parkrun data refreshed"
+  fi
 else
   notify "parkrun refresh" "❌ Refresh ran but push FAILED — hosted app is stale, see log"
   exit 1

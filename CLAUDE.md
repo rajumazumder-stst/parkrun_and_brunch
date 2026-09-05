@@ -116,7 +116,12 @@ where they differ from the original brief, **the spec wins**.
   a course he frequents breeds more) while Duncan is stable at 0.81. That bound
   overstates — write-once means every `user` label is a permanent anchor the
   model cannot overwrite — but it names the direction: **George's buggy calls
-  are the ones worth checking.**
+  are the ones worth checking.** The notification is the countermeasure: every
+  call reaches the phone the same day with its confidence and that call type's
+  measured reliability, and each refresh logs the walk-forward accuracy twice —
+  training on `user`+`model`, and on `user` only. Those two agreeing is what
+  says the loop is still harmless; the first drifting above the second is the
+  model scoring well against its own opinions.
 
 - 📕 **Fake dev labels — removed** (5 Sep 2026). `scripts/dev_fake_labels.py`
   fabricated plausible buggy labels so the buggy-mode UI had something to render
@@ -582,7 +587,7 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | `parkrun_ui.py` | Shared UI layer imported by **both** apps: DB resolution, `data_version`, `ATHLETE_COLORS`/`MEDAL`, `fmt_time`, the buggy display helpers (`BUGGY_GLYPH`, `mode_suffix`, `mode_text`, highlight colours), `_h2h_headline`, `_victory_fig` and `_winning_margin`. **`data_version` is the cache key for both apps** — `max(scrape_timestamp)` plus `max(set_at)` and `count(*)` from `run_modes`, since labels are edited out of band and never move the scrape timestamp; 60s TTL. It lives here for the `_winning_margin` reason: two copies that drifted would have the two apps disagreeing about whether the data had changed. `_winning_margin` must exist **once only** — `label_impact.py` diffs old against new, so a second copy of that arithmetic would make a method difference indistinguishable from a rounding one |
 | `label_impact.py` | **Dev-only twin of the hosted page** (its own port): the same two tabs, the same shared modules, driven against an isolated dev DB so the comparison can be exercised without touching the deploy snapshot. Layout only |
 | `scripts/run_local.sh` | Local dev launcher: venv + isolated `data/parkrun_dev.duckdb` (built via `pipeline seed`, **not** `cp` — the committed snapshot carries only the views it had when last rebuilt) + `streamlit run`. Under `PARKRUN_LABEL_AUDIT=1` it also builds the legacy views and starts `label_impact.py` on a second port (see `docs/DEV.md`) |
-| `scripts/parkrun_refresh.sh` | Master refresh from this Mac (manual or scheduled — the one code path): pull clone → seed the local source-of-truth DB if absent → pipeline → audit-file push (fatal; this is the deploy) → freshness stamp → notification |
+| `scripts/parkrun_refresh.sh` | Master refresh from this Mac (manual or scheduled — the one code path): pull clone → seed the local source-of-truth DB if absent → pipeline → audit-file push (fatal; this is the deploy) → freshness stamp → notification. The success notification carries the estimator's calls for the week, read from `$STATE_DIR/last_estimates.txt` (the `last_refresh_epoch` pattern) — one line per call with its confidence and the measured reliability of that *kind* of call. `notify_lines` exists because AppleScript has no `\n` escape and a real newline in `osascript -e` is a parse error, so lines are joined with `return`; quotes are escaped first, since a parkrun name is free text |
 | `scripts/parkrun_autorefresh.sh` | Scheduling policy calling the master (launchd agents run self-syncing deployed copies at `~/.config/parkrun/`, Sat 14:30 + Sun 11:00 + missed-weekend login prompt — see `docs/DEPLOY.md` § Scheduled refresh) |
 | `scripts/sync_working_copy.sh` | `sync_working_copy()` — sourced by `parkrun_refresh.sh` (after the freshness stamp) and by `run_local.sh` (`--fetch-only`). Always fetches the `~/Documents` working copy; fast-forwards it only when the tree is clean **and** the branch is `main`. Every path returns 0 — it can never fail a refresh. No-op under launchd (TCC blocks `~/Documents`) |
 | `scripts/fetch_course_difficulty.py` | One-off fetch of the published UK course-difficulty scores to `data/course_difficulty.csv`. Run by hand; the refresh applies the cached CSV and never touches the network for it |

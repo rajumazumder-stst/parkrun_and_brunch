@@ -402,3 +402,44 @@ class TestScoreUnlabelled:
                          athlete_id=5462426)
         out = be.score_unlabelled(FakeCon(pd.concat([g, d], ignore_index=True)))
         assert [c["athlete_name"] for c in out] == ["George"]
+
+
+# --------------------------------------------------------------------------- #
+# Diagnostics — what the notification and the drift check are built from
+# --------------------------------------------------------------------------- #
+class TestDiagnose:
+    def _mixed(self):
+        """Enough alternating history for the walk-forward to score a stretch."""
+        return be.build_features(athlete_runs(
+            *[(i * 7, 1 + i % 3, 1200 + (i % 7) * 40, i % 3 == 0) for i in range(45)]))
+
+    def test_reliability_is_split_by_direction(self):
+        """The two directions differ enormously for Duncan — 45% one way, 100%
+        the other — so one blended number would mislead in both."""
+        d = be.diagnose(self._mixed())
+        for call, (pct, n) in d["reliability"].items():
+            assert call in (True, False)
+            assert 0.0 <= pct <= 1.0 and n > 0
+
+    def test_drift_check_reports_both_accuracies(self):
+        """`acc_all` trains on user+model, `acc_user` on confirmed labels only.
+        While they agree the feedback loop is harmless; divergence is the tell
+        that the model is scoring against its own opinions."""
+        d = be.diagnose(self._mixed())
+        assert 0.0 <= d["acc_all"] <= 1.0
+        assert d["acc_user"] is None or 0.0 <= d["acc_user"] <= 1.0
+
+    def test_user_only_walk_forward_ignores_model_rows(self):
+        f = be.build_features(athlete_runs(
+            *[(i * 7, 1 + i % 3, 1200 + (i % 7) * 40, i % 3 == 0,
+               "model" if i % 2 else "user") for i in range(45)]))
+        both = be.walk_forward(f)
+        user = be.walk_forward(f, sources=("user",))
+        assert len(user) < len(both)
+
+    def test_diagnose_survives_an_unscorable_athlete(self):
+        """Duncan spent years with no buggy at all. No scored runs must give
+        empty numbers, not a crash in the middle of a refresh."""
+        f = be.build_features(athlete_runs(*[(i * 7, 1, 1200, False) for i in range(10)]))
+        d = be.diagnose(f)
+        assert d["acc_all"] is None and d["reliability"] == {}

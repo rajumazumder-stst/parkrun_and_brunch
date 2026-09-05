@@ -476,6 +476,50 @@ def score_one(train: pd.DataFrame, target: pd.DataFrame, half_life=...) -> dict 
     }
 
 
+def athlete_frames(con) -> dict:
+    """One featured frame per athlete, built once. Scoring and diagnostics both
+    need it and building features is the expensive part, so the refresh does it
+    a single time."""
+    df = runs_from(con)
+    return {
+        aid: (name, build_features(df[df.athlete_id == aid].reset_index(drop=True)))
+        for aid, name in ATHLETES.items()
+    }
+
+
+def diagnose(feat: pd.DataFrame) -> dict:
+    """Per-athlete numbers the notification and the drift check need.
+
+    `reliability` is what stops a bare confidence misleading: Duncan calling
+    buggy at 0.84 sounds solid, and that kind of call has been right 45% of the
+    time. Reported per direction because the two differ enormously for him.
+
+    `acc_all` against `acc_user` is the drift tell. The first trains on
+    everything, including the model's own past labels; the second trains only
+    on labels a person confirmed. While they agree, the feedback loop is
+    harmless. When the first drifts above the second, the model is scoring well
+    against its own opinions rather than against the truth — which is exactly
+    what a self-reinforcing loop looks like from the inside.
+    """
+    out = {"reliability": {}, "acc_all": None, "acc_user": None}
+    wf = walk_forward(feat)
+    s = wf[~wf.warm_up]
+    if not len(s):
+        return out
+    correct = s.correct.astype(bool)
+    for call in (True, False):
+        m = s.call.astype(bool) == call
+        if m.any():
+            out["reliability"][call] = (float(correct[m].mean()), int(m.sum()))
+    out["acc_all"] = float(correct.mean())
+
+    user_only = walk_forward(feat, sources=("user",))
+    u = user_only[~user_only.warm_up]
+    if len(u):
+        out["acc_user"] = float(u.correct.astype(bool).mean())
+    return out
+
+
 def score_unlabelled(con) -> list[dict]:
     """Score every unlabelled run that sits forward of its athlete's label
     frontier. Returns one dict per call; **writes nothing** — the caller does
@@ -496,10 +540,8 @@ def score_unlabelled(con) -> list[dict]:
     A run the model cannot fit — too little history, or one class only —
     yields no dict rather than a guess.
     """
-    df = runs_from(con)
     out = []
-    for athlete_id, name in ATHLETES.items():
-        a = build_features(df[df.athlete_id == athlete_id].reset_index(drop=True))
+    for athlete_id, (name, a) in athlete_frames(con).items():
         labelled = a[a.is_buggy.notna()]
         frontier = labelled.run_date.max() if len(labelled) else pd.Timestamp.min
         for i in a.index[a.is_buggy.isna()]:
@@ -526,7 +568,8 @@ def score_unlabelled(con) -> list[dict]:
     return out
 
 
-def walk_forward(feat: pd.DataFrame, uncorrected: bool = False) -> pd.DataFrame:
+def walk_forward(feat: pd.DataFrame, uncorrected: bool = False,
+                 sources: tuple = TRAINING_SOURCES) -> pd.DataFrame:
     """Predict every labelled run from its own past only.
 
     Two modes, and they are **bounds rather than alternatives** — the live
@@ -545,7 +588,7 @@ def walk_forward(feat: pd.DataFrame, uncorrected: bool = False) -> pd.DataFrame:
     worst case, not a forecast — read it for the *direction and speed* of drift,
     not as the accuracy to expect.
     """
-    labelled = feat[feat.source.isin(TRAINING_SOURCES)].copy()
+    labelled = feat[feat.source.isin(sources)].copy()
     known = labelled.copy()
     known["_train_y"] = known.is_buggy.astype(bool)
     out = []
