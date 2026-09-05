@@ -450,6 +450,78 @@ def apply_rule_labels(con: duckdb.DuckDBPyConnection) -> None:
     log(f"  rule labels: {total} row(s) total")
 
 
+def apply_model_labels(con: duckdb.DuckDBPyConnection) -> None:
+    """Label George's and Duncan's unlabelled runs with the estimator.
+
+    Runs before `update_current_targets` on purpose: a label decides which of
+    an athlete's two form targets the run belongs to, so a target computed
+    first would be built from the wrong set and then frozen into
+    `current_targets`, where nothing recomputes it.
+
+    Write-once, like every other label path — the anti-join lives in
+    `buggy_estimator.score_unlabelled`, which also refuses to touch anything
+    behind an athlete's label frontier. Every call is written, in both
+    directions, with `confidence = max(p, 1-p)`; there is no threshold and no
+    abstention, because a withheld call is indistinguishable downstream from a
+    confident "regular".
+
+    Two ways this declines to run, both quiet by design:
+
+    * `PARKRUN_ESTIMATOR=off` — the kill switch. Labels simply do not appear,
+      and an absent row already behaves as non-buggy, so the refresh degrades
+      to its pre-estimator behaviour rather than failing.
+    * The import failing. `buggy_estimator` needs scipy, and the refresh is the
+      delivery path for the whole app — a missing optional dependency must not
+      cost a week's data.
+    """
+    if os.environ.get("PARKRUN_ESTIMATOR") == "off":
+        log("  estimator: skipped (PARKRUN_ESTIMATOR=off)")
+        return
+    try:
+        import buggy_estimator as be
+    except ImportError as exc:                       # pragma: no cover
+        log(f"  WARN: estimator unavailable ({exc}); runs left unlabelled")
+        return
+
+    calls = be.score_unlabelled(con)
+    if not calls:
+        log("  estimator: no unlabelled runs")
+        return
+
+    written = 0
+    for c in calls:
+        if c["behind_frontier"]:
+            log(f"  estimator: SKIP {c['athlete_name']} {c['run_date'].date()} "
+                f"{c['short_name']} — behind the label frontier, review by hand")
+            continue
+        if c["is_buggy"] is None:
+            log(f"  estimator: SKIP {c['athlete_name']} {c['run_date'].date()} "
+                f"{c['short_name']} — not enough history to fit")
+            continue
+        reason = (f"model p={c['p']:.3f} on {len(be.FEATURES)} features, "
+                  f"{c['n_train']} training runs, half-life {c['half_life']}")
+        con.execute(
+            f"""
+            INSERT INTO {SCHEMA}.run_modes
+                  (athlete_id, run_date, event_id, is_buggy, source,
+                   confidence, reason, set_at)
+            SELECT ?, ?, ?, ?, 'model', ?, ?, now()
+            WHERE NOT EXISTS (
+                    SELECT 1 FROM {SCHEMA}.run_modes m
+                    WHERE (m.athlete_id, m.run_date, m.event_id) = (?, ?, ?))
+            """,
+            [c["athlete_id"], c["run_date"], c["event_id"], c["is_buggy"],
+             c["confidence"], reason,
+             c["athlete_id"], c["run_date"], c["event_id"]],
+        )
+        written += 1
+        log(f"  estimator: {c['athlete_name']} {c['time']} {c['short_name']} "
+            f"({c['run_date'].date()}) -> "
+            f"{'BUGGY' if c['is_buggy'] else 'regular'} "
+            f"at {c['confidence']:.2f} confidence")
+    log(f"  estimator: {written} label(s) written")
+
+
 def ensure_views(con: duckdb.DuckDBPyConnection) -> None:
     """(Re)create the derived analytics views. Deterministic from results."""
     # Base view every mode-aware query reads. Created FIRST: DuckDB resolves a
@@ -1504,10 +1576,18 @@ def build_motherduck(con: duckdb.DuckDBPyConnection) -> None:
 # Orchestration
 # --------------------------------------------------------------------------- #
 def _finalize(con: duckdb.DuckDBPyConnection) -> None:
-    """Post-write steps shared by bootstrap and refresh: snapshot current-form
-    targets, export the results CSV, and rebuild the deploy snapshot."""
+    """Post-write steps shared by bootstrap and refresh: label what can be
+    labelled, snapshot current-form targets, export the results CSV, and
+    rebuild the deploy snapshot.
+
+    Order matters. Course difficulty feeds the estimator; the estimator's
+    labels decide which form target each run belongs to; `current_targets` is
+    a frozen snapshot that nothing recomputes. Labelling after any of those
+    would leave them built from the wrong set.
+    """
     apply_course_difficulty(con)
     apply_rule_labels(con)
+    apply_model_labels(con)
     update_current_targets(con)
     export_results_snapshot(con)
     export_run_modes(con)

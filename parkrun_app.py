@@ -1023,8 +1023,9 @@ bridge from the other kind using their measured buggy **handicap** — the table
 says when that happened, because a bridged target is an estimate rather than a
 measurement.
 
-Some labels are our estimates rather than confirmations, and they are marked as
-such. And because a run's label decides which target it is judged against,
+**Labels can be estimates too** — where a run has not been confirmed by the
+runner, we work it out from the run itself, and correct it when it turns out
+wrong. And because a run's label decides which target it is judged against,
 **labelling an old run can change who won it** — the record below goes back to
 2023 and is not frozen.
             """

@@ -328,3 +328,77 @@ class TestStandardise:
 
     def test_every_raw_feature_is_a_real_feature(self):
         assert set(be.RAW_FEATURES) <= set(be.FEATURES)
+
+
+# --------------------------------------------------------------------------- #
+# score_unlabelled — the scoping the pipeline relies on
+# --------------------------------------------------------------------------- #
+class FakeCon:
+    """Stands in for a DuckDB connection. score_unlabelled reads through
+    runs_from, so a fake that returns a frame exercises the real scoping."""
+
+    def __init__(self, df):
+        self._df = df
+
+    def execute(self, sql):
+        return self
+
+    def fetchdf(self):
+        return self._df.copy()
+
+
+def athlete_runs(*specs, athlete_id=3087156):
+    df = runs(*specs, athlete_id=athlete_id)
+    return df.rename(columns={"course_diff": "course_diff"})
+
+
+class TestScoreUnlabelled:
+    def _history(self, tail):
+        """25 labelled runs alternating course, both classes present, then
+        whatever the test appends."""
+        base = [(i * 7, 1 + i % 3, 1200 + (i % 5) * 20, i % 4 == 0) for i in range(30)]
+        return athlete_runs(*base, *tail)
+
+    def test_scores_a_new_unlabelled_run(self, monkeypatch):
+        monkeypatch.setattr(be, "ATHLETES", {3087156: "George"})
+        df = self._history([(400, 2, 1500)])
+        out = be.score_unlabelled(FakeCon(df))
+        assert len(out) == 1
+        c = out[0]
+        assert c["behind_frontier"] is False
+        assert c["is_buggy"] in (True, False)
+        assert c["confidence"] == pytest.approx(max(c["p"], 1 - c["p"]))
+        assert c["confidence"] >= 0.5
+
+    def test_refuses_to_backfill_behind_the_label_frontier(self, monkeypatch):
+        """A hole behind the frontier means a run was skipped or re-keyed.
+        Filling it from a model would rewrite a head-to-head settled months
+        ago, and nothing downstream would show that it had happened."""
+        monkeypatch.setattr(be, "ATHLETES", {3087156: "George"})
+        df = self._history([(100, 2, 1500)])          # older than run 30 (day 203)
+        out = be.score_unlabelled(FakeCon(df))
+        assert len(out) == 1
+        assert out[0]["behind_frontier"] is True
+        assert out[0]["is_buggy"] is None             # reported, never written
+
+    def test_a_labelled_run_is_invisible(self, monkeypatch):
+        """Write-once. Whoever wrote the label, it is never re-scored."""
+        monkeypatch.setattr(be, "ATHLETES", {3087156: "George"})
+        df = self._history([(400, 2, 1500, True, "model")])
+        assert be.score_unlabelled(FakeCon(df)) == []
+
+    def test_unfittable_yields_no_guess(self, monkeypatch):
+        """Below MIN_TRAIN_ROWS there is no model, and the contract is to
+        report nothing rather than invent a probability."""
+        monkeypatch.setattr(be, "ATHLETES", {3087156: "George"})
+        df = athlete_runs((0, 1, 1200, False), (7, 1, 1250, True), (14, 2, 1500))
+        out = be.score_unlabelled(FakeCon(df))
+        assert len(out) == 1 and out[0]["is_buggy"] is None
+
+    def test_each_athlete_is_scored_against_only_their_own_runs(self, monkeypatch):
+        monkeypatch.setattr(be, "ATHLETES", {3087156: "George", 5462426: "Duncan"})
+        g = self._history([(400, 2, 1500)])
+        d = athlete_runs(*[(i * 7, 1, 1800, False) for i in range(20)],
+                         athlete_id=5462426)
+        out = be.score_unlabelled(FakeCon(pd.concat([g, d], ignore_index=True)))
+        assert [c["athlete_name"] for c in out] == ["George"]

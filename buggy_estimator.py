@@ -124,31 +124,43 @@ def resolve_db(db: str | None = None) -> str:
     return str(local if local.exists() else SNAPSHOT)
 
 
+_RUNS_SQL = f"""
+    SELECT r.athlete_id, a.athlete_name, r.run_date, r.event_id,
+           e.short_name, r.time, r.time_seconds,
+           m.is_buggy, m.source, cd.difficulty AS course_diff
+    FROM parkrun.results r
+    JOIN parkrun.athletes a USING (athlete_id)
+    JOIN parkrun.events e   USING (event_id)
+    LEFT JOIN parkrun.run_modes m
+           ON (m.athlete_id, m.run_date, m.event_id)
+            = (r.athlete_id, r.run_date, r.event_id)
+    LEFT JOIN parkrun.course_difficulty cd ON cd.event_id = r.event_id
+    WHERE r.athlete_id IN ({','.join(str(a) for a in ATHLETES)})
+      AND r.time_seconds IS NOT NULL
+    ORDER BY r.athlete_id, r.run_date
+"""
+
+
+def runs_from(con) -> pd.DataFrame:
+    """Read the runs frame from an already-open connection.
+
+    The refresh holds the only writable handle on the database, and DuckDB
+    allows one writer — so the pipeline cannot let this module open its own.
+    Same query either way, so the scored evidence is identical whether the
+    caller is the refresh or the command line.
+    """
+    df = con.execute(_RUNS_SQL).fetchdf()
+    df["run_date"] = pd.to_datetime(df["run_date"])
+    return df
+
+
 def load_runs(db: str) -> pd.DataFrame:
     """Every run by the two buggy athletes, with its label and course score."""
     con = duckdb.connect(db, read_only=True)
     try:
-        df = con.execute(
-            f"""
-            SELECT r.athlete_id, a.athlete_name, r.run_date, r.event_id,
-                   e.short_name, r.time, r.time_seconds,
-                   m.is_buggy, m.source, cd.difficulty AS course_diff
-            FROM parkrun.results r
-            JOIN parkrun.athletes a USING (athlete_id)
-            JOIN parkrun.events e   USING (event_id)
-            LEFT JOIN parkrun.run_modes m
-                   ON (m.athlete_id, m.run_date, m.event_id)
-                    = (r.athlete_id, r.run_date, r.event_id)
-            LEFT JOIN parkrun.course_difficulty cd ON cd.event_id = r.event_id
-            WHERE r.athlete_id IN ({','.join(str(a) for a in ATHLETES)})
-              AND r.time_seconds IS NOT NULL
-            ORDER BY r.athlete_id, r.run_date
-            """
-        ).fetchdf()
+        return runs_from(con)
     finally:
         con.close()
-    df["run_date"] = pd.to_datetime(df["run_date"])
-    return df
 
 
 # --------------------------------------------------------------------------- #
@@ -462,6 +474,56 @@ def score_one(train: pd.DataFrame, target: pd.DataFrame, half_life=...) -> dict 
         "beta": beta,
         "contributions": dict(zip(FEATURES, Xt[0] * beta[1:])),
     }
+
+
+def score_unlabelled(con) -> list[dict]:
+    """Score every unlabelled run that sits forward of its athlete's label
+    frontier. Returns one dict per call; **writes nothing** — the caller does
+    the insert, so this module stays side-effect free and testable.
+
+    Two scoping rules, both deliberate:
+
+    **Forward-only.** A run is scored only if it is newer than the athlete's
+    most recent existing label. A hole *behind* the frontier is left alone: it
+    means a run was skipped or re-keyed, and back-filling it from a model would
+    rewrite a head-to-head result that has been settled for months. Those are
+    logged for hand review instead, because a silent backfill is the one
+    failure here that would be hard to notice and impossible to undo.
+
+    **Never re-score.** A run with any label is invisible to this, whoever
+    wrote it. Write-once is what makes a correction permanent.
+
+    A run the model cannot fit — too little history, or one class only —
+    yields no dict rather than a guess.
+    """
+    df = runs_from(con)
+    out = []
+    for athlete_id, name in ATHLETES.items():
+        a = build_features(df[df.athlete_id == athlete_id].reset_index(drop=True))
+        labelled = a[a.is_buggy.notna()]
+        frontier = labelled.run_date.max() if len(labelled) else pd.Timestamp.min
+        for i in a.index[a.is_buggy.isna()]:
+            row = a.loc[i]
+            ahead = row.run_date > frontier
+            train = a[(a.run_date < row.run_date)
+                      & a.source.isin(TRAINING_SOURCES)
+                      & a.is_buggy.notna()]
+            res = score_one(train, a.loc[[i]]) if ahead else None
+            out.append({
+                "athlete_id": athlete_id,
+                "athlete_name": name,
+                "run_date": row.run_date,
+                "event_id": int(row.event_id),
+                "short_name": row.short_name,
+                "time": row.time,
+                "behind_frontier": not ahead,
+                "p": res["p"] if res else None,
+                "is_buggy": res["is_buggy"] if res else None,
+                "confidence": res["confidence"] if res else None,
+                "half_life": res["half_life"] if res else None,
+                "n_train": res["n_train"] if res else None,
+            })
+    return out
 
 
 def walk_forward(feat: pd.DataFrame, uncorrected: bool = False) -> pd.DataFrame:
