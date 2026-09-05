@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
 from datetime import date, datetime
 from pathlib import Path
 
@@ -54,16 +55,17 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 
 REPO = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO))
+
+# The baseline cascade lives with the estimator. Shared rather than copied so
+# the evidence on the review sheet is the same evidence the model is fitted on
+# — a reviewer disagreeing with the model should be looking at the same numbers
+# it did. `buggy_estimator` imports nothing this script cannot (no streamlit).
+from buggy_estimator import add_baselines  # noqa: E402
 
 # The two athletes with a buggy dimension. Raju never uses one, so he is not
 # exported — every run of his is non-buggy by construction.
 ATHLETES = ("George", "Duncan")
-
-# Baseline selection. `event` is the clean, course-controlled baseline; `window`
-# is the fallback when there is too little history at that course.
-BASE_MIN_EVENT_RUNS = 2
-BASE_MIN_WINDOW_RUNS = 8
-BASE_WINDOW_DAYS = 182
 
 WITH_BUGGY = "With buggy"
 WITHOUT_BUGGY = "Without buggy"
@@ -138,41 +140,6 @@ def fmt_time(seconds: float) -> str:
     h, rem = divmod(s, 3600)
     m, sec = divmod(rem, 60)
     return f"{h}:{m:02d}:{sec:02d}" if h else f"{m}:{sec:02d}"
-
-
-def add_baselines(df: pd.DataFrame) -> pd.DataFrame:
-    """Attach a comparison baseline and the excess over it to every run.
-
-    This is evidence for a human, not a verdict. Baselines, first rule that
-    fires:
-      1. `event`  — median of that athlete's OTHER runs at the same parkrun.
-                    Course-controlled, so the only clean baseline.
-      2. `window` — 25th percentile of their runs within +/-182 days. q25 not
-                    median: a buggy only ever makes you slower, so the fast tail
-                    is the buggy-immune part of the distribution. Note this is
-                    biased high by construction — it is a rough guide, and it is
-                    why no threshold is drawn on it.
-      3. none     — too little history either way; Baseline and Excess are left
-                    blank rather than guessed.
-    """
-    out = []
-    for i, r in df.iterrows():
-        others = df[(df.athlete_id == r.athlete_id) & (df.index != i)]
-        same_event = others[others.event_id == r.event_id]
-        if len(same_event) >= BASE_MIN_EVENT_RUNS:
-            out.append((same_event.time_seconds.median(), "event", len(same_event)))
-            continue
-        near = others[
-            (others.run_date - r.run_date).abs().dt.days <= BASE_WINDOW_DAYS
-        ]
-        if len(near) >= BASE_MIN_WINDOW_RUNS:
-            out.append((near.time_seconds.quantile(0.25), "window", len(near)))
-        else:
-            out.append((np.nan, "none", 0))
-
-    df[["expected", "basis", "n_base"]] = pd.DataFrame(out, index=df.index)
-    df["excess"] = df.time_seconds / df.expected - 1
-    return df
 
 
 def write_sheet(ws, rows: pd.DataFrame) -> None:

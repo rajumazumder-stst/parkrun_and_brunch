@@ -147,6 +147,38 @@ looks for, so a model tested against it would score well for circular reasons.
 The walk-forward over real labels is the honest measure. Recover it from git
 history if some future need proves otherwise.
 
+## Tests
+
+```bash
+pytest                 # from the repo root
+pytest -q tests/test_buggy_estimator.py
+```
+
+**pytest is a dev tool, deliberately not in `requirements.txt`** — same
+convention as `openpyxl` for the review sheet and `cairosvg` for the logo. The
+hosted app must stay deployable without it. Install it into the project venv:
+
+```bash
+pip install pytest
+```
+
+`tests/test_buggy_estimator.py` needs no database — every case builds its own
+frame. The ones worth knowing about, because they encode decisions rather than
+mechanics:
+
+* **causality** — appending a later run must leave every earlier row's features
+  byte-identical. This is the property the whole walk-forward rests on; break it
+  and the model quietly scores itself using answers it could not have had.
+* **`default` rows never train** — they are assumptions, not observations
+  (`CLAUDE.md`'s three-source rule). They *are* still used for features: a
+  default row is a real run with a real time.
+* **effective positives ignores class balancing** — balancing rescales the
+  positives to match the negatives, so folding it in would hide exactly the
+  loss the half-life floor exists to catch.
+* **the form window matches the pipeline's `TARGET_WINDOW_DAYS`** — the
+  estimator cannot import it (`parkrun_pipeline` pulls in requests and bs4), so
+  the test reads the constant out of the source instead.
+
 ## Screenshots
 
 Playwright drives the running app for phone-sized captures (390×844, 3×), which
@@ -206,10 +238,14 @@ is with a comment naming `TARGET_WINDOW_DAYS` as its source of truth.
 
 **Value: high. Risk: low. Size: small.**
 
-### 2. There is no test suite
+### 2. Test coverage is thin
 
-5,400 lines, zero automated tests. The project has leaned on verification
-narratives instead — the zero-label equivalence check, the label-impact
+**Partly addressed.** `tests/test_buggy_estimator.py` now covers the estimator
+(27 cases, no DB). Everything else remains untested: the pipeline's views, the
+head-to-head arithmetic, `_winning_margin`, the handicap gate. The reasoning
+below still applies to those.
+
+The project leaned on verification narratives instead — the zero-label equivalence check, the label-impact
 comparison — and those were genuinely good, but they were one-off and are now
 spent.
 
