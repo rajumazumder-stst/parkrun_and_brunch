@@ -309,3 +309,39 @@ class TestContracts:
         train = be.build_features(runs(*[(i, 1, 1200, i % 2 == 0) for i in range(5)]))
         target = be.build_features(runs((200, 1, 1500)))
         assert be.score_one(train, target) is None
+
+
+# --------------------------------------------------------------------------- #
+# Standardisation
+# --------------------------------------------------------------------------- #
+class TestStandardise:
+    def test_raw_features_keep_their_own_scale(self):
+        """`prior_rate` and `event_buggy_share` sit at 0 for the whole pre-buggy
+        era, so z-scoring them against that makes every real value an outlier.
+        Measured, it flipped prior_rate's coefficient negative."""
+        X = pd.DataFrame({
+            "prior_rate": [0.0] * 18 + [0.4, 0.6],
+            "excess": [0.0] * 18 + [0.4, 0.6],
+        })
+        Z, mu, sd = be.standardise(X)
+        assert mu["prior_rate"] == 0.0 and sd["prior_rate"] == 1.0
+        assert Z[-1, 0] == pytest.approx(0.6)      # passed through untouched
+        assert Z[-1, 1] > 2.0                      # the z-scored twin, for contrast
+
+    def test_raw_features_are_still_imputed(self):
+        """Only the rescaling is skipped. A NULL must not reach the fit."""
+        X = pd.DataFrame({"prior_rate": [0.0, 0.5, np.nan]})
+        Z, _, _ = be.standardise(X)
+        assert not np.isnan(Z).any()
+
+    def test_reused_mu_and_sd_are_honoured(self):
+        """The target run is standardised with the training set's parameters,
+        never its own — a one-row frame has no spread to measure."""
+        train = pd.DataFrame({"excess": [0.0, 1.0, 2.0], "prior_rate": [0.0, 0.5, 1.0]})
+        _, mu, sd = be.standardise(train)
+        Z, _, _ = be.standardise(pd.DataFrame({"excess": [1.0], "prior_rate": [0.5]}), mu, sd)
+        assert Z[0, 0] == pytest.approx(0.0)       # the training median
+        assert Z[0, 1] == pytest.approx(0.5)       # raw, unscaled
+
+    def test_every_raw_feature_is_a_real_feature(self):
+        assert set(be.RAW_FEATURES) <= set(be.FEATURES)

@@ -67,6 +67,17 @@ EVENT_RATE_PRIOR = 3.0     # pseudo-runs of shrinkage for feature 6
 FEATURES = ["excess", "form_resid", "course_diff", "run_len", "prior_rate",
             "event_buggy_share"]
 
+# Features left on their own scale rather than z-scored. Both are proportions
+# already bounded on [0, 1] and directly comparable, so standardising buys
+# nothing — and here it actively harms. Each sits at exactly 0 for the decade
+# before the athlete owned a buggy, which drags the median to 0 and the SD to a
+# fraction of the real spread, so every in-era value lands two standard
+# deviations out. Measured walk-forward, z-scoring these two flipped
+# `prior_rate`'s coefficient negative — the model asserting a recent buggy
+# spell makes a buggy *less* likely — and cost George 8 points of precision and
+# Duncan 8 of accuracy.
+RAW_FEATURES = ("prior_rate", "event_buggy_share")
+
 # Only these sources train. A `rule` row is what a deterministic rule says
 # must be true — Raju has never pushed a buggy — so it is a statement about the
 # rule, not evidence about the run, and hundreds of them would swamp the
@@ -303,14 +314,24 @@ def build_features(athlete: pd.DataFrame) -> pd.DataFrame:
 # Model — L2 logistic regression, hand-rolled to avoid a new dependency
 # --------------------------------------------------------------------------- #
 def standardise(X: pd.DataFrame, mu=None, sd=None):
-    """Median-impute then z-score. Imputation matters: `course_diff` is NULL for
-    courses outside the published UK set, and dropping those runs would quietly
-    exclude every overseas parkrun."""
+    """Median-impute, then z-score everything except `RAW_FEATURES`.
+
+    Imputation matters: `course_diff` is NULL for courses outside the published
+    UK set, and dropping those runs would quietly exclude every overseas
+    parkrun. NaN is therefore filled with the median rather than propagated —
+    the run still counts, that feature simply says nothing about it.
+
+    The `RAW_FEATURES` exemption is not cosmetic; see the note beside the
+    constant. Imputation still applies to them, only the rescaling does not.
+    """
     X = X.astype(float).copy()
     if mu is None:
         mu = X.median()
         filled = X.fillna(mu)
         sd = filled.std(ddof=0).replace(0, 1.0)
+        for f in RAW_FEATURES:
+            if f in mu.index:
+                mu[f], sd[f] = 0.0, 1.0
     else:
         filled = X.fillna(mu)
     return ((filled - mu) / sd).values, mu, sd
