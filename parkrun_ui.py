@@ -143,21 +143,22 @@ BUGGY_GLYPH = "🛒"
 REGULAR_LABEL = "regular"
 
 
-def mode_suffix(is_buggy, source: str | None = None) -> str:
+def mode_suffix(is_buggy) -> str:
     """Glyph appended to a runner's name in prose and tables.
 
     The glyph alone, not the words: it appears mid-sentence in the scoreline,
-    where "(with buggy)" after every name made the line hard to read. An
-    estimated label still has to look different from a confirmed one — given
-    how poorly a per-run rule separates a buggy from a hard course, a guess has
-    to be visibly a guess — so it keeps the "est." qualifier.
+    where "(with buggy)" after every name made the line hard to read.
+
+    An estimated label is deliberately NOT distinguished here. Both this and
+    `mode_text` once carried an "(est.)" qualifier for `source='estimated'`,
+    unreachable because no caller ever passed the source. Rather than wire it
+    up, the distinction was dropped: an estimate is verified against the
+    source-of-truth DuckDB (see docs/DATA.md), not by reading it off the page.
     """
-    if not is_buggy:
-        return ""
-    return f" {BUGGY_GLYPH} (est.)" if source == "estimated" else f" {BUGGY_GLYPH}"
+    return f" {BUGGY_GLYPH}" if is_buggy else ""
 
 
-def mode_text(is_buggy, source: str | None = None) -> str:
+def mode_text(is_buggy) -> str:
     """Value for a `Mode` column: "With buggy", or blank.
 
     Blank rather than "Regular": the column only appears when a buggy run is
@@ -165,9 +166,7 @@ def mode_text(is_buggy, source: str | None = None) -> str:
     with a word gives the eye something to read on rows that carry no
     information, and buries the ones that do.
     """
-    if not is_buggy:
-        return ""
-    return "With buggy (est.)" if source == "estimated" else "With buggy"
+    return "With buggy" if is_buggy else ""
 
 
 

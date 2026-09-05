@@ -95,8 +95,10 @@ def main() -> None:
         buggy |= runs.index.isin(g[g["excess"] > cut].index)
 
     picked = runs[buggy].copy()
-    # A few labelled 'estimated' so the "(estimated)" marker is exercised — a
-    # guess must read differently from a confirmation in the UI.
+    # A few labelled 'estimated' so both `source` values and a populated
+    # `confidence` are exercised — through the views, the CSV export and the
+    # deploy snapshot. NOT for a UI marker: an estimate deliberately renders
+    # identically to a confirmation, and is verified in the DB instead.
     picked = picked.reset_index(drop=True)
     picked["source"] = ["estimated" if i % ESTIMATED_SHARE == 0 else "manual"
                         for i in range(len(picked))]

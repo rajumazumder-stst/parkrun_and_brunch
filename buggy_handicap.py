@@ -51,7 +51,7 @@ def load_moded_runs(version) -> pd.DataFrame:
     return _read_sql(
         """
         SELECT a.athlete_name, r.run_date, e.short_name, r.time, r.time_seconds,
-               coalesce(m.is_buggy, FALSE) AS is_buggy, m.source
+               coalesce(m.is_buggy, FALSE) AS is_buggy
         FROM parkrun.results r
         JOIN parkrun.athletes a USING (athlete_id)
         JOIN parkrun.events e   USING (event_id)

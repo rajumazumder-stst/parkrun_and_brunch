@@ -58,7 +58,6 @@ from parkrun_ui import (  # shared with label_impact.py — see that module
     UK_TZ,
     data_version,
     fmt_time,
-    mode_suffix,
 )
 
 # Logo built by scripts/build_logo.py (three runners in ATHLETE_COLORS on a

@@ -703,9 +703,12 @@ labels.
   target basis, so a **bridged** target (form borrowed from the other mode via
   the handicap) is never mistaken for a measured one. `render_occasion` also
   prints a note in words whenever a target was bridged.
-- **Estimated labels read differently** from confirmed ones (`🛒 (est.)`).
-  Given how poorly a per-run rule separates a buggy from a hard course, a guess
-  has to be visibly a guess.
+- **Estimated labels look identical to confirmed ones.** `mode_suffix` /
+  `mode_text` once carried a `🛒 (est.)` variant, unreachable because no caller
+  ever passed `source` and `v_head_to_head` drops `mode_source` anyway. It was
+  **deleted rather than wired up**: verification is a database activity (the
+  review query in `docs/DATA.md`), not something the page carries. The app's
+  one acknowledgement is a line of prose in the tab-2 explainer.
 - Words, not the glyph, in the **explainer prose**, the bridged-target note and
   the `title` tooltip that explains the glyph — those are read rather than
   scanned.

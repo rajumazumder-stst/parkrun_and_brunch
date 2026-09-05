@@ -139,8 +139,11 @@ python scripts/dev_fake_labels.py --clear   # start over
 It labels runs that were slow *relative to that athlete's trailing 20-run
 median*, so the fakes track contemporaneous form rather than a flat time:
 Duncan gets a sustained era (what a real buggy looks like), George scattered
-one-offs, a quarter of them `estimated` so that marker is exercised too. It
-refuses to write to the source of truth or the deploy snapshot.
+one-offs, a quarter of them `estimated` with a populated `confidence` so both
+`source` values travel through the views, the CSV export and the snapshot.
+There is no UI marker to exercise — an estimate renders identically to a
+confirmation, by design. It refuses to write to the source of truth or the
+deploy snapshot.
 
 Delete `data/parkrun_dev.duckdb` when you are done — it is disposable, and
 leaving fake labels in it is a trap.

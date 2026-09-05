@@ -346,17 +346,24 @@ def write_labels(rows: pd.DataFrame, con, apply: bool) -> None:
 
 
 def report(rows: pd.DataFrame) -> None:
-    """Class counts per athlete. Phase 4 gates on 8 labels per class, so this is
-    the number that says whether an athlete can be modelled at all."""
+    """Class counts per athlete — how much evidence the estimator has to learn
+    from, per athlete.
+
+    The `thin` note below **gates nothing**; it is a hint to the reader. Eight
+    per class is a rule of thumb, not a threshold anything enforces: the
+    estimator fits whatever it has, and reports its own measured accuracy
+    instead (`buggy_estimator.py`). The separate `>= 8` in `buggy_handicap.py`
+    is a real gate, but on the *handicap* recommendation, not on modelling.
+    """
     print("\n  per athlete:")
     for name, g in rows.groupby("athlete_name"):
         man = g[g.source == "manual"]
         buggy = int(man.is_buggy.sum())
         nonbuggy = int((~man.is_buggy).sum())
-        gate = "" if min(buggy, nonbuggy) >= 8 else "   <- below the 8-per-class gate"
+        thin = "" if min(buggy, nonbuggy) >= 8 else "   <- thin for one class"
         print(f"    {name:<8} {len(g):>4} runs  "
               f"manual: {buggy} buggy / {nonbuggy} non-buggy  "
-              f"default: {len(g) - len(man)}{gate}")
+              f"default: {len(g) - len(man)}{thin}")
     if "blank_on_sheet" in rows and rows.blank_on_sheet.any():
         blanks = rows[rows.blank_on_sheet]
         print(f"\n  {len(blanks)} row(s) left BLANK on the sheet — assumed "

@@ -92,6 +92,41 @@ with the model by construction, so it adds sample size without moving the
 decision boundary. A correction lands exactly where the boundary is wrong. This
 is why the notification is the whole review step — reading it is the mechanism.
 
+## Reviewing what the estimator wrote
+
+The app does not mark an estimate — it looks exactly like a confirmed label. The
+check is a query against the **source of truth**, prompted by the Saturday
+notification:
+
+```bash
+duckdb ~/.config/parkrun/parkrun_local.duckdb
+```
+
+```sql
+-- Every estimate, newest first, with the evidence a reviewer needs.
+SELECT a.athlete_name, m.run_date, e.short_name, r.time,
+       m.is_buggy, round(m.confidence, 2) AS confidence, m.reason
+FROM parkrun.run_modes m
+JOIN parkrun.results  r USING (athlete_id, run_date, event_id)
+JOIN parkrun.athletes a USING (athlete_id)
+JOIN parkrun.events   e USING (event_id)
+WHERE m.source = 'estimated'
+ORDER BY m.run_date DESC
+LIMIT 20;
+```
+
+Narrow it to the last refresh with `AND m.set_at > now() - INTERVAL 8 DAY`, or
+to one athlete with `AND m.athlete_id = 5462426`.
+
+Two things to know when reading `confidence`. It is `max(p, 1−p)`, so 0.5 is a
+coin flip and 1.0 is certainty — but it is only as trustworthy as the model that
+produced it, and the two athletes differ sharply. Treat a high-confidence
+**buggy** call from the athlete with few labelled buggy runs as the one worth
+checking; the refresh log prints each call's historical hit rate beside it for
+exactly this reason.
+
+Anything wrong gets corrected below, which outranks the estimate permanently.
+
 ## Correcting a label by hand
 
 Edits go to the **source of truth**, never to a dev copy or the snapshot:
@@ -141,9 +176,11 @@ tooltips. It marks the **exception**: a regular run carries nothing, and an
 athlete with no buggy runs is never labelled either way, so Raju's UI (and
 everyone's, before the first label) is unchanged from before the feature.
 
-An **estimated** label reads differently from a confirmed one (`🛒 (est.)`).
-That distinction is load-bearing: a per-run rule cannot separate a buggy from a
-hard course, so a guess has to be visibly a guess.
+**An estimated label looks identical to a confirmed one.** There was once a
+`🛒 (est.)` variant, unreachable because no caller ever passed the label's
+`source`, and it has been removed rather than wired up: the distinction is a
+database fact, checked with the query below, not something the page carries.
+The app's own caveat about this lives in the tab-2 explainer.
 
 Words rather than the glyph in prose — the tab-2 explainer, the note under a
 head-to-head table saying a target was bridged, and the tooltip that explains
