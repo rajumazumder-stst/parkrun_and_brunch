@@ -162,6 +162,11 @@ The change reaches the deployed app at the next refresh, which rebuilds
 `data/parkrun_snapshot.duckdb` and pushes it. `data/parkrun_run_modes.csv` is
 exported on every refresh, so the edit also shows up as a reviewable diff.
 
+**DuckDB is the source of truth; the CSV is a photocopy, filed.** The export is
+a full overwrite of the table, ordered so the diff is readable, and nothing in
+the repo reads it back. See `docs/MODEL.md` for what the estimator writes into
+that table and why.
+
 ## Things that will surprise you
 
 - **Labelling a past run changes past results.** A label changes that run's

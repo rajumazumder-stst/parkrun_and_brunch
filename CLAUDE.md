@@ -342,8 +342,15 @@ training but still used for **features** — a real run with a real time belongs
 in a form window and a course baseline whoever labelled it; it is only its
 label that carries no information.
 
-Exported to `data/parkrun_run_modes.csv` on every refresh, so hand-entered
-labels have a diffable git history rather than living only inside a binary DB.
+Exported to `data/parkrun_run_modes.csv` on every refresh, so labels have a
+diffable git history rather than living only inside a binary DB. **That CSV has
+one writer and no readers** — nothing seeds from it, no app opens it, and it
+must stay that way: a file nothing reads cannot become a competing source of
+truth. It exists because `git diff` on a DuckDB file says `Bin 2633728 ->
+2633728 bytes` and nothing else, so without the export there is no way to ask
+when a run became buggy or who said so. That matters more since the estimator
+went live — most labels are now written unattended, and the CSV diff is the
+only reviewable trace of what it did.
 
 ### `course_difficulty`
 External per-course difficulty score, used as a covariate by the buggy
@@ -601,13 +608,14 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | `tests/` | pytest suite, run from the repo root. **pytest is dev-only, deliberately not in `requirements.txt`** (same convention as `openpyxl` and `cairosvg`). Currently covers `buggy_estimator` only — 38 cases, no database |
 | `docs/DEV.md` | Local dev workflow (incl. `PARKRUN_LABEL_AUDIT=1` for the label-impact app). Also **§ Deferred refactors** — streamlining that has been identified and costed but not done, each with value/risk/size, so the analysis is not redone every time the code looks tidyable. **Read it before starting a cleanup**; two items in it were considered and deliberately rejected |
 | `docs/DATA.md` | The buggy labels: what each `source` means, how the training set grows, how to correct a label by hand |
+| `docs/MODEL.md` | The estimator as built: the four features and why each survived, the fitted coefficients, every constant, class balancing and recency, the walk-forward numbers, and the features that were removed on evidence. **The fitted numbers move every refresh** — the reasoning is what is durable |
 | `docs/DEPLOY.md` | Deploy/ops: local source-of-truth DB + snapshot delivery, scheduled refresh, rebuilding/seeding, retired MotherDuck path (secret flip, tokens, re-seed) |
 | `requirements.txt` | Pinned runtime deps for hosting (Streamlit Cloud etc.) |
 | `data/parkrun_events.csv` | Event catalogue (events.json dump + Victoria Dock) |
 | `data/country_lookup.csv` | country_code → country_name |
 | `data/athletes_lookup.csv` | Athlete names + DOB |
 | `data/parkrun_results.csv` | Results snapshot exported by the pipeline (keyed on event_id) |
-| `data/parkrun_run_modes.csv` | Buggy labels exported by the pipeline — the audit trail for hand-entered labels |
+| `data/parkrun_run_modes.csv` | Buggy labels exported by the pipeline — the audit trail for labels, most of them now written by the estimator. **Write-only: one writer, no readers** |
 | `data/course_difficulty.csv` | Cached course-difficulty scores + hand-maintained `alias_of` column |
 | `data/parkrun_snapshot.duckdb` | Read-only, parkrun-only DuckDB the deployed app serves |
 | `adhoc/` | One-off investigations using the parkrun data but **outside the app** — see `adhoc/README.md` |
