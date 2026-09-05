@@ -171,3 +171,105 @@ Two gotchas. `full_page=True` gives you only the viewport — Streamlit scrolls 
 inner container, not the document — so scroll the target into view and take a
 normal screenshot. And every tab's DOM is present at once, so scope selectors
 with `:visible` or you will match a hidden element on another tab.
+
+
+## Deferred refactors
+
+Streamlining that has been *identified and costed* but not done, so the
+analysis is not repeated every time someone reads the code and thinks "this
+could be tidier". Ordered by value for the risk taken.
+
+Already done, for contrast: `data_version()` deduplicated into `parkrun_ui.py`,
+the dead `mode_badge()` removed, and the two `fmt_time` copies aligned
+(`ca8ccf6`). Two known issues are documented elsewhere and are **not** repeated
+here — the `resolve_event_ids` duplicate-`short_name` hazard (`CLAUDE.md`,
+design decision 3) and the shell `log()` duplication (considered and rejected
+in `ca8ccf6`: sourcing a file for one `printf` adds a failure mode to a
+scheduled path that must not break).
+
+### 1. The 91-day window is a magic number in the app
+
+`parkrun_app.py`'s `load_target_window_runs()` hardcodes `latest.d - 91`, while
+the pipeline owns the same figure as `TARGET_WINDOW_DAYS`. That popover exists
+to show *which runs made the target*, so if the pipeline constant ever changed
+the popover would list a different window than the median was taken over — and
+it would look right. Silent, and exactly the kind of wrong this app is meant to
+avoid.
+
+Not a one-line import fix: `parkrun_pipeline.py` imports `requests` and `bs4` at
+module level, and the hosted app does not install those, so importing the
+constant would break the deploy. It needs a small shared constants module that
+neither side's dependencies reach into — or, cheaper, the literal kept where it
+is with a comment naming `TARGET_WINDOW_DAYS` as its source of truth.
+
+**Value: high. Risk: low. Size: small.**
+
+### 2. There is no test suite
+
+5,400 lines, zero automated tests. The project has leaned on verification
+narratives instead — the zero-label equivalence check, the label-impact
+comparison — and those were genuinely good, but they were one-off and are now
+spent.
+
+The highest-value targets are the pure functions, which need no database:
+`time_to_seconds`, `fmt_time` (both copies, as a parity test — that is exactly
+the bug that was found), `_winning_margin`, and the handicap gate logic in
+`buggy_handicap.py`. After that, the views: seed a temporary DuckDB with a
+handful of rows and assert `v_head_to_head` ranks and bridges as documented.
+
+**Value: high. Risk: none. Size: medium, and splittable.**
+
+### 3. `parkrun_pipeline.py` is 1,500 lines
+
+Scraping, schema, migrations, views, reconcile, upsert, snapshot build and the
+MotherDuck push all live in one file. The natural seams are already visible in
+its own section comments. A split into `pipeline/` submodules would make each
+piece testable in isolation (see 2).
+
+Against it: one file means one place to look, the CLI is a single entry point,
+and the current structure has not actually caused a bug. Worth doing *with* the
+tests, not before them.
+
+**Value: medium. Risk: medium. Size: large.**
+
+### 4. `parkrun_app.py` mixes data access and rendering
+
+1,370 lines holding nine `@st.cache_data` loaders and every render function.
+Lifting the loaders into a `queries.py` would leave the app file as layout, and
+would let the loaders be tested without Streamlit.
+
+**Value: medium. Risk: low-medium. Size: medium.**
+
+### 5. Long render functions
+
+`render_impact` (191 lines), `render_personal_bests` (164), `ensure_views`
+(162). Conventional advice says split them. The counter-argument is real: these
+are cohesive, heavily commented, and `CLAUDE.md` explains the shape of several
+of them, so a split trades one kind of readability for another and produces a
+diff too large to review line by line.
+
+**Value: low. Risk: medium. Size: large.**
+
+### 6. Inline styles in `parkrun_app.py`
+
+Twenty-one hand-built `unsafe_allow_html` style strings. A shared style helper
+or one stylesheet would centralise them. It touches every visual in the app,
+which is why it has not been done casually — a subtle rendering regression here
+is easy to ship and hard to notice.
+
+**Value: low. Risk: high. Size: large.**
+
+### 7. `_read_sql` opens a connection per call
+
+Roughly twenty call sites, each opening and closing its own DuckDB connection.
+This is deliberate — the app never holds a write lock — and at this data size
+it costs nothing measurable. Listed only so the next reader knows it was a
+choice rather than an oversight.
+
+**Value: none today. Leave it.**
+
+### 8. Trivia
+
+`requirements.txt:6` names `handicap_app.py`, a file that does not exist; it
+means `handicap_page.py`. One word.
+
