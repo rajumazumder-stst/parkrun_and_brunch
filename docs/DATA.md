@@ -3,23 +3,32 @@
 What cannot be read off the schema. For the schema itself see the data-model
 tables in `CLAUDE.md`; for the method see *Feature 2 — head-to-head* there.
 
-## Where things stand (2 Sep 2026)
+## Where things stand (5 Sep 2026)
 
 The review sheet came back fully answered and is imported. `run_modes` holds
-**841** rows — every run the three athletes have:
+**842** rows — every run the three athletes have:
 
 | `source` | `is_buggy` | Rows |
 |---|---|---|
-| `manual` | TRUE | 36 (George 31, Duncan 5) |
+| `manual` | TRUE | 37 (George 31, Duncan 6) |
 | `manual` | FALSE | 124 |
 | `default` | FALSE | 681 |
 
+Duncan's sixth buggy label is 2026-09-05 at Lordship Recreation Ground, entered
+by hand and confirmed by the athlete. It is worth recording that the run did
+**not** look like a buggy run from the data: measured against his non-buggy
+form and the course, 29:21 sits on the buggy centroid, but the two confirmed
+non-buggy Lordship runs nearest it (27:24 and 28:56) score the same way — which
+is exactly why labels are supervised and no estimator writes them.
+
 No `estimated` rows: the estimator is still unwritten. Handicaps measured from
 those labels — **George 0.13 (`measured`)**, Duncan and Raju on the `0.15`
-`default`; Duncan's five buggy runs are below the 8-per-class gate and his only
-course run both ways points the *other* way, so there is nothing to measure yet.
-The working is at `/buggy-handicap` on the hosted app, recomputed live from
-whatever `run_modes` currently says.
+`default`; Duncan's six buggy runs are below the 8-per-class gate, his raw
+interval crosses zero and his course-controlled estimates point the *other*
+way, so there is nothing to measure yet. Note the gate is a disjunction — the
+count is only one of three reasons he is held at the default, and removing it
+alone would change nothing. The working is at `/buggy-handicap` on the hosted
+app, recomputed live from whatever `run_modes` currently says.
 
 Labelling changed the record, as it was always going to: 175 of 205 occasions
 unchanged, 6 winners flipped, 3 with places reordered, none lost.

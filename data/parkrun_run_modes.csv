@@ -840,3 +840,4 @@ athlete_id,run_date,event_id,is_buggy,source,confidence,reason,set_at
 5462426,2026-08-15,3860,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
 5462426,2026-08-22,3163,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
 5462426,2026-08-29,620,false,manual,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
+5462426,2026-09-05,3163,true,manual,,confirmed by the athlete,2026-09-05 15:24:19.997563+01
