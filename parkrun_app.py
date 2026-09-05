@@ -221,12 +221,18 @@ def load_target_window_runs(version) -> pd.DataFrame:
 
 @st.cache_data(show_spinner=False)
 def load_personal_bests(version) -> pd.DataFrame:
-    """Each athlete's fastest run in each of three scopes, with where and when.
+    """Each athlete's fastest run in each of three scopes, plus their latest run.
 
     Scopes are anchored on the latest ``refresh_date`` (so they move with the
     data, not the wall clock) and both rolling windows are inclusive of the
     anchor day — a run earlier today counts. Ties on time break to the EARLIEST
     date: the first time they ran that fast.
+
+    ``Latest run`` is the odd one out and is deliberately kept in the same
+    frame: it is the same five facts (time, venue, date, mode, how many runs
+    the scope covers) about one run, so the renderer can lay it out with the
+    same fixed-height helpers. It ranks by date DESC — a same-day double breaks
+    to the faster of the two, which is the one that would be quoted anyway.
 
     Note the 3-month window is *calendar* months, so it is a day or two wider
     than the 91-day form-target window used by the head-to-head — these answer
@@ -250,16 +256,34 @@ def load_personal_bests(version) -> pd.DataFrame:
             UNION ALL
             SELECT 'Last 3 months', 3, runs.* FROM runs, anchor
             WHERE runs.run_date BETWEEN anchor.d - INTERVAL 3 MONTH AND anchor.d
+        ),
+        fastest AS (
+            SELECT scope, scope_ord, athlete_name, run_date, short_name,
+                   time_seconds, is_buggy, n_runs
+            FROM (
+                SELECT *, count(*) OVER (PARTITION BY scope, athlete_name) AS n_runs,
+                       row_number() OVER (PARTITION BY scope, athlete_name
+                                          ORDER BY time_seconds, run_date) AS rn
+                FROM scoped
+            )
+            WHERE rn = 1
+        ),
+        -- Ranked by date, not time, so it needs its own window function rather
+        -- than another branch of `scoped`.
+        latest AS (
+            SELECT 'Latest run' AS scope, 4 AS scope_ord, athlete_name, run_date,
+                   short_name, time_seconds, is_buggy, n_runs
+            FROM (
+                SELECT *, count(*) OVER (PARTITION BY athlete_name) AS n_runs,
+                       row_number() OVER (PARTITION BY athlete_name
+                                          ORDER BY run_date DESC, time_seconds) AS rn
+                FROM runs
+            )
+            WHERE rn = 1
         )
-        SELECT scope, scope_ord, athlete_name, run_date, short_name,
-               time_seconds, is_buggy, n_runs
-        FROM (
-            SELECT *, count(*) OVER (PARTITION BY scope, athlete_name) AS n_runs,
-                   row_number() OVER (PARTITION BY scope, athlete_name
-                                      ORDER BY time_seconds, run_date) AS rn
-            FROM scoped
-        )
-        WHERE rn = 1
+        SELECT * FROM fastest
+        UNION ALL
+        SELECT * FROM latest
         ORDER BY scope_ord, time_seconds
         """
     )
@@ -455,6 +479,26 @@ PB_VENUE_LINES = 2  # venue block is ALWAYS this tall — see _venue
 # match — so the box reads tight at the bottom. This spacer squares it up.
 PB_BOTTOM_PAD = "0.45rem"
 PB_SCOPES = ["All time", "Last 12 months", "Last 3 months"]
+# The latest run sits BELOW the three scopes, full box width, behind a rule —
+# not as a fourth column. Two reasons: a fourth column would squeeze the time
+# (the one thing the block exists to make read first) to the point where the
+# buggy glyph wraps and breaks the fixed-height alignment; and "most recent" is
+# a different kind of fact from "fastest", so reading it as a fourth PB would
+# be a misreading the layout should prevent rather than invite.
+PB_LATEST = "Latest run"
+# Gap between a time and its 🛒. A plain space sets it in the *time's* tabular
+# figures, which are wide and make the glyph read as a sixth digit; an explicit
+# margin separates the mark from the number it annotates.
+PB_GLYPH_GAP = "0.38em"
+# Streamlit stacks columns below its own 640px breakpoint, which turns each
+# athlete's three scopes into a vertical list. Kept horizontal here: the three
+# are meant to be *compared*, and stacked they read as three unrelated facts.
+# Scoped to the keyed scope rows (`st.container(key=...)` emits `st-key-<key>`)
+# so the athlete boxes themselves still stack — three side by side on a phone
+# would be unreadable — and so no other column layout in the app is touched.
+PB_PHONE_BREAKPOINT = "640px"
+PB_PHONE_BIG = "1.05rem"    # the time, shrunk to fit three across a phone
+PB_PHONE_SMALL = "0.66rem"  # scope label, venue and date at that width
 
 # Current-target box: the mode label small, the time itself large.
 TGT_SMALL = "0.82rem"
@@ -463,27 +507,96 @@ TGT_GAP = "0.75rem"   # space between the last target and the popover button
 
 
 def render_personal_bests(pb: pd.DataFrame) -> None:
-    """One bordered box per athlete; inside it the three scopes side by side.
+    """One bordered box per athlete: the three scopes side by side, then that
+    athlete's latest run full-width beneath a rule.
 
     Every line is fixed-height (the venue block included), so the times, venues
     and dates sit on the same levels across all three boxes and the boxes end
-    up identical in height."""
+    up identical in height. The latest-run strip reuses the same three helpers
+    for exactly that reason — a bespoke layout there would drift out of
+    alignment the first time a venue name got long."""
     if pb.empty:
         st.info("No results yet — run a refresh.")
         return
 
+    # Phone layout, in two parts that are deliberately scoped differently.
+    #
+    # Type sizing hangs off the WHOLE block (`st-key-pb-block`), not off the
+    # scope rows: the latest-run strip sits outside those rows, so scoping the
+    # sizes there left it at the desktop size and the four slots disagreed on a
+    # phone. One selector for all four is what keeps them consistent — a slot
+    # added later inherits it rather than having to be remembered.
+    #
+    # Un-stacking is scoped to the scope rows only. Streamlit stacks every
+    # column below its own 640px breakpoint; `flex:1 1 0` with `min-width:0` is
+    # what actually lets them shrink — Streamlit sets a per-column min-width
+    # that forces the wrap regardless of `flex-wrap`. The athlete boxes are
+    # left to stack: three of those side by side would be unreadable.
+    st.markdown(
+        f"""<style>
+        @media (max-width: {PB_PHONE_BREAKPOINT}) {{
+          .st-key-pb-block .pb-big {{
+              font-size: {PB_PHONE_BIG} !important;
+          }}
+          .st-key-pb-block .pb-small,
+          .st-key-pb-block .pb-venue {{
+              font-size: {PB_PHONE_SMALL} !important;
+          }}
+          /* Slightly under the time's size so the mark annotates the number
+             rather than competing with it, and never wraps it at this width. */
+          .st-key-pb-block .pb-glyph {{
+              margin-left: 0.24em !important;
+              font-size: 0.85em;
+          }}
+          /* The rule and the bottom spacer are sized for desktop type; at
+             phone type they leave the box looking loose. */
+          .st-key-pb-block hr {{
+              margin: 0.4rem 0 0.35rem !important;
+          }}
+          [class*="st-key-pb-scopes-"] [data-testid="stHorizontalBlock"] {{
+              flex-wrap: nowrap !important;
+              gap: 0.4rem !important;
+          }}
+          [class*="st-key-pb-scopes-"] [data-testid="stColumn"] {{
+              flex: 1 1 0 !important;
+              min-width: 0 !important;
+              width: auto !important;
+          }}
+        }}
+        </style>""",
+        unsafe_allow_html=True,
+    )
+
     all_time = pb[pb["scope"] == "All time"].sort_values("time_seconds")
     order = list(all_time["athlete_name"])
 
+    # The class on each helper is what the phone media query re-sizes; the
+    # inline style stays the desktop default so the block still renders
+    # correctly if the stylesheet below ever fails to inject.
     def _small(text: str, muted: bool = True) -> str:
         op = "opacity:.72;" if muted else ""
-        return f"<div style='font-size:{PB_SMALL};{op}line-height:1.35'>{text}</div>"
+        return (f"<div class='pb-small' style='font-size:{PB_SMALL};{op}"
+                f"line-height:1.35'>{text}</div>")
 
     def _big(text: str) -> str:
         return (
-            f"<div style='font-size:{PB_BIG};font-weight:600;line-height:1.15;"
-            f"font-variant-numeric:tabular-nums'>{text}</div>"
+            f"<div class='pb-big' style='font-size:{PB_BIG};font-weight:600;"
+            f"line-height:1.15;font-variant-numeric:tabular-nums'>{text}</div>"
         )
+
+    def _timed(row) -> str:
+        """The time, with 🛒 appended when that run was pushed.
+
+        One definition for all four slots — the three scopes and the latest-run
+        strip: the glyph marks the exception, so an athlete who never uses a
+        buggy sees nothing here and the slots can never disagree about when it
+        shows. A fastest run is rarely a buggy run, so most of the time this is
+        the plain time; that is the mark doing its job, not a missing feature."""
+        t = fmt_time(row["time_seconds"])
+        if not row.get("is_buggy"):
+            return t
+        return (f"{t}<span class='pb-glyph' style='margin-left:{PB_GLYPH_GAP}'>"
+                f"{BUGGY_GLYPH}</span>")
 
     def _venue(text: str) -> str:
         """The venue on a block of FIXED height (PB_VENUE_LINES lines).
@@ -495,20 +608,27 @@ def render_personal_bests(pb: pd.DataFrame) -> None:
         clamped with an ellipsis and kept in full in the tooltip."""
         safe = escape(str(text))
         return (
-            f"<div title='{safe}' style='font-size:{PB_SMALL};opacity:.72;"
-            f"line-height:{PB_LINE};height:{PB_VENUE_LINES * PB_LINE:.2f}em;"
+            f"<div class='pb-venue' title='{safe}' style='font-size:{PB_SMALL};"
+            f"opacity:.72;line-height:{PB_LINE};"
+            f"height:{PB_VENUE_LINES * PB_LINE:.2f}em;"
             "overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;"
             f"-webkit-line-clamp:{PB_VENUE_LINES}'>{safe}</div>"
         )
 
-    for col, name in zip(st.columns(len(order)), order):
+    # Keyed wrapper so the phone type rules above have one selector covering
+    # every slot in the block, scope columns and latest-run strip alike.
+    block = st.container(key="pb-block")
+    for col, name in zip(block.columns(len(order)), order):
         with col, st.container(border=True):
             st.markdown(
                 f"<div style='font-weight:600;font-size:1.05rem;margin-bottom:.35rem'>"
                 f"<span style='color:{ATHLETE_COLORS[name]}'>●</span> {name}</div>",
                 unsafe_allow_html=True,
             )
-            for scol, scope in zip(st.columns(len(PB_SCOPES)), PB_SCOPES):
+            # Keyed so the phone media query above can find this row and only
+            # this row: the key becomes an `st-key-…` class on the wrapper.
+            scope_row = st.container(key=f"pb-scopes-{name}")
+            for scol, scope in zip(scope_row.columns(len(PB_SCOPES)), PB_SCOPES):
                 m = pb[(pb["athlete_name"] == name) & (pb["scope"] == scope)]
                 with scol:
                     st.markdown(_small(scope, muted=False), unsafe_allow_html=True)
@@ -521,16 +641,32 @@ def render_personal_bests(pb: pd.DataFrame) -> None:
                     # Glyph beside the time, NOT a second box per athlete: the
                     # layout is fixed-height and pinned, and splitting it would
                     # break the alignment the whole block is built on.
-                    st.markdown(
-                        _big(fmt_time(r["time_seconds"])
-                             + (f" {BUGGY_GLYPH}" if r.get("is_buggy") else "")),
-                        unsafe_allow_html=True,
-                    )
+                    st.markdown(_big(_timed(r)), unsafe_allow_html=True)
                     st.markdown(_venue(r["short_name"]), unsafe_allow_html=True)
                     st.markdown(
                         _small(pd.Timestamp(r["run_date"]).strftime("%d %b %Y")),
                         unsafe_allow_html=True,
                     )
+
+            latest = pb[(pb["athlete_name"] == name) & (pb["scope"] == PB_LATEST)]
+            st.markdown(
+                "<hr style='margin:.55rem 0 .5rem;border:0;"
+                "border-top:1px solid rgba(128,128,128,.25)'>",
+                unsafe_allow_html=True,
+            )
+            st.markdown(_small(PB_LATEST, muted=False), unsafe_allow_html=True)
+            if latest.empty:
+                st.markdown(_big("—"), unsafe_allow_html=True)
+                st.markdown(_venue("no runs"), unsafe_allow_html=True)
+                st.markdown(_small("—"), unsafe_allow_html=True)
+            else:
+                r = latest.iloc[0]
+                st.markdown(_big(_timed(r)), unsafe_allow_html=True)
+                st.markdown(_venue(r["short_name"]), unsafe_allow_html=True)
+                st.markdown(
+                    _small(pd.Timestamp(r["run_date"]).strftime("%d %b %Y")),
+                    unsafe_allow_html=True,
+                )
             st.markdown(
                 f"<div style='height:{PB_BOTTOM_PAD}'></div>",
                 unsafe_allow_html=True,

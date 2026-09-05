@@ -599,7 +599,8 @@ both layout over the shared `buggy_handicap.py` / `method_impact.py`
 (`docs/DEV.md`):
 - **Tab 1** participation overlap / Venn (`v_overlap`) + per-athlete company.
 - **Tab 2** form-adjusted head-to-head summary (`v_head_to_head`,
-  `current_targets`): **personal bests** (top of the tab — see below), the
+  `current_targets`): **personal bests + latest run** (top of the tab — see
+  below), the
   head-to-head explainer, current-form targets (see **Buggy mode in the UI**),
   latest head-to-head, record leaderboard (3rd place shown only for the 3-way /
   All, each placing annotated with how many were run with a buggy), and a
@@ -631,8 +632,40 @@ today counts; ties on time break to the earliest date. Note the 3-month window
 is deliberately *not* the head-to-head's 91-day form window — these answer
 different questions (best single run vs. baseline for a contest).
 
+Beneath the three scopes, behind a rule and spanning the box, is that athlete's
+**latest run** — time, parkrun, date, and 🛒 if it was pushed. It is ranked by
+date, not time, so it needs its own window function rather than a fourth branch
+of `scoped`; a same-day double breaks to the faster of the two. It is a strip
+rather than a fourth column for two reasons: a fourth column squeezes the time
+until the glyph wraps, which breaks the fixed-height alignment the whole block
+depends on; and "most recent" is a different kind of fact from "fastest", so
+sitting it in the same row would invite reading it as a fourth PB.
+
+All four slots — the three scopes and the latest run — carry 🛒 when that run
+was pushed, from one `_timed()` helper so they cannot disagree. The glyph is
+set off by an explicit `PB_GLYPH_GAP` margin rather than a space: a space is set
+in the time's tabular figures, which are wide enough that the glyph reads as a
+sixth digit. A fastest run is rarely a buggy run, so the scope columns usually
+show a bare time — that is the mark being an exception, not a bug.
+
 Layout: one bordered box per athlete (ordered by all-time best), the three
-scopes side by side inside it. Every line is fixed-height — the venue block is
+scopes side by side inside it — **on a phone too**. Streamlit stacks every
+column below its own 640px breakpoint, which turned the three scopes into a
+vertical list; the scope row is therefore wrapped in
+`st.container(key=f"pb-scopes-{name}")` and a media query keyed on the emitted
+`st-key-pb-scopes-…` class opts *just that row* back out (`flex-wrap:nowrap`
+plus `flex:1 1 0` / `min-width:0` — Streamlit's per-column min-width is what
+actually forces the wrap, so `flex-wrap` alone does nothing). The athlete boxes
+themselves still stack on a phone — three of those side by side would be
+unreadable — and no other column layout in the app is touched.
+
+**Phone type sizing hangs off the whole block** (`st-key-pb-block`), not off the
+scope rows: the latest-run strip sits outside those rows, so scoping the sizes
+there left it at desktop size while the scopes shrank, and the four slots
+disagreed. One selector covers all four — `PB_PHONE_BIG` / `PB_PHONE_SMALL`,
+sized so three times fit across 393px with the glyph — and a slot added later
+inherits it rather than having to be remembered. The rule and bottom spacer
+tighten at that breakpoint too, since they were spaced for desktop type. Every line is fixed-height — the venue block is
 pinned to `PB_VENUE_LINES` (2) lines and clamps a longer name with an ellipsis,
 keeping the full name in the `title` tooltip — so times, venues and dates sit on
 the same levels across all three boxes and the boxes match in height. Scope
