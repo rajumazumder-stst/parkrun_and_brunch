@@ -37,6 +37,7 @@ import streamlit as st
 from matplotlib_venn import venn3
 from streamlit_folium import st_folium
 
+import parkrun_calendar as cal
 from parkrun_core import TARGET_WINDOW_DAYS
 from parkrun_ui import (  # shared with label_impact.py — see that module
     ATHLETE_COLORS,
@@ -764,7 +765,7 @@ def render_occasion(rows: pd.DataFrame, victory: bool = False) -> None:
     first = rows.iloc[0]
     date_str = pd.to_datetime(first["run_date"]).strftime("%A %d %B %Y")
     st.markdown(f"#### {first['short_name']} — {date_str}")
-    st.caption(f"Classification: **{first['classification']}**")
+    st.caption(f"**{first['classification']}**")
     if victory:
         st.markdown(_h2h_headline(rows))
         st.plotly_chart(_victory_fig(rows), width="stretch")
@@ -787,6 +788,94 @@ def render_occasion(rows: pd.DataFrame, victory: bool = False) -> None:
     _render_basis_note(d)
 
 
+def section(title: str, key: str, *, default: bool = True,
+            icon: str = "") -> bool:
+    """A titled, collapsible section. Returns True when the body should draw.
+
+    A button rather than `st.expander` for two reasons. Streamlit forbids
+    nesting one expander inside another, and tab 2 already has one ("How a
+    head-to-head works") that would have had to be dismantled to fit. And an
+    expander hides its title inside its own chrome, whereas these sections are
+    the page's headings and should still read as headings when open.
+    """
+    k = f"sec_{key}"
+    open_ = st.session_state.setdefault(k, default)
+    # The button belongs at the right margin, on the heading's own line, at
+    # every width. Streamlit stacks columns below 640px, which dropped it onto
+    # a line of its own on a phone; the keyed container is what the CSS needs
+    # to opt THIS row out of that without touching any other column layout —
+    # the same trick `render_personal_bests` uses for the PB scope row.
+    with st.container(key=f"sec-{key}"):
+        head, btn = st.columns([8, 1], vertical_alignment="center")
+        head.subheader(f"{icon} {title}".strip())
+        if btn.button("Hide" if open_ else "Show", key=f"btn_{k}",
+                      help=f"{'Hide' if open_ else 'Show'} this section"):
+            st.session_state[k] = not open_
+            st.rerun()
+    return st.session_state[k]
+
+
+# Shrinks the section buttons and pins them to the right margin. Scoped by the
+# `st-key-sec-*` class the keyed container emits, so the sidebar's Reload button
+# and every other control in the app keep their normal size and layout.
+SECTION_CSS = """
+<style>
+/* Descendant, not child: `help=` wraps the button in a
+   `stTooltipHoverTarget` span, so `> button` matched nothing and the buttons
+   stayed at Streamlit's 40px default. */
+div[class*="st-key-sec-"] [data-testid="stButton"] button {
+    /* Streamlit's own min-height is 2.5rem, which kept these at 40px tall
+       however little padding they were given — it has to be named. */
+    padding: 0.05rem 0.5rem !important;
+    min-height: 0 !important;
+    height: 1.55rem !important;
+    font-size: 0.72rem !important;
+    line-height: 1.2 !important;
+    border-radius: 0.35rem;
+    opacity: 0.72;
+    /* Without this the column is sized to the button's MIN-content, which for
+       a wrapping label is one letter — "Hide" came out stacked vertically on a
+       phone. Nowrap makes min-content the whole word. */
+    white-space: nowrap !important;
+}
+/* Right-align inside the column rather than floating the button: a float is
+   out of flow, so the column — sized to its content — collapsed to 24px on a
+   phone and squeezed the button to nothing. */
+div[class*="st-key-sec-"] [data-testid="stButton"] {
+    display: flex;
+    justify-content: flex-end;
+    width: 100%;
+}
+/* Both of these, not just the wrapper: Streamlit sizes a button's element
+   container to the button, so the wrapper inherited a 45px box and
+   "right-aligned" the button inside itself — 56px shy of the margin at 1440.
+   Only the two containers inside a section header row are touched. */
+div[class*="st-key-sec-"] [data-testid="stElementContainer"] {
+    width: 100% !important;
+}
+div[class*="st-key-sec-"] [data-testid="stButton"] button:hover {
+    opacity: 1;
+}
+/* Streamlit stacks every column below 640px, which put the button under its
+   own heading on a phone. `flex-wrap` alone does nothing — the per-column
+   min-width is what forces the wrap, so both have to be named. Scoped to the
+   section rows by their keyed container, so no other column layout moves. */
+@media (max-width: 640px) {
+    div[class*="st-key-sec-"] [data-testid="stHorizontalBlock"] {
+        flex-wrap: nowrap !important;
+    }
+    div[class*="st-key-sec-"] [data-testid="stColumn"] {
+        min-width: 0 !important;
+        flex: 1 1 0 !important;
+    }
+    div[class*="st-key-sec-"] [data-testid="stColumn"]:last-child {
+        flex: 0 0 auto !important;
+    }
+}
+</style>
+"""
+
+
 def apply_filters(df: pd.DataFrame, cls: str = "All", yr: str = "All",
                   se: str = "All") -> pd.DataFrame:
     if cls != "All":
@@ -807,6 +896,63 @@ def h2h_filter_row(prefix: str):
                        key=f"{prefix}_class")
     yr, se = year_season_filters(apply_filters(h2h, cls=cls), prefix, c2, c3)
     return cls, yr, se
+
+
+def apply_calendar_click(hit: dict, cells: pd.DataFrame, h2h: pd.DataFrame, *,
+                         sel, focus, in_pool: set, filters: tuple) -> bool:
+    """Turn one click on the head-to-head calendar into session state.
+
+    Three gestures on one square, in order: select it, focus its week, go back.
+    Returns True when something changed and the page should rerun.
+
+    It writes rather than returns because two of the three outcomes are widget
+    values, and Streamlit refuses to set a widget's state after that widget has
+    been created in the same run — hence `t3_pending`, applied at the top of
+    the next one.
+    """
+    wk = (int(hit["year"]), int(hit["week"]))
+    m = cells[(cells["iso_year"] == wk[0]) & (cells["iso_week"] == wk[1])]
+    if m.empty:
+        return False
+    row = m.iloc[0]
+
+    if focus == wk:
+        # Third click on the focused square — back to the full view.
+        st.session_state.pop("t3_focus", None)
+        return True
+    if sel is not None and sel in row["occ_keys"]:
+        # Second click, on the square already selected: focus it.
+        st.session_state["t3_focus"] = wk
+        return True
+
+    # First click on a new square: select it, and drop any focus.
+    st.session_state.pop("t3_focus", None)
+    keys = list(row["occ_keys"])
+    # A week can hold two contests. Take the most recent, and prefer one the
+    # filters already admit so a click inside the current filter never jumps
+    # outside it.
+    admitted = [k for k in keys if k in in_pool]
+    clicked = (admitted or keys)[-1]
+    st.session_state["t3_occ"] = clicked
+
+    cls, yr, se = filters
+    crow = h2h[(h2h["run_date"] == clicked[0])
+               & (h2h["event_id"] == clicked[1])].iloc[0]
+    pending = {}
+    if cls != "All" and cls != crow["classification"]:
+        pending["t3_class"] = crow["classification"]
+    # Year and season are mutually exclusive in this app, so a year change
+    # clears the season exactly as `_clear_other` does.
+    if yr != "All" and int(yr) != clicked[0].year:
+        pending["t3_year"] = str(clicked[0].year)
+        pending["t3_season"] = "All"
+    elif se != "All" and _season_label(clicked[0]) != se:
+        pending["t3_season"] = _season_label(clicked[0])
+        pending["t3_year"] = "All"
+    if pending:
+        st.session_state["t3_pending"] = pending
+        st.session_state["t3_from_click"] = True
+    return True
 
 
 def cumulative_firsts(df: pd.DataFrame) -> pd.DataFrame:
@@ -858,8 +1004,8 @@ try:
     meta = load_data_meta(_ver)
 except duckdb.IOException:
     st.error(
-        "Couldn't open the database (is DBeaver or a refresh holding the lock?). "
-        "Close other connections and reload."
+        "Could not open the database — something else is holding the lock, "
+        "usually DBeaver or a refresh in progress. Close it and reload."
     )
     st.stop()
 
@@ -873,13 +1019,15 @@ with st.sidebar:
         f"**App last refreshed:** {_fmt_uk_dt(data_fetched_at(_ver))}"
     )
     st.caption(
-        "Latest parkrun = most recent run in the data · Pipeline last run = when "
-        "the data was last scraped (UK) · App last refreshed = when this view last "
-        "pulled it in."
+        "**Latest parkrun** is the most recent run in the data. **Pipeline "
+        "last run** is when the data was last scraped. **App last refreshed** "
+        "is when this page last pulled it in. All times UK."
     )
     if st.button("🔄 Reload data"):
         st.cache_data.clear()
         st.rerun()
+
+st.markdown(SECTION_CSS, unsafe_allow_html=True)
 
 tab1, tab2, tab3, tab4, tab5 = st.tabs(
     ["🏃 parkrun & brunch", "⚔️ Head-to-head summary", "🔎 Head-to-head detail",
@@ -891,88 +1039,151 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(
 # =========================================================================== #
 with tab1:
     st.title("🏃 parkrun & brunch ☕")
-    st.subheader("George, Duncan & Raju")
-    st.markdown(
-        """
-Every Saturday morning, three friends — **George**, **Duncan** and **Raju** —
-lace up for a **parkrun**: a free, timed 5k. Some weeks they line up together;
-other weeks they're scattered across the country chasing new venues. The one
-constant? **Brunch afterwards.** ☕🥐
+    if section("George, Duncan & Raju", "t1_intro"):
+        st.markdown(
+            """
+    Every Saturday morning, three friends — **George**, **Duncan** and **Raju** —
+    lace up for a **parkrun**: a free, timed 5k. Some weeks they line up together;
+    other weeks they are scattered across the country chasing new venues. The one
+    constant? **Brunch afterwards.** ☕🥐
 
-This app maps where their parkruns overlap, and turns every shared start line
-into a friendly, *form-adjusted* head-to-head.
-        """
-    )
+    This app shows when they run, where their parkruns overlap, and turns every
+    shared start line into a **form-adjusted** head-to-head.
+            """
+        )
 
     st.divider()
-    st.header("Where do they run together?")
-    st.caption(
-        "Each count is a shared *occasion* — the same event on the same day. "
-        "Regions are exclusive (the centre is all three together)."
-    )
-
-    has = {"Raju": "has_raju", "Duncan": "has_duncan", "George": "has_george"}
-    r, d, g = (overlap[has["Raju"]], overlap[has["Duncan"]], overlap[has["George"]])
-    subsets = (
-        int((r & ~d & ~g).sum()),  # Raju only
-        int((~r & d & ~g).sum()),  # Duncan only
-        int((r & d & ~g).sum()),  # Raju & Duncan
-        int((~r & ~d & g).sum()),  # George only
-        int((r & ~d & g).sum()),  # Raju & George
-        int((~r & d & g).sum()),  # Duncan & George
-        int((r & d & g).sum()),  # all three
-    )
-
-    col_v, col_b = st.columns([1, 1])
-    with col_v:
-        fig, ax = plt.subplots(figsize=(5, 5))
-        v = venn3(
-            subsets=subsets,
-            set_labels=("Raju", "Duncan", "George"),
-            set_colors=(
-                ATHLETE_COLORS["Raju"],
-                ATHLETE_COLORS["Duncan"],
-                ATHLETE_COLORS["George"],
-            ),
-            alpha=0.55,
-            ax=ax,
+    if section("When do they run?", "t1_when"):
+        st.caption(
+            "Each square is a week. A coloured square means that person ran at "
+            "least one parkrun that week — **hover** or **tap** it for the "
+            "dates, parkruns and times. A hatched square "
+            f'<img src="{cal.hatch_swatch()}" width="12" height="12" '
+            'style="vertical-align:-1px">'
+            " is a week run pushing a buggy.",
+            unsafe_allow_html=True,
         )
-        for text in (v.set_labels or []):
-            if text:
-                text.set_fontsize(13)
-                text.set_fontweight("bold")
-        st.pyplot(fig)
+        _cal_runs = cal.load_runs(_ver)
+        _cal_weeks = cal.week_frame(_cal_runs)
+        _cal_tot = cal.athlete_year_totals(_cal_runs)
+        _all_years = sorted(_cal_weeks["iso_year"].unique(), reverse=True)
 
-    with col_b:
-        # Per-athlete "company" breakdown.
-        comp_rows = []
-        others = {"Raju": ("Duncan", "George"), "Duncan": ("Raju", "George"),
-                  "George": ("Raju", "Duncan")}
-        for name, (y, z) in others.items():
-            hx, hy, hz = overlap[has[name]], overlap[has[y]], overlap[has[z]]
-            comp_rows += [
-                {"athlete": name, "category": "Solo", "count": int((hx & ~hy & ~hz).sum())},
-                {"athlete": name, "category": f"With {y}", "count": int((hx & hy & ~hz).sum())},
-                {"athlete": name, "category": f"With {z}", "count": int((hx & hz & ~hy).sum())},
-                {"athlete": name, "category": "With both", "count": int((hx & hy & hz).sum())},
-            ]
-        comp = pd.DataFrame(comp_rows)
-        cmap = {"Solo": "#cfcfcf", "With both": "#444444",
-                **{f"With {n}": c for n, c in ATHLETE_COLORS.items()}}
-        # "With both" stacked last (rightmost); George at the top.
-        cat_order = ["Solo"] + [f"With {n}" for n in ATHLETE_COLORS] + ["With both"]
-        athlete_order = ["Duncan", "Raju", "George"]
-        fig2 = px.bar(
-            comp, y="athlete", x="count", color="category", orientation="h",
-            color_discrete_map=cmap,
-            category_orders={"athlete": athlete_order, "category": cat_order},
-            title="Each runner's parkrun company", text="count",
+        # Sized so the two controls sit next to each other rather than at
+        # opposite ends of the page: the radio needs about as much room as its
+        # two options, and the rest is the year box plus a right-hand spacer.
+        _c1, _c2, _ = st.columns([2, 3, 3])
+        view = _c1.radio(
+            "View", ["Side-by-side", "Individual"], horizontal=True,
+            key="t1_calview",
         )
-        fig2.update_layout(
-            xaxis_title="parkruns", yaxis_title=None, legend_title=None,
-            margin=dict(t=50, b=0, l=0, r=0),
+        _pick_years = _c2.multiselect(
+            "Years", _all_years, default=[_all_years[0]], key="t1_calyears",
+            placeholder="All years",
         )
-        st.plotly_chart(fig2, width="stretch")
+        _cal_years = sorted(_pick_years) if _pick_years else sorted(_all_years)
+        # A gap the reader created by deselecting a year is not a gap in
+        # anyone's running, so the "nothing 2020-2025" break rows are drawn
+        # only when the whole span is on show.
+        _breaks = len(_cal_years) == len(_all_years)
+
+        _svg, _h = (
+            cal.render_side_by_side(_cal_weeks, _cal_years, _cal_tot,
+                                    breaks=_breaks)
+            if view == "Side-by-side"
+            else cal.render_individual(_cal_weeks, _cal_years, _cal_tot,
+                                       breaks=_breaks)
+        )
+        # Drawn at its designed cell size and scrolled sideways when it does
+        # not fit, rather than squeezed to the window: 53 columns shrunk into a
+        # phone is 4.9px a cell, too small to read and far too small to hit.
+        # The detail then arrives as a sheet from the bottom of the page for a
+        # tap, and as the usual floating label for a mouse.
+        cal.embed_svg(cal.unscaled(_svg), _h, scroll_x=True)
+        st.caption(
+            "**Side-by-side** stacks all three inside each year, so you can "
+            "compare who was out when. **Individual** gives each of them their "
+            "own grid, starting at their first parkrun. **Years** picks which "
+            "years to draw — clear the box to show every one of them.\n\n"
+            "The number at the end of each year is parkruns run, with the "
+            f"buggy count in brackets ({BUGGY_GLYPH}). It counts parkruns "
+            "rather than squares, so a week holding two adds two.\n\n"
+            "Weeks run from 1 January — week 1 is 1-7 Jan and every week after "
+            "is a fixed 7 days, which leaves 31 December (30-31 in a leap "
+            "year) over at the end. That last square is drawn only in the "
+            "years it could hold a parkrun. On a narrow window or a phone the "
+            "grid scrolls sideways rather than shrinking."
+        )
+
+    st.divider()
+    if section("Where do they run together?", "t1_together"):
+        st.caption(
+            "Each number counts occasions they shared — the same parkrun on "
+            "the same day. The regions do not overlap, so the middle is the "
+            "three of them together and nothing else."
+        )
+
+        has = {"Raju": "has_raju", "Duncan": "has_duncan", "George": "has_george"}
+        r, d, g = (overlap[has["Raju"]], overlap[has["Duncan"]], overlap[has["George"]])
+        subsets = (
+            int((r & ~d & ~g).sum()),  # Raju only
+            int((~r & d & ~g).sum()),  # Duncan only
+            int((r & d & ~g).sum()),  # Raju & Duncan
+            int((~r & ~d & g).sum()),  # George only
+            int((r & ~d & g).sum()),  # Raju & George
+            int((~r & d & g).sum()),  # Duncan & George
+            int((r & d & g).sum()),  # all three
+        )
+
+        col_v, col_b = st.columns([1, 1])
+        with col_v:
+            fig, ax = plt.subplots(figsize=(5, 5))
+            v = venn3(
+                subsets=subsets,
+                set_labels=("Raju", "Duncan", "George"),
+                set_colors=(
+                    ATHLETE_COLORS["Raju"],
+                    ATHLETE_COLORS["Duncan"],
+                    ATHLETE_COLORS["George"],
+                ),
+                alpha=0.55,
+                ax=ax,
+            )
+            for text in (v.set_labels or []):
+                if text:
+                    text.set_fontsize(13)
+                    text.set_fontweight("bold")
+            st.pyplot(fig)
+
+        with col_b:
+            # Per-athlete "company" breakdown.
+            comp_rows = []
+            others = {"Raju": ("Duncan", "George"), "Duncan": ("Raju", "George"),
+                      "George": ("Raju", "Duncan")}
+            for name, (y, z) in others.items():
+                hx, hy, hz = overlap[has[name]], overlap[has[y]], overlap[has[z]]
+                comp_rows += [
+                    {"athlete": name, "category": "Solo", "count": int((hx & ~hy & ~hz).sum())},
+                    {"athlete": name, "category": f"With {y}", "count": int((hx & hy & ~hz).sum())},
+                    {"athlete": name, "category": f"With {z}", "count": int((hx & hz & ~hy).sum())},
+                    {"athlete": name, "category": "With both", "count": int((hx & hy & hz).sum())},
+                ]
+            comp = pd.DataFrame(comp_rows)
+            cmap = {"Solo": "#cfcfcf", "With both": "#444444",
+                    **{f"With {n}": c for n, c in ATHLETE_COLORS.items()}}
+            # "With both" stacked last (rightmost); George at the top.
+            cat_order = ["Solo"] + [f"With {n}" for n in ATHLETE_COLORS] + ["With both"]
+            athlete_order = ["Duncan", "Raju", "George"]
+            fig2 = px.bar(
+                comp, y="athlete", x="count", color="category", orientation="h",
+                color_discrete_map=cmap,
+                category_orders={"athlete": athlete_order, "category": cat_order},
+                title="Each runner's parkrun company", text="count",
+            )
+            fig2.update_layout(
+                xaxis_title="parkruns", yaxis_title=None, legend_title=None,
+                margin=dict(t=50, b=0, l=0, r=0),
+            )
+            st.plotly_chart(fig2, width="stretch")
 
 # =========================================================================== #
 # TAB 2 — head-to-head summary
@@ -980,269 +1191,353 @@ into a friendly, *form-adjusted* head-to-head.
 with tab2:
     st.header("⚔️ Head-to-head")
 
-    st.subheader("Personal bests")
-    st.caption(
-        "Their fastest run in each period — all time, and the 12 and 3 months "
-        "up to the latest refresh (both inclusive of the refresh day)."
-    )
-    render_personal_bests(personal_bests)
+    if section("Personal bests", "t2_pbs"):
+        st.caption(
+            "Each runner's fastest parkrun over three periods — all time, "
+            "the last 12 months and the last 3 months, the two rolling "
+            "windows counted back from the latest refresh and including that "
+            "day. Below the line is their most recent run, whatever the time."
+        )
+        render_personal_bests(personal_bests)
 
     st.divider()
-    with st.expander("How does a head-to-head work?"):
+    if section("How a head-to-head works", "t2_how", default=False):
         st.markdown(
             """
-A **head-to-head** is any occasion where two or more of them ran the same event
-on the same day.
+    A **head-to-head** is any occasion where two or more of them ran the same
+    parkrun on the same day.
 
-As the **personal bests** above show, they run to very different clocks — their
-best times sit minutes apart. Ranking a shared parkrun by finish time would
-therefore hand the same person the win every week and say nothing about how any
-of them actually ran that day. That is exactly why the head-to-head exists: we
-don't compare raw finish times, we compare **performance against recent form**:
+    As the **personal bests** above show, they run to very different clocks — their
+    best times sit minutes apart. Ranking a shared parkrun by finish time would
+    therefore hand the same person the win every week and say nothing about how any
+    of them actually ran that day. That is exactly why the head-to-head exists: we
+    don't compare raw finish times, we compare **performance against recent form**:
 
-1. Each runner's **target** is the *median* of their times over the **91 days
-   before** the event (needs at least one run in that window).
-2. We take the **% difference** between their actual time and that target.
-3. Whoever beat their own form by the most comes **1st** (ties share a place).
+    1. Each runner's **target** is the *median* of their times over the **91 days
+       before** the event (needs at least one run in that window).
+    2. We take the **% difference** between their actual time and that target.
+    3. Whoever beat their own form by the most comes **1st** (ties share a place).
 
-A 3-way where someone has no recent form becomes a 2-way between the other two.
+    A 3-way where someone has no recent form becomes a 2-way between the other two.
 
-**Running with a buggy** 🛒 — George and Duncan sometimes run pushing one, which
-costs them time parkrun records nothing about. So each of them has **two**
-targets: one for their runs with the buggy and one for without, and a run is
-always compared against the matching kind. The target is a median, so a few
-slow buggy runs barely move it — pooling the two would judge a buggy run
-against a time it cannot hit, and flatter the ordinary runs a little.
+    **Running with a buggy** 🛒 — George and Duncan sometimes run pushing one, which
+    costs them time parkrun records nothing about. So each of them has **two**
+    targets: one for their runs with the buggy and one for without, and a run is
+    always compared against the matching kind. The target is a median, so a few
+    slow buggy runs barely move it — pooling the two would judge a buggy run
+    against a time it cannot hit, and flatter the ordinary runs a little.
 
-When someone has no runs of the right kind in the 91 days before a race, we
-bridge from the other kind using their measured buggy **handicap** — the table
-says when that happened, because a bridged target is an estimate rather than a
-measurement.
+    When someone has no runs of the right kind in the 91 days before a race, we
+    bridge from the other kind using their buggy **handicap**. George's handicap
+    is measured from his own runs; Duncan has too few buggy runs to measure one,
+    so his is a placeholder. Either way the table says when a target was bridged,
+    because a bridged target is an estimate rather than a measurement.
 
-**Labels can be estimates too** — where a run has not been confirmed by the
-runner, we work it out from the run itself, and correct it when it turns out
-wrong. And because a run's label decides which target it is judged against,
-**labelling an old run can change who won it** — the record below goes back to
-2023 and is not frozen.
+    **Labels can be estimates too** — where a run has not been confirmed by the
+    runner, we work it out from the run itself, and correct it when it turns out
+    wrong. And because a run's label decides which target it is judged against,
+    **labelling an old run can change who won it** — the record below runs from
+    2017 to today and is not frozen.
             """
         )
 
-    st.subheader("If they raced today, current-form targets would be…")
-    if targets.empty:
-        st.info("No current targets yet — run a refresh.")
-    else:
-        # ONE BOX PER ATHLETE, holding their non-buggy target first and their
-        # buggy target second. Two athletes now have two current forms each, and
-        # a flat row of five tiles buried whose target belonged to whom.
-        # Athletes ordered by their primary (non-buggy) target, so the reading
-        # order does not jump around as labels change.
-        def _primary(name: str) -> float:
-            g = targets[targets["athlete_name"] == name]
-            nb = g[g["mode"] == "nonbuggy"] if "mode" in g else g
-            return float((nb if not nb.empty else g)["target_seconds"].min())
+    if section("Current form targets", "t2_targets"):
+        st.caption(
+            "What each of them would be expected to run today: the median of "
+            "their times over the last 91 days. This is the number a "
+            "head-to-head is scored against. Open the popover to see the runs "
+            "behind it."
+        )
+        if targets.empty:
+            st.info("No current targets yet — run a refresh.")
+        else:
+            # ONE BOX PER ATHLETE, holding their non-buggy target first and their
+            # buggy target second. Two athletes now have two current forms each, and
+            # a flat row of five tiles buried whose target belonged to whom.
+            # Athletes ordered by their primary (non-buggy) target, so the reading
+            # order does not jump around as labels change.
+            def _primary(name: str) -> float:
+                g = targets[targets["athlete_name"] == name]
+                nb = g[g["mode"] == "nonbuggy"] if "mode" in g else g
+                return float((nb if not nb.empty else g)["target_seconds"].min())
 
-        names = sorted(targets["athlete_name"].unique(), key=_primary)
-        cols = st.columns(len(names))
-        for col, name in zip(cols, names):
-            g = targets[targets["athlete_name"] == name]
-            with col.container(border=True):
-                st.markdown(
-                    f"<div style='font-weight:600;font-size:1.05rem;"
-                    f"margin-bottom:.35rem'>"
-                    f"<span style='color:{ATHLETE_COLORS.get(name, '#888')}'>●</span>"
-                    f" {name}</div>",
-                    unsafe_allow_html=True,
-                )
-                # One line: regular target, then the buggy one after a slash,
-                # marked with the trolley. An athlete with no buggy runs shows
-                # a single time and nothing else — a label or separator would
-                # imply a second target exists.
-                parts, shown = [], 0
-                for mode in ("nonbuggy", "buggy"):
-                    row = g[g["mode"] == mode] if "mode" in g else g
-                    if row.empty:
-                        continue
-                    row = row.iloc[0]
-                    n = int(row["n_window"])
-                    if not n:
-                        continue
-                    t = fmt_time(row["target_seconds"])
-                    parts.append(f"{BUGGY_GLYPH} {t}" if mode == "buggy" else t)
-                    shown += n
-                st.markdown(
-                    f"<div style='font-size:{TGT_BIG};font-weight:600;"
-                    f"font-variant-numeric:tabular-nums;line-height:1.15'>"
-                    f"{' / '.join(parts) if parts else '—'}</div>",
-                    unsafe_allow_html=True,
-                )
-
-                # ONE popover per athlete, covering the whole window: it is a
-                # single 91-day span of their running, and a box per target
-                # meant opening two to see one period.
-                if shown:
+            names = sorted(targets["athlete_name"].unique(), key=_primary)
+            cols = st.columns(len(names))
+            for col, name in zip(cols, names):
+                g = targets[targets["athlete_name"] == name]
+                with col.container(border=True):
                     st.markdown(
-                        f"<div style='height:{TGT_GAP}'></div>",
+                        f"<div style='font-weight:600;font-size:1.05rem;"
+                        f"margin-bottom:.35rem'>"
+                        f"<span style='color:{ATHLETE_COLORS.get(name, '#888')}'>●</span>"
+                        f" {name}</div>",
                         unsafe_allow_html=True,
                     )
-                    total = len(target_runs[target_runs["athlete_name"] == name])
-                    with st.popover(f"{total} runs in window", width="stretch"):
+                    # One line: regular target, then the buggy one after a slash,
+                    # marked with the trolley. An athlete with no buggy runs shows
+                    # a single time and nothing else — a label or separator would
+                    # imply a second target exists.
+                    parts, shown = [], 0
+                    for mode in ("nonbuggy", "buggy"):
+                        row = g[g["mode"] == mode] if "mode" in g else g
+                        if row.empty:
+                            continue
+                        row = row.iloc[0]
+                        n = int(row["n_window"])
+                        if not n:
+                            continue
+                        t = fmt_time(row["target_seconds"])
+                        parts.append(f"{BUGGY_GLYPH} {t}" if mode == "buggy" else t)
+                        shown += n
+                    st.markdown(
+                        f"<div style='font-size:{TGT_BIG};font-weight:600;"
+                        f"font-variant-numeric:tabular-nums;line-height:1.15'>"
+                        f"{' / '.join(parts) if parts else '—'}</div>",
+                        unsafe_allow_html=True,
+                    )
+
+                    # ONE popover per athlete, covering the whole window: it is a
+                    # single 91-day span of their running, and a box per target
+                    # meant opening two to see one period.
+                    if shown:
                         st.markdown(
-                            f"**{name} — {total} runs in the 91-day window**"
+                            f"<div style='height:{TGT_GAP}'></div>",
+                            unsafe_allow_html=True,
                         )
-                        _render_window_runs(target_runs, name)
-                else:
-                    st.caption("no runs in window")
+                        total = len(target_runs[target_runs["athlete_name"] == name])
+                        with st.popover(f"{total} runs in window", width="stretch"):
+                            st.markdown(
+                                f"**{name} — {total} runs in the 91-day window**"
+                            )
+                            _render_window_runs(target_runs, name)
+                    else:
+                        st.caption("No runs in the last 91 days.")
 
     st.divider()
-    st.subheader("Latest head-to-head")
-    pick = st.selectbox("Head-to-head classification", CLASS_OPTS, key="t2_class")
-    latest_pool = apply_filters(h2h, cls=pick)
-    if latest_pool.empty:
-        st.info("No head-to-heads match that classification.")
-    else:
-        latest_date = latest_pool["run_date"].max()
-        occ = latest_pool[latest_pool["run_date"] == latest_date]
-        occ = occ[occ["event_id"] == occ.iloc[0]["event_id"]]
-        render_occasion(occ)
+    if section("Latest head-to-head", "t2_latest"):
+        pick = st.selectbox("Head-to-head classification", CLASS_OPTS, key="t2_class")
+        latest_pool = apply_filters(h2h, cls=pick)
+        if latest_pool.empty:
+            st.info("No head-to-heads match that classification.")
+        else:
+            latest_date = latest_pool["run_date"].max()
+            occ = latest_pool[latest_pool["run_date"] == latest_date]
+            occ = occ[occ["event_id"] == occ.iloc[0]["event_id"]]
+            render_occasion(occ)
 
     st.divider()
-    st.subheader("Head-to-head record")
-    st.caption(
-        f"Classification: **{pick}** (set above) · filter by year *or* season below."
-    )
-    fc1, fc2 = st.columns(2)
-    yr, se = year_season_filters(apply_filters(h2h, cls=pick), "t2", fc1, fc2)
-    summ = apply_filters(h2h, cls=pick, yr=yr, se=se)
-
-    if summ.empty:
-        st.info("No head-to-heads for that year/season.")
-    else:
-        # 3rd place only exists in a 3-way contest, so only show it when the
-        # 3-athlete head-to-head (2 "vs") or "All" is selected; a 2-way has none.
-        show_third = pick == "All" or pick.count(" vs ") >= 2
-        places = ["1st", "2nd", "3rd"] if show_third else ["1st", "2nd"]
-
-        board = (
-            summ.assign(place=summ["place_rank"].clip(upper=3))
-            .pivot_table(index="athlete_name", columns="place", values="event_id",
-                         aggfunc="count", fill_value=0)
-            .rename(columns={1: "1st", 2: "2nd", 3: "3rd"})
-            .rename_axis(index="Athlete", columns=None)
+    if section("Head-to-head record", "t2_record"):
+        st.caption(
+            ("Showing **every head-to-head**." if pick == "All"
+             else f"Showing **{pick}**, chosen above.")
+            + " Filter by year *or* season — the two are alternatives, so "
+              "picking one clears the other."
         )
-        for c in places:
-            if c not in board.columns:
-                board[c] = 0
-        board = board[places].sort_values("1st", ascending=False)
+        fc1, fc2 = st.columns(2)
+        yr, se = year_season_filters(apply_filters(h2h, cls=pick), "t2", fc1, fc2)
+        summ = apply_filters(h2h, cls=pick, yr=yr, se=se)
 
-        tidy = board.reset_index().melt(
-            id_vars="Athlete", var_name="Place", value_name="count"
-        )
-        fig3 = px.bar(
-            tidy, x="Athlete", y="count", color="Place", barmode="group",
-            color_discrete_map=PLACE_COLORS,
-            category_orders={"Place": places, "Athlete": list(board.index)},
-            text="count",
-        )
-        fig3.update_layout(xaxis_title=None, yaxis_title="head-to-heads",
-                           legend_title=None, margin=dict(t=10, b=0, l=0, r=0))
-        st.plotly_chart(fig3, width="stretch")
+        if summ.empty:
+            st.info("No head-to-heads in that year or season.")
+        else:
+            # 3rd place only exists in a 3-way contest, so only show it when the
+            # 3-athlete head-to-head (2 "vs") or "All" is selected; a 2-way has none.
+            show_third = pick == "All" or pick.count(" vs ") >= 2
+            places = ["1st", "2nd", "3rd"] if show_third else ["1st", "2nd"]
 
-        # How many of each placing were run with the buggy, in the same form as
-        # the map tooltips: "83 (5 🛒)". The chart keeps the plain counts — a
-        # bar cannot carry the split, and a second series would imply buggy and
-        # regular placings are alternatives rather than a subset.
-        shown = board
-        if "is_buggy" in summ.columns and summ["is_buggy"].any():
-            bug = (
-                summ[summ["is_buggy"]]
-                .assign(place=lambda d: d["place_rank"].clip(upper=3))
-                .pivot_table(index="athlete_name", columns="place",
-                             values="event_id", aggfunc="count", fill_value=0)
+            board = (
+                summ.assign(place=summ["place_rank"].clip(upper=3))
+                .pivot_table(index="athlete_name", columns="place", values="event_id",
+                             aggfunc="count", fill_value=0)
                 .rename(columns={1: "1st", 2: "2nd", 3: "3rd"})
                 .rename_axis(index="Athlete", columns=None)
-                .reindex(index=board.index, columns=places, fill_value=0)
             )
-            shown = board.astype(str)
             for c in places:
-                shown[c] = [
-                    f"{t} ({b} {BUGGY_GLYPH})" if b else str(t)
-                    for t, b in zip(board[c], bug[c])
-                ]
-        st.dataframe(shown, width="stretch")
+                if c not in board.columns:
+                    board[c] = 0
+            board = board[places].sort_values("1st", ascending=False)
 
-        # ----- cumulative 1st-place finishes over the selected period ----- #
-        st.divider()
-        st.subheader("Cumulative 1st-place finishes")
-        if pick == "All":
-            st.info(
-                "Select a **head-to-head** (classification, above) to see its "
-                "cumulative 1st-place trend. It defaults to the entire date range — "
-                "filter by **year** or **season** to narrow it."
+            tidy = board.reset_index().melt(
+                id_vars="Athlete", var_name="Place", value_name="count"
             )
-        else:
-            period = yr if yr != "All" else (se if se != "All" else "the entire date range")
-            st.caption(
-                f"Running total of form-adjusted 1sts for **{pick}** over **{period}** — "
-                "ties for 1st each count. Filter by year or season above to narrow the range."
+            fig3 = px.bar(
+                tidy, x="Athlete", y="count", color="Place", barmode="group",
+                color_discrete_map=PLACE_COLORS,
+                category_orders={"Place": places, "Athlete": list(board.index)},
+                text="count",
             )
-            trend = cumulative_firsts(summ)
-            pstart = summ["run_date"].min()
+            fig3.update_layout(xaxis_title=None, yaxis_title="head-to-heads",
+                               legend_title=None, margin=dict(t=10, b=0, l=0, r=0))
+            st.plotly_chart(fig3, width="stretch")
 
-            fig4 = go.Figure()
-            no_wins = []
-            for name in sorted(summ["athlete_name"].unique()):
-                w = trend[trend["athlete_name"] == name].sort_values("run_date")
-                color = ATHLETE_COLORS.get(name, "#888888")
-                if w.empty:
-                    no_wins.append(name)
-                    continue
-                # step line from a 0 baseline at the period start (no marker at 0)
-                fig4.add_trace(go.Scatter(
-                    x=[pstart, *w["run_date"]], y=[0, *w["cum_firsts"]],
-                    mode="lines", line_shape="hv", line=dict(color=color),
-                    name=name, legendgroup=name, hoverinfo="skip",
-                ))
-                # markers only on real 1st places; hover names the winning parkrun
-                fig4.add_trace(go.Scatter(
-                    x=w["run_date"], y=w["cum_firsts"], mode="markers",
-                    marker=dict(color=color, size=8),
-                    name=name, legendgroup=name, showlegend=False,
-                    customdata=w[["short_name"]].to_numpy(),
-                    hovertemplate=(
-                        f"<b>{name}</b><br>"
-                        "1st places: %{y}<br>"
-                        "Date: %{x|%d/%m/%y}<br>"
-                        "parkrun: %{customdata[0]}"
-                        "<extra></extra>"
-                    ),
-                ))
-
-            if fig4.data:
-                fig4.update_yaxes(
-                    dtick=_nice_dtick(int(trend["cum_firsts"].max())),
-                    rangemode="tozero", tickformat="d", title="cumulative 1sts",
+            # How many of each placing were run with the buggy, in the same form as
+            # the map tooltips: "83 (5 🛒)". The chart keeps the plain counts — a
+            # bar cannot carry the split, and a second series would imply buggy and
+            # regular placings are alternatives rather than a subset.
+            shown = board
+            if "is_buggy" in summ.columns and summ["is_buggy"].any():
+                bug = (
+                    summ[summ["is_buggy"]]
+                    .assign(place=lambda d: d["place_rank"].clip(upper=3))
+                    .pivot_table(index="athlete_name", columns="place",
+                                 values="event_id", aggfunc="count", fill_value=0)
+                    .rename(columns={1: "1st", 2: "2nd", 3: "3rd"})
+                    .rename_axis(index="Athlete", columns=None)
+                    .reindex(index=board.index, columns=places, fill_value=0)
                 )
-                fig4.update_layout(legend_title=None, hovermode="closest",
-                                   margin=dict(t=10, b=0, l=0, r=0))
-                st.plotly_chart(fig4, width="stretch")
-                for name in no_wins:
-                    st.markdown(f"_{name} has no 1st-place finishes in this selection._")
+                shown = board.astype(str)
+                for c in places:
+                    shown[c] = [
+                        f"{t} ({b} {BUGGY_GLYPH})" if b else str(t)
+                        for t, b in zip(board[c], bug[c])
+                    ]
+            st.dataframe(shown, width="stretch")
+
+            # ----- cumulative 1st-place finishes over the selected period ----- #
+            st.divider()
+    if section("Cumulative 1st-place finishes", "t2_trend"):
+            if pick == "All":
+                st.info(
+                    "Pick a head-to-head classification above to see its "
+                    "1st places add up over time."
+                )
             else:
-                st.info(f"No 1st-place finishes for **{pick}** in the selected period.")
+                period = yr if yr != "All" else (se if se != "All" else "the entire date range")
+                st.caption(
+                    f"Running total of 1st places in **{pick}** over "
+                    f"**{period}**. A shared 1st counts for both of them."
+                )
+                trend = cumulative_firsts(summ)
+                pstart = summ["run_date"].min()
+
+                fig4 = go.Figure()
+                no_wins = []
+                for name in sorted(summ["athlete_name"].unique()):
+                    w = trend[trend["athlete_name"] == name].sort_values("run_date")
+                    color = ATHLETE_COLORS.get(name, "#888888")
+                    if w.empty:
+                        no_wins.append(name)
+                        continue
+                    # step line from a 0 baseline at the period start (no marker at 0)
+                    fig4.add_trace(go.Scatter(
+                        x=[pstart, *w["run_date"]], y=[0, *w["cum_firsts"]],
+                        mode="lines", line_shape="hv", line=dict(color=color),
+                        name=name, legendgroup=name, hoverinfo="skip",
+                    ))
+                    # markers only on real 1st places; hover names the winning parkrun
+                    fig4.add_trace(go.Scatter(
+                        x=w["run_date"], y=w["cum_firsts"], mode="markers",
+                        marker=dict(color=color, size=8),
+                        name=name, legendgroup=name, showlegend=False,
+                        customdata=w[["short_name"]].to_numpy(),
+                        hovertemplate=(
+                            f"<b>{name}</b><br>"
+                            "1st places: %{y}<br>"
+                            "Date: %{x|%d/%m/%y}<br>"
+                            "parkrun: %{customdata[0]}"
+                            "<extra></extra>"
+                        ),
+                    ))
+
+                if fig4.data:
+                    fig4.update_yaxes(
+                        dtick=_nice_dtick(int(trend["cum_firsts"].max())),
+                        rangemode="tozero", tickformat="d", title="cumulative 1sts",
+                    )
+                    fig4.update_layout(legend_title=None, hovermode="closest",
+                                       margin=dict(t=10, b=0, l=0, r=0))
+                    st.plotly_chart(fig4, width="stretch")
+                    for name in no_wins:
+                        st.markdown(f"_{name} has no 1st-place finishes in this selection._")
+                else:
+                    st.info(f"No 1st places in **{pick}** over that period.")
 
 # =========================================================================== #
 # TAB 3 — head-to-head detail
 # =========================================================================== #
 with tab3:
     st.header("🔎 Head-to-head detail")
-    pick3, yr3, se3 = h2h_filter_row("t3")
+
+    # A click on the calendar cannot write to the filter widgets directly —
+    # Streamlit refuses to set a widget's state after that widget has been
+    # created in the same run. So the click stashes what it wants here and
+    # reruns, and the change is applied before the widgets exist.
+    _pending = st.session_state.pop("t3_pending", None)
+    if _pending:
+        st.session_state.update(_pending)
+
+    show_pick = section("Choose a head-to-head", "t3_pick")
+
+    # Everything below is computed whether or not the picker is on screen: the
+    # result section needs the selection, and hiding the controls must not also
+    # hide what they last chose.
+    pick3, yr3, se3 = (h2h_filter_row("t3") if show_pick
+                       else (st.session_state.get("t3_class", "All"),
+                             st.session_state.get("t3_year", "All"),
+                             st.session_state.get("t3_season", "All")))
     pool = apply_filters(h2h, pick3, yr3, se3)
 
-    if pool.empty:
-        st.info("No head-to-heads match those filters.")
+    cells = cal.h2h_calendar_frame(h2h)
+    in_pool = set(zip(pool["run_date"], pool["event_id"]))
+
+    # Changing a filter re-selects the most recent contest that matches it, and
+    # drops any single-week focus — a filter change is a move away from the one
+    # week you were looking at. The exception is a filter the calendar itself
+    # moved: a click has just said exactly which contest it wants, and
+    # re-selecting the newest would throw that away in the same breath.
+    _fkey = (pick3, yr3, se3)
+    if st.session_state.get("t3_filters") != _fkey:
+        st.session_state["t3_filters"] = _fkey
+        if not st.session_state.pop("t3_from_click", False):
+            st.session_state.pop("t3_occ", None)
+            st.session_state.pop("t3_focus", None)
+
+    sel = st.session_state.get("t3_occ")
+    if sel is not None:
+        sel = tuple(sel)
+        if sel not in set(zip(h2h["run_date"], h2h["event_id"])):
+            sel = None
+
+    # Focus: a second click on the already-selected square narrows everything
+    # to that one week. `focus` is (iso_year, iso_week) or None.
+    focus = st.session_state.get("t3_focus")
+    focus = tuple(focus) if focus else None
+    focus_row = None
+    if focus is not None:
+        m = cells[(cells["iso_year"] == focus[0]) & (cells["iso_week"] == focus[1])]
+        if m.empty:
+            focus, st.session_state["t3_focus"] = None, None
+        else:
+            focus_row = m.iloc[0]
+
+    if focus_row is not None:
+        # The week's own contests, still honouring the filters — a click can
+        # only focus a week the filters already admit, so this is never empty.
+        wk = [k for k in focus_row["occ_keys"] if k in in_pool] \
+             or list(focus_row["occ_keys"])
+        scope = h2h[[k in set(wk) for k in zip(h2h["run_date"], h2h["event_id"])]]
+        if show_pick:
+            c1, c2 = st.columns([4, 1])
+            c1.info(
+                f"Showing the week of "
+                f"**{focus_row['occ_keys'][0][0]:%-d %b %Y}** — "
+                f"{len(wk)} head-to-head{'s' if len(wk) != 1 else ''}. "
+                "Tap that square again to go back to all weeks."
+            )
+            if c2.button("Show all weeks", key="t3_unfocus"):
+                st.session_state.pop("t3_focus", None)
+                st.rerun()
+    else:
+        scope = pool
+
+    occ = None
+    if scope.empty:
+        if show_pick:
+            st.info("No head-to-heads match those filters. Pick a square on "
+                    "the calendar below and the filters will move to it.")
     else:
         occasions = (
-            pool[["run_date", "event_id", "short_name", "classification"]]
+            scope[["run_date", "event_id", "short_name", "classification"]]
             .drop_duplicates()
             .sort_values("run_date", ascending=False)
         )
@@ -1251,37 +1546,112 @@ with tab3:
             (r.run_date, r.event_id)
             for r in occasions.itertuples()
         }
-        choice = st.selectbox(f"Head-to-head ({len(labels)} found)", list(labels))
-        sel_date, sel_event = labels[choice]
-        occ = pool[(pool["run_date"] == sel_date) & (pool["event_id"] == sel_event)]
-        st.divider()
-        render_occasion(occ, victory=True)
+        keys = list(labels)
+        # Sorted newest-first, so index 0 IS the most recent match — which is
+        # what an unset or filtered-away selection falls back to.
+        idx = next((i for i, k in enumerate(keys) if labels[k] == sel), 0)
+        if show_pick:
+            choice = st.selectbox(f"Head-to-head ({len(labels)} found)", keys,
+                                  index=idx)
+            # The dropdown comes before the calendar, so its value drives the
+            # highlight in the same run — no rerun, and the box cannot lag.
+            sel = labels[choice]
+        else:
+            sel = labels[keys[idx]]
+        st.session_state["t3_occ"] = sel
+        occ = scope[(scope["run_date"] == sel[0]) & (scope["event_id"] == sel[1])]
+
+    if show_pick:
+        # Focused: only the focused square is lit. Otherwise the filters dim,
+        # and every week is still drawn, so a dimmed square remains the way out.
+        if focus is not None:
+            lit = {focus}
+        else:
+            lit = {(int(r.iso_year), int(r.iso_week))
+                   for r in cells.itertuples()
+                   if any(k in in_pool for k in r.occ_keys)}
+
+        # The box goes on the week holding the selected contest, not on the
+        # contest — the drawing is week-grained.
+        sel_week = None
+        if sel is not None:
+            m = cells[[sel in k for k in cells["occ_keys"]]]
+            if not m.empty:
+                sel_week = (int(m.iloc[0]["iso_year"]),
+                            int(m.iloc[0]["iso_week"]))
+
+        _cal_svg, _cal_h = cal.render_h2h_calendar(
+            cells, sorted(cells["iso_year"].unique()), "Winner's colour",
+            lit=lit, selected=sel_week, clickable=True,
+            # Both tallies are counted off `pool`, so they say what the filters
+            # currently select — the same set the lit squares show.
+            win_totals=cal.h2h_win_totals(pool), standings="legend",
+            year_wins=cal.h2h_year_wins(pool), year_style="Share bar",
+        )
+        # Same treatment as tab 1: drawn at its designed size and swiped when
+        # it does not fit, so a cell stays a square you can hit with a thumb.
+        hit = cal.svg_component(cal.unscaled(_cal_svg), _cal_h, key="t3_cal")
+        st.caption(
+            "Every head-to-head in one place — one square per week they raced "
+            "each other, coloured by who won it. Winning here means beating "
+            "your own form target by the most, not finishing first.\n\n"
+            "A square can stand for more than one parkrun. **A square split "
+            "into two colours means two winners that week**: either a single "
+            "head-to-head that ended level, or two head-to-heads taken by "
+            "different people.\n\n"
+            "The bar at the end of each year is that year's wins, split "
+            "between them and hatched over the share won pushing a buggy, "
+            "with the number of wins beside it. Both it and the totals "
+            "underneath count only what the filters select.\n\n"
+            "Tap or click a square to select it, and again to narrow the list "
+            "to just that week; a third time goes back. Squares the filters "
+            "exclude are faded but still work, and a filter only moves if it "
+            "would otherwise hide what you picked."
+        )
+
+        # The component returns its last value on every rerun, so the click
+        # counter is what says whether this is a NEW click or the same one
+        # coming round again. It is also what makes a second click on the same
+        # square visible at all — that gesture is the one that focuses it.
+        if hit and hit.get("seq") != st.session_state.get("t3_cal_seq"):
+            st.session_state["t3_cal_seq"] = hit["seq"]
+            if apply_calendar_click(hit, cells, h2h, sel=sel, focus=focus,
+                                    in_pool=in_pool, filters=(pick3, yr3, se3)):
+                st.rerun()
+
+    st.divider()
+    if section("The result", "t3_result"):
+        if occ is None:
+            st.info("Nothing selected yet — open **Choose a head-to-head** "
+                    "above and pick one.")
+        else:
+            render_occasion(occ, victory=True)
 
 # =========================================================================== #
 # TAB 4 — form (target time by Saturday)
 # =========================================================================== #
 with tab4:
-    st.header("📈 Form — target time by Saturday")
+    st.header("📈 Target time by Saturday")
     st.caption(
-        "Each athlete's current-form **target** on every Saturday — the median of "
-        "their times over the **91 days before** that Saturday (min 1 run in the "
-        "window; the same target used for head-to-heads). Lower is faster. A broken "
-        "line marks Saturdays with no runs in the preceding 91 days."
+        "Each runner's form target on every Saturday — the median of their "
+        "times over the 91 days before it, which is the same target a "
+        "head-to-head is scored against. Lower is faster, and a break in "
+        "the line is a Saturday with no runs behind it."
     )
     sat = load_saturday_targets(_ver)
     if sat.empty:
-        st.info("No Saturday targets available.")
+        st.info("No form targets yet — run a refresh.")
     else:
         fc1, fc2 = st.columns(2)
         yr, se = year_season_filters(sat, "t4", fc1, fc2)
         st.caption(
-            "Filter by year *or* season · click a name in the legend to hide an "
-            "athlete — the axes rescale to those still shown."
+            "Filter by year *or* season. Click a name in the legend to "
+            "hide that runner — the axes rescale to whoever is left."
         )
         sat_f = apply_filters(sat, cls="All", yr=yr, se=se)
 
         if sat_f.empty:
-            st.info("No targets for that year or season.")
+            st.info("No form targets in that year or season.")
         else:
             plot_df = _gap_filled_saturdays(sat_f)
             # One line per (athlete, mode): solid without a buggy, dotted with.
@@ -1324,9 +1694,9 @@ with tab4:
                     tr.legendgroup = name
                 fig.for_each_trace(_rename)
                 st.caption(
-                    f"{BUGGY_GLYPH} dotted = target for runs **with the "
-                    f"buggy**. Where both lines run together, that athlete had "
-                    f"runs of each kind in the same 91-day window."
+                    f"A dotted line is the target for runs **with the "
+                    f"buggy** {BUGGY_GLYPH}. Where a runner has both, they "
+                    f"had runs of each kind in the same 91-day window."
                 )
             # y-axis tick labels as mm:ss at 2-minute steps; autorange on both axes
             # so hiding an athlete via the legend rescales to those still shown.
@@ -1347,16 +1717,15 @@ with tab4:
 with tab5:
     st.header("🗺️ Where the head-to-heads happen")
     st.caption(
-        "Every venue where two or more of them have gone head-to-head. Each pie is "
-        "sized by the number of head-to-heads there and split by who won "
-        "(form-adjusted 1sts), in their colours. Hover a venue for the breakdown."
+        "Every parkrun where two or more of them have raced each other. "
+        "Each circle is sized by how many head-to-heads happened there and "
+        "split by who won them, in their colours. Hover a circle for the "
+        "breakdown."
     )
     pick5, yr5, se5 = h2h_filter_row("t5")
 
     if pick5 == "All":
-        st.info(
-            "Select a **head-to-head classification** above to show the map."
-        )
+        st.info("Pick a head-to-head classification above to show the map.")
     else:
         mh = apply_filters(h2h, cls=pick5, yr=yr5, se=se5)
         fmap = build_h2h_map(mh, load_event_coords(_ver))
