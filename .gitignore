@@ -89,3 +89,6 @@ logs/
 # responses are regenerable and far too large for git history.
 adhoc/*/output/
 adhoc/*/.cache/
+
+# Local scratch: the Playwright venv for screenshots, throwaway captures.
+.scratch/

@@ -57,6 +57,34 @@ When a change is ready: commit on `dev`, merge to `main`, and (if the change
 touched the data model/views) regenerate `data/parkrun_snapshot.duckdb` via
 `python parkrun_pipeline.py snapshot` so the deployable snapshot matches.
 
+## The calendar bench
+
+`calendar_proto.py` on **port 8503**, dev-only, imported by nothing:
+
+```bash
+PARKRUN_DB=data/parkrun_dev.duckdb streamlit run calendar_proto.py --server.port 8503
+```
+
+It draws the same calendars the app does, from the same `parkrun_calendar.py`,
+with every alternative side by side: the five head-to-head colour schemes, the
+three phone layouts, and the five per-year tally treatments crossed with the
+three places the standings can sit. The app ships one of each; this is where
+the choice gets made by looking rather than arguing, and where the rejected
+ones stay visible. It also carries the data checks (822 athlete-weeks, 206
+contests over 205 weeks, the two split cells) — a mismatch there means the
+frames are wrong, not that the drawing is.
+
+Add `--server.address 0.0.0.0` and open `http://<your-LAN-IP>:8503` to judge the
+phone layouts on an actual phone, which is the only way to judge them.
+
+Delete the file once those choices stop being revisited; the app will not
+notice.
+
+**Streamlit does not reload an imported module.** Editing `parkrun_calendar.py`
+and refreshing the browser shows the *old* drawing — the file watcher reruns the
+script, not its imports. Restart the server. This has looked like "my change did
+nothing" twice; it is not a caching bug in the app.
+
 ## The buggy-labels page, and its dev twin
 
 Two tabs, two questions about the hand-written labels:
@@ -150,8 +178,9 @@ history if some future need proves otherwise.
 ## Tests
 
 ```bash
-pytest                 # from the repo root
+pytest                 # from the repo root — 60 cases, ~50s
 pytest -q tests/test_buggy_estimator.py
+pytest -q tests/test_calendar.py       # fast: no model fitting
 ```
 
 **pytest is a dev tool, deliberately not in `requirements.txt`** — same
@@ -177,8 +206,18 @@ mechanics:
   positives to match the negatives, so folding it in would hide exactly the
   loss the half-life floor exists to catch.
 * **the form window matches the pipeline's `TARGET_WINDOW_DAYS`** — the
-  estimator cannot import it (`parkrun_pipeline` pulls in requests and bs4), so
-  the test reads the constant out of the source instead.
+  estimator cannot import the pipeline (it pulls in requests and bs4), so both
+  read `parkrun_core`, and the test asserts no other module redefines the
+  constant. Three of its siblings do the same for the label vocabulary and the
+  cohort.
+
+`tests/test_calendar.py` covers the week scheme, and needs no project database
+either — the SQL case builds its own in-memory DuckDB from a range of dates.
+The one that matters is **`test_sql_matches_python`**: the rule for "which week
+is this date in" is written once per language, and the two drifting is not a
+theoretical risk — DuckDB's `::INT` **rounds**, so the first version of the SQL
+pushed late-December runs into week 53 and the calendars disagreed with the
+picker about where a run belonged.
 
 ## Screenshots
 
@@ -189,9 +228,9 @@ it into a throwaway venv rather than the project one; it is not a runtime
 dependency:
 
 ```bash
-python3 -m venv /tmp/shotenv
-/tmp/shotenv/bin/pip install playwright
-/tmp/shotenv/bin/playwright install chromium
+python3 -m venv .scratch/shotenv        # NOT /tmp — it gets cleaned out mid-session
+.scratch/shotenv/bin/pip install playwright
+.scratch/shotenv/bin/playwright install chromium
 ```
 
 Hide Streamlit's own chrome first, or the shots look like a dev session rather
@@ -202,10 +241,24 @@ p.add_style_tag(content='[data-testid="stToolbar"],[data-testid="stDecoration"],
                         '.modebar-container{display:none!important}')
 ```
 
-Two gotchas. `full_page=True` gives you only the viewport — Streamlit scrolls an
-inner container, not the document — so scroll the target into view and take a
-normal screenshot. And every tab's DOM is present at once, so scope selectors
-with `:visible` or you will match a hidden element on another tab.
+Gotchas, all of which have cost an hour each:
+
+* `full_page=True` gives you only the viewport — Streamlit scrolls an inner
+  container, not the document — so scroll the target into view (or screenshot
+  the element) and take a normal screenshot.
+* **Every tab's DOM is present at once.** Scope selectors to visible elements or
+  you will click a control on a hidden tab and wait 30 seconds for a timeout.
+* A button rendered with `help=` has an **invisible 0×0 twin** inside its
+  tooltip wrapper. `querySelector('button')` finds the twin; filter on
+  `getBoundingClientRect().width > 0`.
+* Tab 3's calendar lives in a **component iframe** — find it by `/component/`
+  in the frame URL, and re-fetch the frame after every rerun, because Streamlit
+  replaces it and the old handle detaches.
+* To test a tap rather than a click, use a touch context
+  (`is_mobile=True, has_touch=True`) and `page.touchscreen.tap`. A `mouse.click`
+  would have passed against the very bug that made tab 3 unusable on a phone.
+* Pinch-zoom can be simulated with CDP `Emulation.setPageScaleFactor`, which is
+  how the bottom sheet's fixed apparent size was checked at 1×, 2× and 3×.
 
 
 ## Deferred refactors
@@ -238,8 +291,12 @@ redefines the window.
 
 ### 2. Test coverage is thin
 
-**Partly addressed.** `tests/test_buggy_estimator.py` now covers the estimator
-(44 cases, no DB). Everything else remains untested: the pipeline's views, the
+**Partly addressed.** `tests/test_buggy_estimator.py` covers the estimator (44
+cases) and `tests/test_calendar.py` the calendar week scheme (16, including a
+parity check that the Python rule and the SQL one agree — the bug that check
+would have caught, DuckDB's `::INT` rounding rather than truncating, was
+actually shipped and then found by hand). Neither needs the project database.
+Everything else remains untested: the pipeline's views, the
 head-to-head arithmetic, `_winning_margin`, the handicap gate. The reasoning
 below still applies to those.
 
@@ -270,7 +327,7 @@ tests, not before them.
 
 ### 4. `parkrun_app.py` mixes data access and rendering
 
-1,370 lines holding nine `@st.cache_data` loaders and every render function.
+1,740 lines holding nine `@st.cache_data` loaders and every render function.
 Lifting the loaders into a `queries.py` would leave the app file as layout, and
 would let the loaders be tested without Streamlit.
 
@@ -304,8 +361,23 @@ choice rather than an oversight.
 
 **Value: none today. Leave it.**
 
-### 8. Trivia
+### 8. ~~Trivia~~ — DONE
 
-`requirements.txt:6` names `handicap_app.py`, a file that does not exist; it
-means `handicap_page.py`. One word.
+`requirements.txt` named `handicap_app.py`, a file that does not exist; it now
+names `handicap_page.py`.
+
+### 9. `parkrun_calendar.py` holds the app's renderers and the bench's
+
+1,500 lines: the week scheme, the frames, seven renderers, the embed helpers
+and the component wrapper — plus four head-to-head colour schemes and three
+phone layouts that only `calendar_proto.py` draws. Splitting the bench-only
+material into its own module would leave the app's drawing layer smaller.
+
+Against it: the bench-only schemes share `_split_cell`, `_legend_item`,
+`_rect` and the geometry with the shipped ones, so a split either duplicates
+those or invents a third module to hold them. And the extra schemes are the
+reason a choice can be revisited by looking — the module comment says which of
+them the app actually ships.
+
+**Value: low. Risk: low. Size: medium. Revisit when the bench is deleted.**
 

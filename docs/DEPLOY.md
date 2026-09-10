@@ -102,6 +102,17 @@ the thing that was traded away.
 They are still **not** built into the source-of-truth DB; `bootstrap` and
 `refresh` never call `ensure_legacy_views`, only `build_snapshot` does.
 
+**`components/calendar/` ships with the code.** Tab 3's head-to-head picker is a
+declared Streamlit component, and Streamlit serves its static files itself from
+the app's own origin (`/component/parkrun_calendar.parkrun_calendar/index.html`).
+Two consequences: the directory must be **committed** — a missing `index.html`
+takes the whole tab down, not just the calendar — and the same-origin serving is
+what lets `detail.js` build its bottom sheet in the parent document. There is no
+build step, no `node_modules`, and nothing to add to `requirements.txt`.
+
+`calendar_proto.py` is **never deployed** — it is the dev bench (`docs/DEV.md`),
+imported by nothing.
+
 `label_impact.py` is still never deployed. It is a dev-only twin of
 `/buggy-handicap` that only the local launcher starts, running the same two
 shared modules against an isolated dev DB.
