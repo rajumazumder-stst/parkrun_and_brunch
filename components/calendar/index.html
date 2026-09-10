@@ -1,0 +1,88 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; padding: 0; background: transparent; }
+  /* The strip scrolls, not the iframe: a custom component's frame is sized by
+     the height we report and has no scrollbars of its own, so the horizontal
+     overflow has to live on an element inside it. */
+  #wrap { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; }
+  rect[data-t], g[data-t] { cursor: pointer; }
+  #tt {
+    position: fixed; display: none; z-index: 9; pointer-events: none;
+    white-space: pre-wrap; padding: 6px 9px; border-radius: 6px;
+    font-size: 11.5px; line-height: 1.45; max-width: min(420px, 92vw);
+    font-family: -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, .28);
+  }
+</style>
+</head>
+<body>
+<div id="wrap"></div>
+<div id="tt"></div>
+<script>
+/* The clickable calendar: Streamlit's component protocol, by hand.
+ *
+ * No build step and no framework — the protocol is four postMessages, and a
+ * toolchain to produce them would be more to maintain than they are. The
+ * drawing itself arrives as an SVG string built in Python, so this file knows
+ * nothing about calendars; it is a delivery mechanism for clicks.
+ */
+(function () {
+  var ready = false;
+  var seq = 0;
+
+  function post(msg) {
+    msg.isStreamlitMessage = true;
+    window.parent.postMessage(msg, '*');
+  }
+
+  function setHeight() {
+    // The reported height is what the iframe becomes, so it has to include the
+    // horizontal scrollbar the strip may carry — measuring the wrapper's
+    // offsetHeight covers it, since the bar sits inside that box.
+    var wrap = document.getElementById('wrap');
+    post({ type: 'streamlit:setFrameHeight',
+           height: Math.ceil(wrap.getBoundingClientRect().height) + 2 });
+  }
+
+  window.calCellClick = function (el) {
+    var w = el.getAttribute('data-w');
+    if (!w) { return; }             // a cell with detail but nothing to select
+    var parts = w.split('-');
+    // `seq` is not decoration. Streamlit drops a component value identical to
+    // the last one, and clicking the SAME square twice is exactly what focuses
+    // it — without a nonce the second click would never reach Python, which is
+    // the trap the plotly version fell into and worked around by remounting.
+    seq += 1;
+    post({ type: 'streamlit:setComponentValue',
+           value: { year: +parts[0], week: +parts[1], seq: seq },
+           dataType: 'json' });
+  };
+
+  window.addEventListener('message', function (ev) {
+    if (!ev.data || ev.data.type !== 'streamlit:render') { return; }
+    var args = ev.data.args || {};
+    window.CAL_DETAIL = { bg: args.tip_bg, fg: args.tip_fg };
+    var tt = document.getElementById('tt');
+    tt.style.background = args.tip_bg;
+    tt.style.color = args.tip_fg;
+    document.getElementById('wrap').innerHTML = args.svg || '';
+    setHeight();
+    if (!ready) {
+      ready = true;
+      // detail.js binds document-level listeners, so it is loaded once, after
+      // the first drawing exists and the colours it reads are set.
+      var s = document.createElement('script');
+      s.src = 'detail.js';
+      document.body.appendChild(s);
+    }
+  });
+
+  window.addEventListener('resize', setHeight);
+  post({ type: 'streamlit:componentReady', apiVersion: 1 });
+})();
+</script>
+</body>
+</html>

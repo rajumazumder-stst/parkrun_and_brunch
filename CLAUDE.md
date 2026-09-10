@@ -92,6 +92,17 @@ where they differ from the original brief, **the spec wins**.
   views hold a retired method, and the guard against someone reading them as
   current is now presentation — every column and caption says old-against-new —
   rather than their absence.
+- ✅ **Participation calendars — live** (10 Sep 2026). A GitHub-contributions
+  grid of who ran which week on tab 1, and the same drawing as tab 3's
+  head-to-head picker, both from `parkrun_calendar.py` (see **Visualisations**
+  § Participation calendars). Three things are worth knowing before touching
+  them: weeks are counted from **1 January**, not by the ISO calendar; the
+  week-53 square is drawn only in the years its 1-2 day leftover could hold a
+  parkrun; and tab 3's picker is a **declared component** rather than a plotly
+  chart, because `st.plotly_chart`'s selection never fires on touch — a tap
+  fired plotly's click event and Streamlit dropped it, so on a phone the picker
+  could not be used at all. `calendar_proto.py` (port 8503) is the bench where
+  the alternatives are compared; it is dev-only and nothing imports it.
 - 🧪 Local dev/test workflow: work on the `dev` branch, `./scripts/run_local.sh` serves
   the app against an isolated `data/parkrun_dev.duckdb` (built through
   `pipeline seed`, gitignored) so previews never touch `main` or the deploy
@@ -572,6 +583,7 @@ are (re)created on every connection via `ensure_views()`.
 | `data/athletes_lookup.csv` | |
 | `data/parkrun_snapshot.duckdb` (read-only, deploy snapshot) | |
 | `requirements.txt` | |
+| `components/calendar/` (component static files) | |
 | Python scripts | |
 
 `parkrun_results.csv` is tracked deliberately: parkrun only serves *current*
@@ -603,6 +615,9 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | `handicap_page.py` | Page script at `/buggy-handicap` — **2 tabs**, *What the buggy costs* (`render_handicap`) and *What labelling changed* (`render_impact`). Layout only; both analyses are shared modules. Unlisted by design; the audience is the two people it is about, reached by a link they are sent — unlisted is **not** access-controlled |
 | `method_impact.py` | The pre-buggy head-to-head method against the current one: per-occasion verdicts (filterable to what changed and/or what used the handicap bridge) and paired victory charts. Imported by `handicap_page.py` and `label_impact.py`. Reads `v_head_to_head_legacy` — **retired numbers**, which is why every column and caption here says old-against-new |
 | `parkrun_core.py` | **Facts every part of the project must agree on**, and the one module that imports nothing but the standard library — that constraint is why it exists. The cohort (`ATHLETE_NAMES`, `BUGGY_ATHLETES`), the 91-day `TARGET_WINDOW_DAYS`, the `LABEL_SOURCES`/`TRAINING_SOURCES` vocabulary, and `resolve_db`. `parkrun_pipeline.py` owns these naturally but imports `requests` and `bs4`, and the hosted app installs neither — so before this each side kept its own copy and `TARGET_WINDOW_DAYS` was written out three times, kept in step by a test that read the pipeline's *source text*. Anything only one module needs stays in that module |
+| `parkrun_calendar.py` | **The calendars** (see Visualisations): the week scheme, the SQL and frames behind it, every renderer, and the two ways a drawing is embedded — `embed_svg` for a read-only grid and `svg_component` for tab 3's clickable one. Imports streamlit but no plotly. Holds more schemes than the app ships (five head-to-head colourings, three phone layouts) because `calendar_proto.py` compares them; the app picks one of each |
+| `components/calendar/` | The declared Streamlit component behind tab 3's picker — `index.html` (the postMessage protocol, hand-written, no build step) and `detail.js` (the bottom sheet and the floating label, **shared** with the read-only calendars so the two cannot behave differently). Static files, committed, served by Streamlit from the app's own origin — which is what lets the sheet reach the parent document |
+| `calendar_proto.py` | Dev-only design bench on port 8503 (`docs/DEV.md`). The only place the five head-to-head colour schemes, the three phone layouts and the five per-year tally treatments can be seen against each other. Nothing imports it; deleting it costs the app nothing |
 | `parkrun_ui.py` | Shared UI layer imported by **both** apps: DB resolution, `data_version`, `ATHLETE_COLORS`/`MEDAL`, `fmt_time`, the buggy display helpers (`BUGGY_GLYPH`, `mode_suffix`, `mode_text`, highlight colours), `_h2h_headline`, `_victory_fig` and `_winning_margin`. **`data_version` is the cache key for both apps** — `max(scrape_timestamp)` plus `max(set_at)` and `count(*)` from `run_modes`, since labels are edited out of band and never move the scrape timestamp; 60s TTL. It lives here for the `_winning_margin` reason: two copies that drifted would have the two apps disagreeing about whether the data had changed. `_winning_margin` must exist **once only** — `label_impact.py` diffs old against new, so a second copy of that arithmetic would make a method difference indistinguishable from a rounding one |
 | `label_impact.py` | **Dev-only twin of the hosted page** (its own port): the same two tabs, the same shared modules, driven against an isolated dev DB so the comparison can be exercised without touching the deploy snapshot. Layout only |
 | `scripts/run_local.sh` | Local dev launcher: venv + isolated `data/parkrun_dev.duckdb` (built via `pipeline seed`, **not** `cp` — the committed snapshot carries only the views it had when last rebuilt) + `streamlit run`. Under `PARKRUN_LABEL_AUDIT=1` it also builds the legacy views and starts `label_impact.py` on a second port (see `docs/DEV.md`) |
@@ -617,7 +632,7 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | `static/logo-512.png` | `page_icon` source: the browser-tab favicon |
 | `static/apple-touch-icon.png` | 180×180 for the iOS "Add to Home Screen" icon, served at `/app/static/` |
 | `.streamlit/config.toml` | `enableStaticServing = true` so `static/` is reachable at `/app/static/` |
-| `tests/` | pytest suite, run from the repo root. **pytest is dev-only, deliberately not in `requirements.txt`** (same convention as `openpyxl` and `cairosvg`). Currently covers `buggy_estimator` only — 44 cases, no database. Four of them are cross-module contracts: that `TARGET_WINDOW_DAYS`, the label vocabulary and the cohort each have exactly one definition, in `parkrun_core.py` |
+| `tests/` | pytest suite, run from the repo root. **pytest is dev-only, deliberately not in `requirements.txt`** (same convention as `openpyxl` and `cairosvg`). 60 cases, no project database: `buggy_estimator` (44 — four of them cross-module contracts, that `TARGET_WINDOW_DAYS`, the label vocabulary and the cohort each have exactly one definition in `parkrun_core.py`) and the calendar week scheme (16, including a parity check that the Python rule and `WEEK_SQL` agree, run against an in-memory DuckDB) |
 | `docs/DEV.md` | Local dev workflow (incl. `PARKRUN_LABEL_AUDIT=1` for the label-impact app). Also **§ Deferred refactors** — streamlining that has been identified and costed but not done, each with value/risk/size, so the analysis is not redone every time the code looks tidyable. **Read it before starting a cleanup**; two items in it were considered and deliberately rejected |
 | `docs/DATA.md` | The buggy labels: what each `source` means, how the training set grows, how to correct a label by hand |
 | `docs/MODEL.md` | The estimator as built: the four features and why each survived, the fitted coefficients, every constant, class balancing and recency, the walk-forward numbers, and the features that were removed on evidence. **The fitted numbers move every refresh** — the reasoning is what is durable |
@@ -648,7 +663,9 @@ Run the app against the bundled snapshot (as hosted): `streamlit run app.py`.
 ## Technology stack
 
 Python · requests · pandas · BeautifulSoup4 · lxml · DuckDB. Front end:
-Streamlit · plotly · matplotlib-venn · folium/streamlit-folium (map).
+Streamlit · plotly · matplotlib-venn · folium/streamlit-folium (map) ·
+hand-emitted SVG (the calendars) with one hand-written Streamlit component
+(`components/calendar/`, no build step, no JS toolchain).
 
 ### Environment
 
@@ -666,7 +683,8 @@ page at `/buggy-handicap` (`handicap_page.py`, 2 tabs: *What the buggy costs* ·
 *What labelling changed*) and its dev twin `label_impact.py` on its own port,
 both layout over the shared `buggy_handicap.py` / `method_impact.py`
 (`docs/DEV.md`):
-- **Tab 1** participation overlap / Venn (`v_overlap`) + per-athlete company.
+- **Tab 1** the **participation calendar** ("When do they run?" — see below) +
+  participation overlap / Venn (`v_overlap`) + per-athlete company.
 - **Tab 2** form-adjusted head-to-head summary (`v_head_to_head`,
   `current_targets`): **personal bests + latest run** (top of the tab — see
   below), the
@@ -675,10 +693,11 @@ both layout over the shared `buggy_handicap.py` / `method_impact.py`
   All, each placing annotated with how many were run with a buggy), and a
   **cumulative 1st-place finishes** trend (requires a head-to-head; year/season
   filterable; hover names the winning parkrun).
-- **Tab 3** head-to-head detail (drill into a single contest): a scoreline
-  one-liner (winner, % vs form, winning margin, note on any 3rd-placed
-  finisher — all 2 dp), a **victory lollipop chart** (raw `pct_diff` per
-  athlete from the on-form baseline, x-axis reversed so faster-than-form
+- **Tab 3** head-to-head detail (drill into a single contest): the filters, the
+  **head-to-head calendar picker** (see below), then — for the chosen contest —
+  a scoreline one-liner (winner, % vs form, winning margin, note on any
+  3rd-placed finisher — all 2 dp), a **victory lollipop chart** (raw `pct_diff`
+  per athlete from the on-form baseline, x-axis reversed so faster-than-form
   points right, 1st–2nd winning margin bracketed, winner on top), then the
   results table.
 - **Tab 4** **form — target time by Saturday** (`v_saturday_targets`): one line
@@ -691,6 +710,84 @@ both layout over the shared `buggy_handicap.py` / `method_impact.py`
   once a head-to-head classification is selected. Tooltips count buggy wins
   **per athlete** (`George 2 (1 🛒)`) — a trailing total would be ambiguous
   about whose wins it counted.
+
+### Participation calendars
+
+GitHub-contributions grids, drawn as hand-emitted **SVG** by
+`parkrun_calendar.py` and shared by two surfaces: tab 1's overview and tab 3's
+head-to-head picker. SVG rather than plotly because the look *is* a fixed
+geometry (11px cell, 3px gutter) and plotly sizes markers in pixels while
+sizing axes in fraction-of-container, so a 53-column grid drawn with markers is
+correct at exactly one window width.
+
+**Weeks are counted from 1 January**, not by the ISO calendar: week 1 is 1-7
+Jan and every week after is a fixed 7 days, so every year has exactly 53
+columns and the last is a **leftover** — 31 Dec alone, or 30-31 Dec in a leap
+year. ISO weeks were the first choice and were wrong here: they put a run on 1
+January in the previous year's row and give some years 53 weeks and others 52,
+which needed a caveat under every calendar. The rule exists twice, once per
+language — `week_of_year` / `week_of_year_series` in Python and `WEEK_SQL` for
+DuckDB — and `tests/test_calendar.py` asserts they agree. `floor(...)::INT`,
+never a bare `::INT`: DuckDB's cast **rounds**, which silently pushed late-
+December runs into week 53 the first time these numbers were computed.
+
+**The week-53 square is drawn only where it could hold a parkrun** — where the
+leftover contains a Saturday, or where somebody ran in it anyway
+(`stub_visible_years`). Across 2007-2026 that is 2011, 2016 and 2022, so 11 of
+13 year rows lose a column that could never be filled. It was drawn half width
+for a while to mark it as a stub; that is unnecessary now it only appears where
+it is real, and a runt column read as damage rather than as meaning.
+
+**Tab 1 — "When do they run?"** One square per athlete-week, in that athlete's
+colour, hatched when the week included a buggy run. *Side-by-side* stacks all
+three inside each year; *Individual* gives each their own grid starting at
+their first parkrun (a jump in the year sequence gets real space and a label —
+years missed *after* starting stay as empty rows, because those are real
+absences). A **year multiselect** defaults to the most recent year; clearing it
+shows every year. Break rows are suppressed whenever the year set is a
+selection rather than the whole span — a gap the reader made is not a gap in
+anyone's running. End-of-row totals count parkruns, not squares.
+
+**Tab 3 — the picker.** One row per year, filled only where a head-to-head
+happened, coloured by who won and split diagonally when a week had two winners
+(either a dead heat or two contests taken by different people). It carries the
+filter state: weeks the filters exclude are **faded, not dropped** (a dimmed
+square stays clickable, which is how you leave the current filter), the
+selected contest's week is boxed, and clicking runs select → focus that week →
+back. Beside each year is a **share bar** of that year's wins, hatched over the
+share won pushing a buggy; underneath is the standings legend. Both count only
+what the filters select. A year's tallies are **wins**: a dead heat credits
+both runners, so 2022 reads 24 against 23 head-to-heads and the standings sum
+to 207 against 206 — which is why no row shows a "total" beside them.
+
+**On a phone both grids swipe.** The SVG is drawn at its designed cell size and
+the strip scrolls sideways (`unscaled`) rather than being squeezed to the
+window: 53 columns across 390px is 4.9px a cell, a quarter of a 44px touch
+target. Tapping a square raises a **bottom sheet**, built in the *parent*
+document — a `position: fixed` element inside the frame is fixed to the frame,
+which is only as tall as the drawing — and positioned off `visualViewport`, so
+it stays on the bottom edge of what is actually being looked at and at a
+constant apparent size however far the page is pinch-zoomed. A pointer that can
+hover gets the floating label instead; the sheet is armed only where
+`(hover: hover)` is false.
+
+**Tab 3's calendar is a declared component** (`components/calendar/`), not
+`st.plotly_chart` and not `components.html`. It has to return clicks to Python
+— they drive the dropdown, the filters and the focus state — and the two
+built-in options both failed: an html iframe cannot talk back at all, and
+plotly's click-to-select never runs on touch, so a **tap fired plotly's click
+event and Streamlit dropped it** and the picker could not be used on a phone.
+The component posts `{year, week, seq}`; `seq` is a click counter and is
+load-bearing, because Streamlit discards a component value identical to the
+last one and *clicking the same square twice is a real gesture here*.
+
+**Sections.** Tabs 1-3 wrap each block in `section()` — a heading plus a small
+Hide/Show button pinned to the right margin, on the heading's own line at every
+width (Streamlit stacks columns below 640px; a media query scoped to the
+`st-key-sec-*` container opts just those rows out). A button rather than
+`st.expander` because Streamlit forbids nesting expanders and tab 2 already has
+one. Tabs 4 and 5 have no toggle: each is a single block, so collapsing it is
+what switching tabs already does.
 
 **Personal bests** (Tab 2, `load_personal_bests()` + `render_personal_bests()`
 in `parkrun_app.py` — no view; the SQL lives in the loader). Each athlete's **fastest**
