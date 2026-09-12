@@ -123,21 +123,28 @@ where they differ from the original brief, **the spec wins**.
   decides which form target a run belongs to, and `current_targets` is a frozen
   snapshot nothing recomputes, so labelling later would freeze the wrong number.
   Four features, per-athlete fits, walk-forward George 0.85/0.93/0.90 and
-  Duncan 0.45/1.00/0.77. **Every call is written, both directions, no
+  Duncan 0.45/0.83/0.74. **Every call is written, both directions, no
   abstention** — a withheld call is indistinguishable downstream from a
   confident "regular". The risk taken knowingly is the feedback loop: `model`
   rows train later fits, so an uncorrected wrong label is evidence for the next
   one. Measured with every prediction fed back and never corrected, George
-  falls 0.90 → 0.49 (his `event_buggy_share` is high-leverage, so a mislabel at
-  a course he frequents breeds more) while Duncan is stable at 0.81. That bound
+  falls 0.90 → 0.47 (his `event_buggy_share` is high-leverage, so a mislabel at
+  a course he frequents breeds more) while Duncan is stable at 0.78. That bound
   overstates — write-once means every `user` label is a permanent anchor the
   model cannot overwrite — but it names the direction. **Both athletes' buggy
   calls need review, for different reasons**: Duncan's are wrong more often
   (6 of his 11, against George's 5 of 33) and each misstates a past result,
   while George's are wrong far less often but compound. Neither is the safe
-  one, and it is specifically the *buggy* calls — a `regular` call is right
-  95-100% of the time for both, and every mistake either model has made was a
-  buggy call. The notification is the countermeasure: every
+  one, and it was for a while specifically the *buggy* calls — but **that rule
+  broke on 12 Sep 2026** and should not be relied on again. Duncan's Cassiobury
+  run was called `regular` at 0.52 and confirmed buggy by hand: the first
+  `regular` error either model has made, and Duncan's first false negative
+  (recall 1.00 → 0.83, his `regular` calls 15 of 15 → 15 of 16). The durable
+  reading is the weaker one — a `regular` call is *usually* safe (94-95%) and
+  a `buggy` call is not — plus the caveat the exception supplies: **confidence
+  is what matters, not direction.** That call sat at 0.52 with his other
+  `regular` calls at a median of 0.92, and of the two calls his model has ever
+  made below 0.60, both were wrong. The notification is the countermeasure: every
   call reaches the phone the same day with its confidence and that call type's
   measured reliability, and each refresh logs the walk-forward accuracy twice —
   training on `user`+`model`, and on `user` only. Those two agreeing is what
