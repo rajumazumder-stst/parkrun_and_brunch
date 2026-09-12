@@ -317,6 +317,7 @@ athlete_id,run_date,event_id,is_buggy,source,confidence,reason,set_at
 5672,2026-08-22,931,false,user,,confirmed by the athlete: no buggy in this era,2026-09-02 18:29:09.827493+01
 5672,2026-08-29,3446,false,user,,confirmed by the athlete: no buggy in this era,2026-09-02 18:29:09.827493+01
 5672,2026-09-05,3163,false,rule,,Raju has never used a buggy,2026-09-05 21:33:10.908057+01
+5672,2026-09-12,1152,false,rule,,Raju has never used a buggy,2026-09-12 14:30:13.333584+01
 3087156,2017-01-14,620,false,user,,confirmed by the athlete: no buggy in this era,2026-09-02 18:29:09.827493+01
 3087156,2017-02-18,674,false,user,,confirmed by the athlete: no buggy in this era,2026-09-02 18:29:09.827493+01
 3087156,2017-02-25,620,false,user,,confirmed by the athlete: no buggy in this era,2026-09-02 18:29:09.827493+01
@@ -667,6 +668,7 @@ athlete_id,run_date,event_id,is_buggy,source,confidence,reason,set_at
 3087156,2026-08-22,931,true,user,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
 3087156,2026-08-29,620,true,user,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
 3087156,2026-09-05,3614,false,model,0.7178570621928806,"model p=0.282 on 4 features, 349 training runs, half-life 36",2026-09-05 23:34:24.427175+01
+3087156,2026-09-12,3614,false,model,0.8474472181221702,"model p=0.153 on 4 features, 350 training runs, half-life 36",2026-09-12 14:30:16.975504+01
 5462426,2019-07-06,2165,false,user,,confirmed by the athlete: no buggy in this era,2026-09-02 18:29:09.827493+01
 5462426,2019-11-09,1211,false,user,,confirmed by the athlete: no buggy in this era,2026-09-02 18:29:09.827493+01
 5462426,2020-01-18,674,false,user,,confirmed by the athlete: no buggy in this era,2026-09-02 18:29:09.827493+01
@@ -843,3 +845,4 @@ athlete_id,run_date,event_id,is_buggy,source,confidence,reason,set_at
 5462426,2026-08-22,3163,false,user,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
 5462426,2026-08-29,620,false,user,,confirmed by the athlete,2026-09-02 18:29:09.827493+01
 5462426,2026-09-05,3163,true,user,,confirmed by the athlete,2026-09-05 15:24:19.997563+01
+5462426,2026-09-12,1152,false,model,0.5178497389535046,"model p=0.482 on 4 features, 176 training runs, half-life None",2026-09-12 14:31:34.488487+01
