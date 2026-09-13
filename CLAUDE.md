@@ -640,7 +640,7 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | `static/apple-touch-icon.png` | 180×180 for the iOS "Add to Home Screen" icon, served at `/app/static/` |
 | `.streamlit/config.toml` | `enableStaticServing = true` so `static/` is reachable at `/app/static/` |
 | `tests/` | pytest suite, run from the repo root. **pytest is dev-only, deliberately not in `requirements.txt`** (same convention as `openpyxl` and `cairosvg`). 60 cases, no project database: `buggy_estimator` (44 — four of them cross-module contracts, that `TARGET_WINDOW_DAYS`, the label vocabulary and the cohort each have exactly one definition in `parkrun_core.py`) and the calendar week scheme (16, including a parity check that the Python rule and `WEEK_SQL` agree, run against an in-memory DuckDB) |
-| `docs/DEV.md` | Local dev workflow (incl. `PARKRUN_LABEL_AUDIT=1` for the label-impact app). Also **§ Deferred refactors** — streamlining that has been identified and costed but not done, each with value/risk/size, so the analysis is not redone every time the code looks tidyable. **Read it before starting a cleanup**; two items in it were considered and deliberately rejected |
+| `docs/DEV.md` | Local dev workflow (incl. `PARKRUN_LABEL_AUDIT=1` for the label-impact app). Also **§ Deferred refactors** — streamlining that has been identified and costed but not done, each with value/risk/size, so the analysis is not redone every time the code looks tidyable. **Read it before starting a cleanup**; two items in it were considered and deliberately rejected. Also **§ Open decisions** — unsettled data-safety questions (the pipeline's default write target, whether the dev DB still needs a `parkrun` schema, a shrink gate on the committed artefacts), each with the options and what they cost |
 | `docs/DATA.md` | The buggy labels: what each `source` means, how the training set grows, how to correct a label by hand |
 | `docs/MODEL.md` | The estimator as built: the four features and why each survived, the fitted coefficients, every constant, class balancing and recency, the walk-forward numbers, and the features that were removed on evidence. **The fitted numbers move every refresh** — the reasoning is what is durable |
 | `docs/DEPLOY.md` | Deploy/ops: local source-of-truth DB + snapshot delivery, scheduled refresh, rebuilding/seeding, retired MotherDuck path (secret flip, tokens, re-seed) |
@@ -661,7 +661,13 @@ dependencies stay in per-topic `requirements.txt` files rather than the root one
 tracks its README, changelog, scripts and small `results/`; generated artefacts
 (`output/`) and cached API responses (`.cache/`) are gitignored.
 
-Run the pipeline: `python parkrun_pipeline.py refresh` (auto-bootstraps an empty DB).
+Run the pipeline: `PARKRUN_PIPELINE_DB=<target> python parkrun_pipeline.py refresh`
+(auto-bootstraps an empty DB). **Always name the target.** With the variable
+unset the pipeline writes `~/Documents/duckdb/my_database.duckdb`, and against
+an empty schema there `refresh` silently becomes a full re-bootstrap whose
+`_finalize()` overwrites three committed artefacts — including
+`data/parkrun_run_modes.csv`, which nothing reads back. See `docs/DEV.md`
+§ Open decisions.
 Run the app locally against the full dev DB: `PARKRUN_DB=~/Documents/duckdb/my_database.duckdb streamlit run app.py`.
 Run the app against the bundled snapshot (as hosted): `streamlit run app.py`.
 
