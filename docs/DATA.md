@@ -3,19 +3,23 @@
 What cannot be read off the schema. For the schema itself see the data-model
 tables in `CLAUDE.md`; for the method see *Feature 2 — head-to-head* there.
 
-## Where things stand (5 Sep 2026)
+## Where things stand (12 Sep 2026)
 
-`run_modes` holds **843** rows — every run the three athletes have, bar one:
+`run_modes` holds **847** rows — every run the three athletes have, with none
+left unlabelled:
 
 | `source` | `is_buggy` | Rows |
 |---|---|---|
-| `user` | TRUE | 37 (George 31, Duncan 6) |
+| `user` | TRUE | 38 (George 31, Duncan 7) |
 | `user` | FALSE | 805 |
-| `rule` | FALSE | 1 (Raju, 2026-09-05) |
-| `model` | — | none yet |
+| `rule` | FALSE | 2 (Raju) |
+| `model` | FALSE | 2 (George, 5 + 12 Sep) |
 
-George's 2026-09-05 run is the only unlabelled one: it is what the estimator
-will score first.
+The estimator has now written three labels and **one of them has been
+corrected**. Duncan's 12 Sep Cassiobury run was called `regular` at a
+confidence of 0.52 — the least confident verdict either model has produced —
+and was confirmed buggy by hand the same day, which is why his `user`/TRUE
+count reads 7. See *A regular call has now been wrong* below.
 
 Two things produced the `user` rows. 161 came from the review sheet, answered
 run by run. The other 681 were a **blanket assertion about an era** — neither
@@ -25,7 +29,7 @@ were `default` rows excluded from training; folding them in lifted George's
 recall from 0.78 to 0.93 and left Duncan unchanged.
 
 Handicaps measured from these labels — **George 0.13 (`measured`)**, Duncan and
-Raju on the `0.15` default; Duncan's six buggy runs are below the 8-per-class
+Raju on the `0.15` default; Duncan's seven buggy runs are below the 8-per-class
 gate, his raw interval crosses zero and his course-controlled estimates point
 the *other* way. Note that gate is a disjunction — the count is only one of
 three reasons, and removing it alone would change nothing. The working is at
@@ -168,6 +172,43 @@ exported on every refresh, so the edit also shows up as a reviewable diff.
 a full overwrite of the table, ordered so the diff is readable, and nothing in
 the repo reads it back. See `docs/MODEL.md` for what the estimator writes into
 that table and why.
+
+## Changing a label from chat
+
+The SQL above is the mechanism; this is the process built around it, agreed
+12 Sep 2026. Ask Claude in chat — *"mark Duncan's 12 Sep run as buggy"* — and
+the sequence is fixed:
+
+1. **Read back before writing** — athlete, date, event, and what the label
+   currently is. A wrong date is caught before the write, not after.
+2. **Write** it with the `INSERT OR REPLACE` above, against the source of truth.
+3. **Report the knock-on** — `v_head_to_head` re-queried for that date, with the
+   recomputed `target_basis`, `pct_diff` and placings. A label rewrites past
+   results, so the row alone is not the answer.
+4. **"Refresh the app now?"** — asked every time.
+5. **On yes**, `scripts/parkrun_refresh.sh` runs and the result is reported.
+
+Step 4 exists because the write and the delivery are different things. The
+label is in `parkrun_local.duckdb` the moment it is written, but the hosted app
+serves `data/parkrun_snapshot.duckdb` **from `origin/main`** — so a correction
+is invisible to everyone else until a refresh rebuilds that file and pushes it.
+On 12 Sep 2026 a corrected label sat undelivered for exactly that reason, which
+is what prompted this.
+
+Re-running the refresh the same day is safe, and deliberately so:
+`update_current_targets` windows on `[refresh_date−91, refresh_date−1]`, which
+**excludes the current day**, so a run labelled today cannot retroactively move
+today's frozen targets; `apply_model_labels` is write-once and forward-only, so
+a run that now carries a `user` row can never be re-scored; Path B is an
+idempotent UPSERT; and the lockdir stops a manual run colliding with a
+scheduled slot.
+
+Two guards worth knowing. If the run is not uniquely identifiable — a same-day
+double at two events, an ambiguous date — it is **asked about, never guessed**.
+If the label already says what you are asking for, the write is **skipped**:
+churning `set_at` would make a no-op appear as a correction in the
+`parkrun_run_modes.csv` diff, and that diff is the only reviewable trace of who
+changed what.
 
 ## Things that will surprise you
 

@@ -123,21 +123,28 @@ where they differ from the original brief, **the spec wins**.
   decides which form target a run belongs to, and `current_targets` is a frozen
   snapshot nothing recomputes, so labelling later would freeze the wrong number.
   Four features, per-athlete fits, walk-forward George 0.85/0.93/0.90 and
-  Duncan 0.45/1.00/0.77. **Every call is written, both directions, no
+  Duncan 0.45/0.83/0.74. **Every call is written, both directions, no
   abstention** — a withheld call is indistinguishable downstream from a
   confident "regular". The risk taken knowingly is the feedback loop: `model`
   rows train later fits, so an uncorrected wrong label is evidence for the next
   one. Measured with every prediction fed back and never corrected, George
-  falls 0.90 → 0.49 (his `event_buggy_share` is high-leverage, so a mislabel at
-  a course he frequents breeds more) while Duncan is stable at 0.81. That bound
+  falls 0.90 → 0.47 (his `event_buggy_share` is high-leverage, so a mislabel at
+  a course he frequents breeds more) while Duncan is stable at 0.78. That bound
   overstates — write-once means every `user` label is a permanent anchor the
   model cannot overwrite — but it names the direction. **Both athletes' buggy
   calls need review, for different reasons**: Duncan's are wrong more often
   (6 of his 11, against George's 5 of 33) and each misstates a past result,
   while George's are wrong far less often but compound. Neither is the safe
-  one, and it is specifically the *buggy* calls — a `regular` call is right
-  95-100% of the time for both, and every mistake either model has made was a
-  buggy call. The notification is the countermeasure: every
+  one, and it was for a while specifically the *buggy* calls — but **that rule
+  broke on 12 Sep 2026** and should not be relied on again. Duncan's Cassiobury
+  run was called `regular` at 0.52 and confirmed buggy by hand: the first
+  `regular` error either model has made, and Duncan's first false negative
+  (recall 1.00 → 0.83, his `regular` calls 15 of 15 → 15 of 16). The durable
+  reading is the weaker one — a `regular` call is *usually* safe (94-95%) and
+  a `buggy` call is not — plus the caveat the exception supplies: **confidence
+  is what matters, not direction.** That call sat at 0.52 with his other
+  `regular` calls at a median of 0.92, and of the two calls his model has ever
+  made below 0.60, both were wrong. The notification is the countermeasure: every
   call reaches the phone the same day with its confidence and that call type's
   measured reliability, and each refresh logs the walk-forward accuracy twice —
   training on `user`+`model`, and on `user` only. Those two agreeing is what
@@ -633,7 +640,7 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | `static/apple-touch-icon.png` | 180×180 for the iOS "Add to Home Screen" icon, served at `/app/static/` |
 | `.streamlit/config.toml` | `enableStaticServing = true` so `static/` is reachable at `/app/static/` |
 | `tests/` | pytest suite, run from the repo root. **pytest is dev-only, deliberately not in `requirements.txt`** (same convention as `openpyxl` and `cairosvg`). 60 cases, no project database: `buggy_estimator` (44 — four of them cross-module contracts, that `TARGET_WINDOW_DAYS`, the label vocabulary and the cohort each have exactly one definition in `parkrun_core.py`) and the calendar week scheme (16, including a parity check that the Python rule and `WEEK_SQL` agree, run against an in-memory DuckDB) |
-| `docs/DEV.md` | Local dev workflow (incl. `PARKRUN_LABEL_AUDIT=1` for the label-impact app). Also **§ Deferred refactors** — streamlining that has been identified and costed but not done, each with value/risk/size, so the analysis is not redone every time the code looks tidyable. **Read it before starting a cleanup**; two items in it were considered and deliberately rejected |
+| `docs/DEV.md` | Local dev workflow (incl. `PARKRUN_LABEL_AUDIT=1` for the label-impact app). Also **§ Deferred refactors** — streamlining that has been identified and costed but not done, each with value/risk/size, so the analysis is not redone every time the code looks tidyable. **Read it before starting a cleanup**; two items in it were considered and deliberately rejected. Also **§ Open decisions** — unsettled data-safety questions (the pipeline's default write target, whether the dev DB still needs a `parkrun` schema, a shrink gate on the committed artefacts), each with the options and what they cost |
 | `docs/DATA.md` | The buggy labels: what each `source` means, how the training set grows, how to correct a label by hand |
 | `docs/MODEL.md` | The estimator as built: the four features and why each survived, the fitted coefficients, every constant, class balancing and recency, the walk-forward numbers, and the features that were removed on evidence. **The fitted numbers move every refresh** — the reasoning is what is durable |
 | `docs/DEPLOY.md` | Deploy/ops: local source-of-truth DB + snapshot delivery, scheduled refresh, rebuilding/seeding, retired MotherDuck path (secret flip, tokens, re-seed) |
@@ -654,7 +661,13 @@ dependencies stay in per-topic `requirements.txt` files rather than the root one
 tracks its README, changelog, scripts and small `results/`; generated artefacts
 (`output/`) and cached API responses (`.cache/`) are gitignored.
 
-Run the pipeline: `python parkrun_pipeline.py refresh` (auto-bootstraps an empty DB).
+Run the pipeline: `PARKRUN_PIPELINE_DB=<target> python parkrun_pipeline.py refresh`
+(auto-bootstraps an empty DB). **Always name the target.** With the variable
+unset the pipeline writes `~/Documents/duckdb/my_database.duckdb`, and against
+an empty schema there `refresh` silently becomes a full re-bootstrap whose
+`_finalize()` overwrites three committed artefacts — including
+`data/parkrun_run_modes.csv`, which nothing reads back. See `docs/DEV.md`
+§ Open decisions.
 Run the app locally against the full dev DB: `PARKRUN_DB=~/Documents/duckdb/my_database.duckdb streamlit run app.py`.
 Run the app against the bundled snapshot (as hosted): `streamlit run app.py`.
 

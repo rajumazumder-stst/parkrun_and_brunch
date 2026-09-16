@@ -1,0 +1,785 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>parkrun &amp; brunch — Finished last. Won anyway.</title>
+    <script src="assets/vendor/gsap.min.js"></script>
+    <script src="audio-data.js"></script>
+    <style>
+      @font-face {
+        font-family: "Source Sans 3";
+        src: url("assets/fonts/SourceSans3VF.woff2") format("woff2");
+        font-weight: 200 900;
+        font-style: normal;
+      }
+      :root {
+        --bg: #23201d;
+        --panel: #2e2a26;
+        --line: #4a433c;
+        --text: #f7f3ee;
+        --muted: #b3a89b;
+        --toast: #f7cf8e;
+        --crust: #c8822f;
+        --george: #1b9e77;
+        --raju: #d95f02;
+        --duncan: #7570b3;
+        --gold: #ffb300;
+        --silver: #b0b0b0;
+        --bronze: #c77b30;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Source Sans 3", sans-serif;
+        font-variant-numeric: tabular-nums;
+      }
+      #root {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: var(--bg);
+      }
+      .clip {
+        position: absolute;
+        inset: 0;
+      }
+      .scene {
+        position: absolute;
+        inset: 0;
+      }
+
+      /* ---------- shared background ---------- */
+      #bg-glow {
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(ellipse 70% 60% at 50% 110%, rgba(200, 130, 47, 0.28), rgba(200, 130, 47, 0) 70%),
+          radial-gradient(ellipse 50% 40% at 85% -10%, rgba(247, 207, 142, 0.10), rgba(247, 207, 142, 0) 70%);
+        opacity: 0.7;
+      }
+      #bg-lanes {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 14px;
+        display: flex;
+      }
+      #bg-lanes div { flex: 1; }
+
+      /* ---------- broadcast bug ---------- */
+      #bug {
+        position: absolute;
+        top: 56px;
+        left: 96px;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        font-size: 26px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      #bug img { width: 52px; height: 52px; border-radius: 12px; display: block; }
+      #bug b { color: var(--toast); font-weight: 700; }
+
+      /* ---------- scene 1-2: board ---------- */
+      #board-head {
+        position: absolute;
+        left: 96px;
+        top: 170px;
+        width: 1000px;
+      }
+      .eyebrow {
+        font-size: 30px;
+        font-weight: 600;
+        color: var(--toast);
+        letter-spacing: 0.02em;
+      }
+      .board-title-wrap { position: relative; height: 96px; margin-top: 8px; }
+      .board-title {
+        position: absolute;
+        left: 0;
+        top: 0;
+        font-size: 80px;
+        font-weight: 800;
+        line-height: 96px;
+        white-space: nowrap;
+      }
+      #rows {
+        position: absolute;
+        left: 96px;
+        top: 400px;
+        width: 1000px;
+        height: 560px;
+      }
+      .row {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 1000px;
+        height: 148px;
+        box-sizing: border-box;
+        background: var(--panel);
+        border: 2px solid var(--line);
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        overflow: hidden;
+      }
+      .row .stripe { width: 14px; align-self: stretch; }
+      .row .pos {
+        position: relative;
+        width: 84px;
+        height: 84px;
+        margin: 0 32px 0 36px;
+      }
+      .row .pos div {
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 44px;
+        font-weight: 800;
+      }
+      .pos-finish { border: 3px solid var(--line); color: var(--muted); box-sizing: border-box; }
+      .pos-medal { color: #23201d; opacity: 0; }
+      .row .name { font-size: 64px; font-weight: 700; flex: 1; }
+      .row .val {
+        position: relative;
+        width: 360px;
+        height: 148px;
+        margin-right: 40px;
+      }
+      .row .val div {
+        position: absolute;
+        right: 0;
+        top: 0;
+        height: 148px;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        justify-content: center;
+        white-space: nowrap;
+      }
+      .val .big { font-size: 76px; font-weight: 700; line-height: 1; }
+      .val .small { font-size: 26px; color: var(--muted); margin-top: 6px; font-weight: 600; }
+      .v-pct { opacity: 0; }
+
+      #side {
+        position: absolute;
+        left: 1200px;
+        top: 400px;
+        width: 640px;
+        height: 460px;
+      }
+      #came-last, #won {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 640px;
+      }
+      #came-last .l1 { font-size: 112px; font-weight: 800; color: var(--muted); line-height: 1.05; }
+      #came-last .l2 { font-size: 40px; font-weight: 600; color: var(--muted); margin-top: 16px; }
+      #won .l1 { font-size: 150px; font-weight: 900; color: var(--raju); line-height: 1.15; }
+      #won .l2 { font-size: 150px; font-weight: 900; color: var(--text); line-height: 1.15; }
+      #won .l3 { font-size: 40px; font-weight: 600; color: var(--toast); margin-top: 28px; }
+
+      /* ---------- scene 3: form ---------- */
+      #form-head {
+        position: absolute;
+        left: 96px;
+        top: 170px;
+        width: 1700px;
+      }
+      #form-head h2 { margin: 8px 0 0; font-size: 76px; font-weight: 800; line-height: 1.1; }
+      #form-head h2 em { font-style: normal; color: var(--toast); }
+      #tcards {
+        position: absolute;
+        left: 96px;
+        top: 420px;
+        width: 700px;
+      }
+      .tcard {
+        position: relative;
+        height: 150px;
+        margin-bottom: 22px;
+        box-sizing: border-box;
+        padding: 20px 32px;
+        background: var(--panel);
+        border: 2px solid var(--line);
+        border-radius: 20px;
+      }
+      .tcard .who { font-size: 32px; font-weight: 700; display: flex; align-items: center; gap: 12px; }
+      .tcard .dot { width: 20px; height: 20px; border-radius: 50%; }
+      .tcard .tt { font-size: 60px; font-weight: 700; margin-top: 4px; white-space: nowrap; }
+      .tcard .tt .tgt { color: var(--muted); }
+      .tcard .tt .arr { color: var(--muted); margin: 0 14px; }
+      .tcard .lab {
+        position: absolute;
+        right: 32px;
+        top: 22px;
+        font-size: 24px;
+        color: var(--muted);
+        font-weight: 600;
+      }
+
+      #chart {
+        position: absolute;
+        left: 900px;
+        top: 420px;
+        width: 920px;
+        height: 570px;
+      }
+      #chart .axis {
+        position: absolute;
+        left: 160px;
+        top: 40px;
+        width: 3px;
+        height: 420px;
+        background: var(--muted);
+      }
+      #chart .grid {
+        position: absolute;
+        left: 160px;
+        width: 700px;
+        height: 2px;
+        background: var(--line);
+      }
+      #chart .clabel {
+        position: absolute;
+        left: 0;
+        width: 130px;
+        text-align: right;
+        font-size: 34px;
+        font-weight: 700;
+        line-height: 40px;
+      }
+      #chart .stem {
+        position: absolute;
+        left: 161px;
+        height: 8px;
+        border-radius: 4px;
+        transform-origin: 0 50%;
+      }
+      #chart .head {
+        position: absolute;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        border: 4px solid var(--bg);
+        box-sizing: border-box;
+      }
+      #chart .pct {
+        position: absolute;
+        font-size: 30px;
+        font-weight: 700;
+        line-height: 36px;
+        white-space: nowrap;
+      }
+      #chart .tick {
+        position: absolute;
+        top: 470px;
+        font-size: 26px;
+        color: var(--muted);
+        font-weight: 600;
+        width: 120px;
+        margin-left: -60px;
+        text-align: center;
+      }
+      #chart .caption {
+        position: absolute;
+        left: 160px;
+        top: 510px;
+        font-size: 26px;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      #bracket {
+        position: absolute;
+        top: 10px;
+        height: 22px;
+        box-sizing: border-box;
+        border: 3px solid var(--toast);
+        border-bottom: none;
+      }
+      #bracket-label {
+        position: absolute;
+        top: -48px;
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--toast);
+        white-space: nowrap;
+      }
+
+      /* ---------- scene 4: stats ---------- */
+      #stats-head { position: absolute; left: 96px; top: 170px; }
+      #stats-head h2 { margin: 8px 0 0; font-size: 96px; font-weight: 800; line-height: 1.05; }
+      #stats {
+        position: absolute;
+        left: 96px;
+        top: 440px;
+        width: 1728px;
+        display: flex;
+        gap: 48px;
+      }
+      .stat {
+        flex: 1;
+        height: 420px;
+        box-sizing: border-box;
+        padding: 48px 44px;
+        background: var(--panel);
+        border: 2px solid var(--line);
+        border-radius: 28px;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+      }
+      .stat .num { font-size: 180px; font-weight: 900; line-height: 1; color: var(--toast); }
+      .stat .emo { font-size: 150px; line-height: 1; }
+      .stat .what { font-size: 48px; font-weight: 700; margin-top: 18px; line-height: 1.12; }
+      .stat .sub { font-size: 28px; color: var(--muted); margin-top: 10px; font-weight: 600; }
+
+      /* ---------- scene 5: record ---------- */
+      #rec-head { position: absolute; left: 96px; top: 170px; }
+      #rec-head h2 { margin: 8px 0 0; font-size: 96px; font-weight: 800; line-height: 1.05; }
+      #bars { position: absolute; left: 96px; top: 470px; width: 1728px; }
+      .bar-row { position: relative; height: 150px; margin-bottom: 30px; }
+      .bar-row .bname {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 260px;
+        height: 150px;
+        line-height: 150px;
+        font-size: 64px;
+        font-weight: 700;
+      }
+      .bar-row .bar {
+        position: absolute;
+        left: 280px;
+        top: 20px;
+        height: 110px;
+        border-radius: 16px;
+        transform-origin: 0 50%;
+      }
+      .bar-row .bnum {
+        position: absolute;
+        top: 0;
+        height: 150px;
+        line-height: 150px;
+        font-size: 80px;
+        font-weight: 800;
+      }
+
+      /* ---------- scene 6: outro ---------- */
+      #outro {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+      #logo-wrap { position: relative; width: 300px; height: 300px; }
+      #logo-glow {
+        position: absolute;
+        inset: -120px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(247, 207, 142, 0.45), rgba(247, 207, 142, 0) 65%);
+        opacity: 0.5;
+      }
+      #logo {
+        position: absolute;
+        inset: 0;
+        width: 300px;
+        height: 300px;
+        border-radius: 56px;
+        display: block;
+      }
+      #brand { font-size: 130px; font-weight: 900; margin-top: 48px; line-height: 1; }
+      #brand .amp { color: var(--toast); }
+      #tagline { font-size: 50px; font-weight: 600; margin-top: 26px; }
+      #tagline .t2 { color: var(--toast); }
+      #url { font-size: 32px; font-weight: 600; color: var(--muted); margin-top: 30px; letter-spacing: 0.02em; }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-width="1920"
+      data-height="1080"
+      data-duration="21"
+    >
+      <!-- Shared background: always on -->
+      <div id="bg" class="clip" data-start="0" data-duration="21" data-track-index="0">
+        <div id="bg-glow"></div>
+        <div id="bg-lanes">
+          <div style="background: var(--george)"></div>
+          <div style="background: var(--raju)"></div>
+          <div style="background: var(--duncan)"></div>
+        </div>
+      </div>
+
+      <!-- Broadcast bug: scenes 1-5 -->
+      <div id="bug-clip" class="clip" data-start="0" data-duration="18.5" data-track-index="1">
+        <div id="bug">
+          <img src="assets/logo-toast.svg" alt="" />
+          <span><b>parkrun &amp; brunch</b> &nbsp;·&nbsp; head-to-head</span>
+        </div>
+      </div>
+
+      <!-- Scenes 1+2: the finish board and the flip -->
+      <section id="s-board" class="clip" data-start="0" data-duration="7" data-track-index="2">
+        <div class="scene" id="board-scene">
+          <div id="board-head">
+            <div class="eyebrow" id="board-eyebrow">Higginson parkrun, Marlow · Sat 1 Aug 2026</div>
+            <div class="board-title-wrap">
+              <div class="board-title" id="title-finish">Finish order</div>
+              <div class="board-title" id="title-form" data-layout-allow-overlap style="opacity: 0">
+                vs <span style="color: var(--toast)">their own form</span>
+              </div>
+            </div>
+          </div>
+
+          <div id="rows" data-layout-allow-overlap>
+            <div class="row" id="row-george">
+              <div class="stripe" style="background: var(--george)"></div>
+              <div class="pos">
+                <div class="pos-finish">1</div>
+                <div class="pos-medal" style="background: var(--silver)">2</div>
+              </div>
+              <div class="name">George</div>
+              <div class="val">
+                <div class="v-time"><span class="big">21:36</span></div>
+                <div class="v-pct"><span class="big" style="color: var(--george)">−3.28%</span><span class="small">faster than form</span></div>
+              </div>
+            </div>
+            <div class="row" id="row-duncan">
+              <div class="stripe" style="background: var(--duncan)"></div>
+              <div class="pos">
+                <div class="pos-finish">2</div>
+                <div class="pos-medal" style="background: var(--bronze)">3</div>
+              </div>
+              <div class="name">Duncan</div>
+              <div class="val">
+                <div class="v-time"><span class="big">25:26</span></div>
+                <div class="v-pct"><span class="big" style="color: #9b96d6">−3.05%</span><span class="small">faster than form</span></div>
+              </div>
+            </div>
+            <div class="row" id="row-raju">
+              <div class="stripe" style="background: var(--raju)"></div>
+              <div class="pos">
+                <div class="pos-finish">3</div>
+                <div class="pos-medal" style="background: var(--gold)">1</div>
+              </div>
+              <div class="name">Raju</div>
+              <div class="val">
+                <div class="v-time"><span class="big">40:17</span><span class="small" id="gap-label">+18:41 behind George</span></div>
+                <div class="v-pct"><span class="big" style="color: #ff8a3d">−4.75%</span><span class="small">faster than form</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div id="side">
+            <div id="came-last">
+              <div class="l1">Came last.</div>
+              <div class="l2">By nearly 19 minutes.</div>
+            </div>
+            <div id="won" style="opacity: 0">
+              <div class="l1">Raju</div>
+              <div class="l2">won.</div>
+              <div class="l3">Biggest margin over their own form.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Scene 3: beat your own form -->
+      <section id="s-form" class="clip" data-start="7" data-duration="4.5" data-track-index="2">
+        <div class="scene" id="form-scene">
+          <div id="form-head">
+            <div class="eyebrow">How a head-to-head works</div>
+            <h2>Your target: <em>your own last 91 days.</em></h2>
+          </div>
+
+          <div id="tcards">
+            <div class="tcard">
+              <div class="who"><span class="dot" style="background: var(--raju)"></span>Raju</div>
+              <div class="lab">target → actual</div>
+              <div class="tt"><span class="tgt">42:18</span><span class="arr">→</span><span class="act" id="act-raju">42:18</span></div>
+            </div>
+            <div class="tcard">
+              <div class="who"><span class="dot" style="background: var(--george)"></span>George</div>
+              <div class="lab">target → actual</div>
+              <div class="tt"><span class="tgt">22:20</span><span class="arr">→</span><span class="act" id="act-george">22:20</span></div>
+            </div>
+            <div class="tcard">
+              <div class="who"><span class="dot" style="background: var(--duncan)"></span>Duncan</div>
+              <div class="lab">target → actual</div>
+              <div class="tt"><span class="tgt">26:14</span><span class="arr">→</span><span class="act" id="act-duncan">26:14</span></div>
+            </div>
+          </div>
+
+          <div id="chart">
+            <div class="grid" style="top: 118px"></div>
+            <div class="grid" style="top: 258px"></div>
+            <div class="grid" style="top: 398px"></div>
+            <div class="axis"></div>
+
+            <div class="clabel" style="top: 98px; color: var(--raju)">Raju</div>
+            <div class="clabel" style="top: 238px; color: var(--george)">George</div>
+            <div class="clabel" style="top: 378px; color: #9b96d6">Duncan</div>
+
+            <div class="stem" id="stem-raju" style="top: 115px; width: 570px; background: var(--raju)"></div>
+            <div class="stem" id="stem-george" style="top: 255px; width: 394px; background: var(--george)"></div>
+            <div class="stem" id="stem-duncan" style="top: 395px; width: 366px; background: var(--duncan)"></div>
+
+            <div class="head" id="head-raju" style="top: 101px; left: 143px; background: var(--raju)"></div>
+            <div class="head" id="head-george" style="top: 241px; left: 143px; background: var(--george)"></div>
+            <div class="head" id="head-duncan" style="top: 381px; left: 143px; background: var(--duncan)"></div>
+
+            <div class="pct" id="pct-raju" style="top: 101px; left: 755px; color: var(--text)">−4.75%</div>
+            <div class="pct" id="pct-george" style="top: 241px; left: 579px; color: var(--text)">−3.28%</div>
+            <div class="pct" id="pct-duncan" style="top: 381px; left: 551px; color: var(--text)">−3.05%</div>
+
+            <div id="bracket" data-layout-allow-overflow style="left: 555px; width: 176px">
+              <div id="bracket-label" data-layout-allow-overflow style="left: -60px">winning margin 1.47 pts</div>
+            </div>
+
+            <div class="tick" style="left: 161px">0%</div>
+            <div class="tick" style="left: 761px">−5%</div>
+            <div class="caption">faster than form →</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Scene 4: since 2017 -->
+      <section id="s-stats" class="clip" data-start="11.5" data-duration="4.5" data-track-index="2">
+        <div class="scene" id="stats-scene">
+          <div id="stats-head">
+            <div class="eyebrow">Every Saturday since 2017</div>
+            <h2>Every shared start line, scored.</h2>
+          </div>
+          <div id="stats">
+            <div class="stat" id="stat-1">
+              <div class="num" id="num-h2h">0</div>
+              <div class="what">head-to-heads</div>
+              <div class="sub">George, Duncan &amp; Raju</div>
+            </div>
+            <div class="stat" id="stat-2">
+              <div class="num" id="num-venues">0</div>
+              <div class="what">parkruns where they met</div>
+              <div class="sub">20 of them at Osterley alone</div>
+            </div>
+            <div class="stat" id="stat-3">
+              <div class="emo">🛒</div>
+              <div class="what">Buggy runs get their own target</div>
+              <div class="sub">pushing a pram isn't a bad day</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Scene 5: the record -->
+      <section id="s-record" class="clip" data-start="16" data-duration="2.5" data-track-index="2">
+        <div class="scene" id="record-scene">
+          <div id="rec-head">
+            <div class="eyebrow">Head-to-head record</div>
+            <h2>All-time wins</h2>
+          </div>
+          <div id="bars">
+            <div class="bar-row">
+              <div class="bname" style="color: var(--raju)">Raju</div>
+              <div class="bar" id="bar-raju" style="width: 1180px; background: var(--raju)"></div>
+              <div class="bnum" id="bnum-raju" style="left: 1490px">0</div>
+            </div>
+            <div class="bar-row">
+              <div class="bname" style="color: var(--george)">George</div>
+              <div class="bar" id="bar-george" style="width: 1052px; background: var(--george)"></div>
+              <div class="bnum" id="bnum-george" style="left: 1362px">0</div>
+            </div>
+            <div class="bar-row">
+              <div class="bname" style="color: #9b96d6">Duncan</div>
+              <div class="bar" id="bar-duncan" style="width: 436px; background: var(--duncan)"></div>
+              <div class="bnum" id="bnum-duncan" style="left: 746px">0</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Scene 6: outro -->
+      <section id="s-outro" class="clip" data-start="18.5" data-duration="2.5" data-track-index="2">
+        <div id="outro">
+          <div id="logo-wrap">
+            <div id="logo-glow"></div>
+            <img id="logo" src="assets/logo-toast.svg" alt="parkrun &amp; brunch logo" />
+          </div>
+          <div id="brand">parkrun <span class="amp">&amp;</span> brunch</div>
+          <div id="tagline">Beat your own form. <span class="t2">Then brunch.</span></div>
+          <div id="url">parkrun-and-brunch.streamlit.app</div>
+        </div>
+      </section>
+
+      <!-- Audio -->
+      <audio
+        id="bg-music"
+        data-start="0"
+        data-duration="21"
+        data-track-index="10"
+        data-volume="0.35"
+        data-automation='{"version":1,"lanes":[{"target":"volume","points":[{"t":0,"v":0.75},{"t":3.4,"v":0.75},{"t":3.8,"v":1},{"t":19.4,"v":1},{"t":21,"v":0}]}]}'
+        src="assets/music/happy-beats-business-moves-vol-1-by-ende-dot-app.mp3"
+      ></audio>
+      <audio id="sfx-row1" data-start="0.66" data-duration="0.11" data-track-index="11" data-volume="0.6" src="assets/sfx/interface/drop_001.ogg"></audio>
+      <audio id="sfx-row2" data-start="1.06" data-duration="0.19" data-track-index="12" data-volume="0.6" src="assets/sfx/interface/drop_002.ogg"></audio>
+      <audio id="sfx-row3" data-start="1.46" data-duration="0.11" data-track-index="11" data-volume="0.7" src="assets/sfx/interface/drop_001.ogg"></audio>
+      <audio id="sfx-flip" data-start="3.6" data-duration="0.6" data-track-index="12" data-volume="0.65" src="assets/sfx/casino/card-slide-1.ogg"></audio>
+      <audio id="sfx-won" data-start="4.5" data-duration="0.54" data-track-index="11" data-volume="0.75" src="assets/sfx/impact/impactSoft_heavy_003.ogg"></audio>
+      <audio id="sfx-dots" data-start="8.9" data-duration="0.19" data-track-index="12" data-volume="0.6" src="assets/sfx/interface/drop_002.ogg"></audio>
+      <audio id="sfx-card1" data-start="12.0" data-duration="0.68" data-track-index="11" data-volume="0.55" src="assets/sfx/casino/card-place-1.ogg"></audio>
+      <audio id="sfx-card2" data-start="13.0" data-duration="0.68" data-track-index="12" data-volume="0.55" src="assets/sfx/casino/card-place-1.ogg"></audio>
+      <audio id="sfx-card3" data-start="14.0" data-duration="0.68" data-track-index="11" data-volume="0.55" src="assets/sfx/casino/card-place-1.ogg"></audio>
+      <audio id="sfx-bars" data-start="16.08" data-duration="0.28" data-track-index="12" data-volume="0.6" src="assets/sfx/casino/chips-stack-1.ogg"></audio>
+      <audio id="sfx-logo" data-start="18.5" data-duration="1.48" data-track-index="11" data-volume="0.7" src="assets/sfx/impact/impactBell_heavy_000.ogg"></audio>
+    </div>
+
+    <script>
+      const tl = gsap.timeline({ paused: true });
+
+      const fmt = (s) => {
+        s = Math.round(s);
+        const m = Math.floor(s / 60);
+        const r = s % 60;
+        return m + ":" + (r < 10 ? "0" : "") + r;
+      };
+      const counter = (el, from, to, at, dur, render) => {
+        const o = { v: from };
+        tl.fromTo(
+          o,
+          { v: from },
+          {
+            v: to,
+            duration: dur,
+            ease: "power2.out",
+            onUpdate: () => { el.textContent = render(o.v); },
+          },
+          at,
+        );
+      };
+      const $ = (id) => document.getElementById(id);
+
+      // ---------- Scene 1: finish board (0 – 3.5) ----------
+      // Rows are positioned by y only. Finish-order slots, with an extra gap
+      // above Raju so the distance to the other two reads at a glance.
+      const FINISH = { george: 0, duncan: 168, raju: 372 };
+      const FORM = { raju: 0, george: 168, duncan: 336 };
+
+      tl.fromTo("#board-eyebrow", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, 0.15);
+      tl.fromTo("#title-finish", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 0.3);
+      ["george", "duncan", "raju"].forEach((k, i) => {
+        tl.fromTo(
+          "#row-" + k,
+          { opacity: 0, y: FINISH[k] - 60 },
+          { opacity: 1, y: FINISH[k], duration: 0.45, ease: "back.out(1.4)" },
+          0.7 + i * 0.4,
+        );
+      });
+      tl.fromTo("#gap-label", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 1.9);
+      tl.fromTo("#came-last", { opacity: 0, x: 40 }, { opacity: 1, x: 0, duration: 0.45, ease: "power3.out" }, 2.1);
+
+      // ---------- Scene 2: the flip (3.5 – 7.0) ----------
+      tl.to("#came-last", { opacity: 0, x: -30, duration: 0.3, ease: "power2.in" }, 3.5);
+      tl.to("#title-finish", { opacity: 0, y: -24, duration: 0.3, ease: "power2.in" }, 3.5);
+      tl.fromTo("#title-form", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, 3.7);
+      tl.to("#gap-label", { opacity: 0, duration: 0.2 }, 3.5);
+      ["raju", "george", "duncan"].forEach((k) => {
+        tl.to("#row-" + k, { y: FORM[k], duration: 0.7, ease: "power3.inOut" }, 3.6);
+        tl.to("#row-" + k + " .v-time", { opacity: 0, duration: 0.25 }, 3.7);
+        tl.fromTo("#row-" + k + " .v-pct", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 4.05);
+        tl.to("#row-" + k + " .pos-finish", { opacity: 0, duration: 0.2 }, 3.9);
+      });
+      tl.fromTo(
+        ".pos-medal",
+        { opacity: 0, scale: 0.4 },
+        { opacity: 1, scale: 1, duration: 0.4, ease: "back.out(2.2)", stagger: 0.08 },
+        4.2,
+      );
+      tl.fromTo("#row-raju", { borderColor: "#4a433c" }, { borderColor: "#d95f02", duration: 0.3 }, 4.3);
+      tl.fromTo("#won", { opacity: 0, scale: 1.25 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power4.out", transformOrigin: "0% 50%" }, 4.5);
+      tl.fromTo("#won .l3", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.35 }, 5.0);
+      tl.to("#board-scene", { opacity: 0, duration: 0.3, ease: "power2.in" }, 6.7);
+
+      // ---------- Scene 3: beat your own form (7.0 – 11.5) ----------
+      tl.fromTo("#form-scene", { opacity: 0, x: 60 }, { opacity: 1, x: 0, duration: 0.4, ease: "power3.out" }, 7.0);
+      tl.fromTo("#tcards .tcard", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.4, stagger: 0.12, ease: "power3.out" }, 7.45);
+      counter($("act-raju"), 2538, 2417, 7.9, 0.9, fmt);
+      counter($("act-george"), 1340, 1296, 8.02, 0.9, fmt);
+      counter($("act-duncan"), 1574, 1526, 8.14, 0.9, fmt);
+
+      [["raju", 570], ["george", 394], ["duncan", 366]].forEach(([k, w], i) => {
+        const at = 8.9 + i * 0.12;
+        tl.fromTo("#stem-" + k, { scaleX: 0 }, { scaleX: 1, duration: 0.6, ease: "power3.out" }, at);
+        tl.fromTo("#head-" + k, { x: 0 }, { x: w, duration: 0.6, ease: "power3.out" }, at);
+        tl.fromTo("#pct-" + k, { opacity: 0 }, { opacity: 1, duration: 0.25 }, at + 0.45);
+      });
+      tl.fromTo("#bracket", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.35, ease: "power3.out" }, 9.75);
+      tl.to("#form-scene", { opacity: 0, duration: 0.3, ease: "power2.in" }, 11.2);
+
+      // ---------- Scene 4: since 2017 (11.5 – 16.0) ----------
+      tl.fromTo("#stats-scene", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 11.5);
+      tl.fromTo("#stats-head", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, 11.5);
+      // beat-grid: every other beat — card 1 at 12.02s, card 2 at 13.02s, card 3 at 14.02s
+      ["#stat-1", "#stat-2", "#stat-3"].forEach((sel, i) => {
+        tl.fromTo(sel, { opacity: 0, y: 70 }, { opacity: 1, y: 0, duration: 0.45, ease: "back.out(1.3)" }, 12.02 + i);
+      });
+      counter($("num-h2h"), 0, 207, 12.1, 0.8, (v) => String(Math.round(v)));
+      counter($("num-venues"), 0, 115, 13.1, 0.8, (v) => String(Math.round(v)));
+      tl.to("#stats-scene", { opacity: 0, duration: 0.3, ease: "power2.in" }, 15.7);
+
+      // ---------- Scene 5: the record (16.0 – 18.5) ----------
+      tl.fromTo("#record-scene", { opacity: 0 }, { opacity: 1, duration: 0.25 }, 16.0);
+      tl.fromTo("#rec-head", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.35, ease: "power3.out" }, 16.0);
+      // beat-locked: 16.02s — bars start growing on the strong cue
+      [["raju", 92], ["george", 82], ["duncan", 34]].forEach(([k, n], i) => {
+        const at = 16.1 + i * 0.1;
+        tl.fromTo("#bar-" + k, { scaleX: 0 }, { scaleX: 1, duration: 0.9, ease: "power3.out" }, at);
+        tl.fromTo("#bnum-" + k, { opacity: 0 }, { opacity: 1, duration: 0.2 }, at);
+        counter($("bnum-" + k), 0, n, at, 0.9, (v) => String(Math.round(v)));
+      });
+      tl.to("#record-scene", { opacity: 0, duration: 0.3, ease: "power2.in" }, 18.2);
+
+      // ---------- Scene 6: outro (18.5 – 21.0) ----------
+      // beat-locked: 18.52s — logo lands on the strong cue
+      tl.fromTo("#logo", { opacity: 0, scale: 0.6, rotation: -8 }, { opacity: 1, scale: 1, rotation: 0, duration: 0.55, ease: "back.out(1.8)" }, 18.52);
+      tl.fromTo("#brand", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 18.85);
+      tl.fromTo("#tagline", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, 19.2);
+      tl.fromTo("#url", { opacity: 0 }, { opacity: 1, duration: 0.4 }, 19.55);
+
+      // ---------- Audio-reactive: warm glow breathes with the bed ----------
+      const bgGlow = $("bg-glow");
+      const logoGlow = $("logo-glow");
+      const A = window.AUDIO_DATA;
+      for (let f = 0; f < A.rms.length; f++) {
+        tl.call(
+          ((r, b) => () => {
+            bgGlow.style.opacity = (0.55 + 0.35 * r).toFixed(3);
+            logoGlow.style.opacity = (0.35 + 0.5 * b).toFixed(3);
+          })(A.rms[f], A.bass[f]),
+          [],
+          f / A.fps,
+        );
+      }
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

@@ -13,8 +13,10 @@ does the writing. The split is deliberate — the model is side-effect free and
 testable without a database.
 
 **The fitted numbers below move every refresh.** They are recorded as of
-5 Sep 2026 so a later reading has something to compare against. The reasoning
-is the durable part.
+12 Sep 2026 so a later reading has something to compare against. The reasoning
+is the durable part — and the 12 Sep refit demonstrates why: one corrected
+label moved Duncan's coefficients further than any week of new runs has (see
+*A regular call has now been wrong*).
 
 ---
 
@@ -225,61 +227,76 @@ shrinking it toward zero would assert a 50/50 prior that is wrong for both.
 
 ---
 
-## Fitted, 5 Sep 2026
+## Fitted, 12 Sep 2026
 
 ### George
 
 ```
-labelled 349, buggy 31, base rate 8.9%
-half-life 36 months (tuned)     class weight on a positive 10.3×
+labelled 351, buggy 31, base rate 8.8%
+half-life none (tuned)          class weight on a positive 10.3×
 
                        coef     per 1 SD
-form_resid           +1.974      +1.98
-event_buggy_share    +3.479      +0.85
-course_diff          −0.686      −0.69
-excess               +0.069      +0.07
-intercept            −1.822                13.9% at feature-zero
+form_resid           +1.970      +1.97
+event_buggy_share    +4.695      +1.14
+course_diff          −0.807      −0.81
+excess               +0.285      +0.29
+intercept            −2.703                 6.3% at feature-zero
 
-walk-forward, 70 scored (279 warm-up)   TP 28  FP 5  FN 2  TN 35
-precision 0.85   recall 0.93   accuracy 0.90   log-loss 0.415
-always-majority baseline 0.57 (on the scored set: 40 of the 70 were regular)
+walk-forward, 72 scored (279 warm-up)   TP 28  FP 5  FN 2  TN 37
+precision 0.85   recall 0.93   accuracy 0.90   log-loss 0.410
+always-majority baseline 0.58 (on the scored set: 42 of the 72 were regular)
 
 says buggy   → right 85% (n=33)
-says regular → right 95% (n=37)
+says regular → right 95% (n=39)
 ```
 
 Reads as **"slow for him, at a course he pushes at."** Calibration is sound
-above 0.7 and 66 of his 70 calls sit above 0.8.
+above 0.7 and his calls cluster high: his `regular` calls have a median
+confidence of 0.91 and none below 0.62.
+
+His tuned half-life moved from 36 months to **none** this week. Nothing about
+his running changed — his two `model` rows simply pushed the labelled set past
+a point where the inner sweep preferred the longer memory outright. Worth
+watching rather than reading into: with `prior_rate` removed, the tuner has no
+other way to track a change of habit, so it has been reaching for longer
+memories all along.
 
 ### Duncan
 
 ```
-labelled 176, buggy 6, base rate 3.4%
+labelled 177, buggy 7, base rate 4.0%
 half-life none (tuned — his positives are all 2026; decay would only lose them)
-class weight on a positive 28.3×
+class weight on a positive 24.3×
 
                        coef     per 1 SD
-course_diff          −2.897      −3.21
-form_resid           +1.635      +1.65
-event_buggy_share    +1.613      +0.27
-excess               +0.279      +0.29
-intercept            −2.901                 5.2% at feature-zero
+course_diff          −3.085      −3.09
+form_resid           +0.962      +0.96
+excess               +0.828      +0.83
+event_buggy_share    +1.751      +0.29
+intercept            −2.686                 6.4% at feature-zero
 
-walk-forward, 26 scored (150 warm-up)   TP 5  FP 6  FN 0  TN 15
-precision 0.45   recall 1.00   accuracy 0.77   log-loss 0.672
-always-majority baseline 0.81 (on the scored set: 21 of the 26 were regular)
+walk-forward, 27 scored (150 warm-up)   TP 5  FP 6  FN 1  TN 15
+precision 0.45   recall 0.83   accuracy 0.74   log-loss 0.674
+always-majority baseline 0.78 (on the scored set: 21 of the 27 were regular)
 
 says buggy   → right 45% (n=11)
-says regular → right 100% (n=15)
+says regular → right 94% (n=16)
 ```
 
-Reads as **"slow for him, and don't be fooled by a hard course."**
-`course_diff` is nearly twice everything else combined.
+Reads as **"slow for this course, and don't be fooled by a hard one."**
+`course_diff` still outweighs the other three put together, but by half again
+rather than the double it was a week ago — and the order beneath it changed.
+The 12 Sep correction halved `form_resid` (+1.64 → +0.96) and tripled `excess`
+(+0.28 → +0.83), moving his model off "slow for him lately" and onto "slow for
+this course". That is the right lesson from a buggy run that finished on form,
+and a demonstration of how much a single label moves a fit at seven positives.
 
-His accuracy sits below the 0.81 you would get by saying "regular" every time —
-but that null model catches none of his buggy runs and his catches all five.
-**The asymmetry is the thing to hold onto:** when he says regular he has never
-been wrong; when he says buggy it is a coin flip slightly against.
+His accuracy sits below the 0.78 you would get by saying "regular" every time —
+but that null model catches none of his buggy runs and his catches five of six.
+**The asymmetry is still the thing to hold onto**, in its surviving form: a
+`regular` call from him is right 94% of the time and a `buggy` call is a coin
+flip slightly against. Until 12 Sep 2026 the first half of that read *never
+wrong, 15 of 15*; see below for the run that ended it.
 
 His false positives cluster at Lordship. `event_buggy_share` does not fix that
 and cannot: Lordship is where he pushes *most* (4 of 9), so the feature honestly
@@ -301,8 +318,8 @@ Measured with every prediction fed back and **never** corrected:
 
 ```
               corrected    uncorrected
-George          0.90          0.49
-Duncan          0.77          0.81
+George          0.90          0.47
+Duncan          0.74          0.78
 ```
 
 **George is the one whose errors compound**, which is not where the risk was
@@ -334,10 +351,44 @@ Two countermeasures, both live:
 **Practically: both athletes' buggy calls need review, for different reasons.**
 Duncan's are more likely to be wrong; George's do more damage when they are.
 
-The rule that needs no caveat is narrower and more useful: **it is always a
-buggy call that goes wrong.** A `regular` call is right 95% of the time for
-George and 100% for Duncan (15 of 15), and every error either model has made,
-in either direction, was a run it called buggy.
+## A regular call has now been wrong
+
+For the model's first week the rule that needed no caveat was **"it is always a
+buggy call that goes wrong"** — every error either model had made, in either
+direction, was a run it called buggy. That rule **broke on 12 Sep 2026** and is
+recorded here rather than deleted, because how it broke is the useful part.
+
+Duncan ran Cassiobury in 26:52. The model called it `regular` at a confidence
+of **0.52** — the least confident verdict either model has produced — and he
+confirmed he had the buggy. His first false negative: recall 1.00 → 0.83,
+`regular` calls 15 of 15 → 15 of 16.
+
+It failed where the features go blank rather than where they disagree. Three of
+the four had nothing to say about that run:
+
+- **`excess`** — one prior run at Cassiobury, below `BASE_MIN_EVENT_RUNS`, so
+  the baseline fell through to the ±182-day q25 (24:54). The run it could not
+  use was 26:53, one second *slower* than the run being scored.
+- **`event_buggy_share`** — never at that course in the buggy era, so the
+  shrinkage returned his era rate exactly. A statement about Duncan, not about
+  Cassiobury.
+- **`form_resid`** — 26:52 against a 26:43 median. Nine seconds.
+
+That left `course_diff`, which supplied **72%** of the push toward buggy purely
+because Cassiobury is easy (1.8/12). The verdict was about the course, not the
+runner. `baseline_for`'s cascade degrades quietly by design, and this is what
+that costs: a fallback baseline reads as weak evidence rather than as none.
+
+**The durable reading.** Direction is the weaker guide; **confidence is the
+better one.** Of the two calls Duncan's model has ever made below 0.60, both
+were wrong, while his other `regular` calls sit at a median confidence of 0.92.
+A `regular` call is right 94-95% for both athletes and a `buggy` call is not —
+but a *low-confidence* call is unreliable whichever way it points.
+
+Refitting on the correction moved his coefficients more than one label should:
+`form_resid` +1.635 → +0.962 and `excess` +0.279 → +0.828. That is the model
+learning that an on-form time can still be a buggy run — the right lesson, and
+a reminder of how much leverage a single label carries at seven positives.
 
 ---
 

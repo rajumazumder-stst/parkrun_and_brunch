@@ -261,6 +261,135 @@ Gotchas, all of which have cost an hour each:
   how the bottom sheet's fixed apparent size was checked at 1×, 2× and 3×.
 
 
+## Open decisions
+
+Recorded 13 Sep 2026, for the same reason as § Deferred refactors below: so the
+analysis is not redone every time someone reads the code. Unlike that section
+these are **data-safety** questions rather than tidiness ones, and none of them
+is settled. They were found while asking a much smaller question — whether the
+`parkrun` schema still needs to exist in the personal dev DB.
+
+### The hazard: the pipeline has a default write target
+
+`parkrun_pipeline.py:59` names `~/Documents/duckdb/my_database.duckdb` as
+`DB_PATH`, and `main()` falls back to it whenever `PARKRUN_PIPELINE_DB` is unset
+(`:1704`). A bare `python parkrun_pipeline.py` with no argv at all defaults to
+`refresh` (`:1699`). So the least deliberate command you can type writes the
+least deliberate destination.
+
+That is safe **only because that schema currently holds data**:
+
+```
+python parkrun_pipeline.py            # no argv -> "refresh"
+  -> PARKRUN_PIPELINE_DB unset -> the dev DB          (:1704)
+  -> ensure_schema() recreates any missing schema     (:1709)
+  -> is_bootstrapped() counts parkrun.events          (:881)
+  -> events > 0 today, so refresh takes the safe path (:1685)
+```
+
+Empty that schema and every step still runs, but the last one inverts:
+`is_bootstrapped` returns `False`, `refresh` calls `bootstrap`, and a full
+re-scrape from zero ends in `_finalize()` (`:1653-1669`), which overwrites
+**three committed artefacts** in sequence with no guard between them —
+`data/parkrun_results.csv`, `data/parkrun_run_modes.csv` and
+`data/parkrun_snapshot.duckdb`.
+
+Two details make it worse than it first looks. `ensure_schema` is
+`CREATE SCHEMA IF NOT EXISTS` plus `CREATE TABLE IF NOT EXISTS`, so a **dropped
+schema is invisible** — it is silently recreated as empty tables and looks
+identical to a brand-new DB. And `build_snapshot()` has no preconditions and no
+row-count check: its temp-file + `os.replace` (`:1451-1483`) protects against a
+crash mid-build, not against a *successful* build from empty data, which yields
+a valid empty snapshot committed atomically over the good one.
+
+The unrecoverable loss is `run_modes`. Nothing reads `parkrun_run_modes.csv`
+back in — `seed_static_tables` loads only `country_lookup.csv` and
+`athletes_lookup.csv`, and the CSV is write-only by design. So a re-bootstrap
+discards every `user` label *and then* overwrites the only diffable copy of
+them. Git history would still hold it; the database would not.
+
+Related, same family, also unguarded: nothing rejects
+`PARKRUN_PIPELINE_DB=data/parkrun_snapshot.duckdb`, which opens the committed
+snapshot read-write and runs `ensure_migrations` against it — including the
+`current_targets` primary-key rebuild (`:313-330`). The predicate to refuse that
+already exists at `scripts/export_buggy_review.py:98-104`; it simply is not
+applied here.
+
+Note the asymmetry that has kept this quiet: every automated path sets the
+variable explicitly — `scripts/parkrun_refresh.sh:136,145` and
+`scripts/run_local.sh:64` — so the unset default is exercised **only** by
+hand-typed commands.
+
+### 1. Does the dev DB still need a `parkrun` schema?
+
+Measured 13 Sep 2026: 820 results last scraped 2026-07-11 against the snapshot's
+844 at 2026-09-05, `run_modes` empty, and a `current_targets` that is a strict
+subset of the snapshot's with identical values. It is two months stale, predates
+the buggy feature, and holds **no unique data**. Nothing reads it — the hosted
+app serves the bundled snapshot, the scheduler targets `parkrun_local.duckdb`,
+`run_local.sh` builds `data/parkrun_dev.duckdb`, and the tests use no database.
+
+Its one remaining job is cross-schema SQL in DBeaver — parkrun beside `cricket`
+or `personal_finance` in a single connection. `data/parkrun_dev.duckdb` covers
+everything else and is always current.
+
+Dropping it is reversible offline in one command:
+
+```bash
+PARKRUN_PIPELINE_DB=~/Documents/duckdb/my_database.duckdb   python parkrun_pipeline.py seed
+```
+
+**Open**, and coupled to decision 2: dropping the schema is what arms the hazard
+above, so the guard should land first either way.
+
+A **rename to `parkrun_dev`** was assessed and is not recommended. `parkrun.` is
+hardcoded in SQL across seven files — `parkrun_app.py`, `parkrun_ui.py`,
+`parkrun_calendar.py`, `buggy_estimator.py`, `buggy_handicap.py`,
+`method_impact.py`, `scripts/export_buggy_review.py` — and the `SCHEMA` constant
+(`parkrun_pipeline.py:60`, `parkrun_core.py:26`) is not what that SQL uses. So
+the rename breaks the very recipe it means to preserve, would need `SCHEMA`
+threaded through every query, and still leaves the default-target problem:
+`ensure_schema` would recreate `parkrun` *alongside* `parkrun_dev`. It buys a
+warning label where deletion removes the thing needing the warning.
+
+### 2. What should the pipeline's default target be?
+
+| Option | For | Against |
+|---|---|---|
+| **No default** — unset `PARKRUN_PIPELINE_DB` is a hard error naming the valid targets | Kills the class, not the instance: nothing can write a DB nobody chose, and `ensure_schema`'s silent recreate stops mattering. `DB_PATH` is used at exactly one line, so the diff is tiny | Costs the bare-`refresh` shorthand and contradicts the docstring at `:29`. No gain for automated paths, which already set the variable |
+| **Default to `parkrun_core.LOCAL_DB`** | A bare `refresh` does what you almost always mean, and the pipeline would finally share the app's notion of "the DB" — `resolve_db` was already centralised for this reason (§ Deferred refactors item 1) | Raises severity while lowering frequency: a mistyped command writes the *source of truth* rather than a scratch DB |
+| **Leave it** | Zero diff | The hazard stays armed the moment the dev schema is emptied — including by the reseed in decision 1 |
+
+**Open.** Leaning "no default".
+
+### 3. Should the committed artefacts have a shrink gate?
+
+The project already has the idiom — Path A's 95% corruption gate on
+`events.json` (`CLAUDE.md`) — so reusing its vocabulary costs a reader nothing
+new. Applied here it would compare the source DB's row counts against what the
+committed artefacts already hold and refuse a materially smaller write.
+
+Two things it would have to get right. It must check **up front in
+`_finalize()`**, not one gate per writer: a gate firing partway through leaves
+the three artefacts inconsistent with each other. And it needs an escape hatch
+for a deliberate rebuild — a `--force` flag (explicit, scriptable, leaves a
+trace in shell history), an interactive `y/N` (safer by hand, but needs a
+non-TTY branch or it would hang launchd), or none at all (simplest code, most
+friction when the rebuild is genuine).
+
+Worth noting it pays for itself independently of decision 1: it catches an empty
+or truncated source DB *however* it arises — a WAF block mid-scrape, a dead
+network, a partial parse — not just this footgun. The comparison is a pure
+function of two counts and a threshold, so it is testable with no database,
+which is exactly the kind of target § Deferred refactors item 2 rates "Value:
+high. Risk: none."
+
+**Open**, including whether to gate all three artefacts or the snapshot alone.
+Gating the snapshot alone protects the *recoverable* artefact and leaves
+`parkrun_run_modes.csv` — the only trace of the labels outside the binary DB —
+exposed, which is the wrong asymmetry.
+
+
 ## Deferred refactors
 
 Streamlining that has been *identified and costed* but not done, so the
@@ -273,7 +402,9 @@ the dead `mode_badge()` removed, and the two `fmt_time` copies aligned
 here — the `resolve_event_ids` duplicate-`short_name` hazard (`CLAUDE.md`,
 design decision 3) and the shell `log()` duplication (considered and rejected
 in `ca8ccf6`: sourcing a file for one `printf` adds a failure mode to a
-scheduled path that must not break).
+scheduled path that must not break). The data-safety questions raised by the
+pipeline's default write target are **open**, not deferred, and live in § Open
+decisions above — they are unsettled choices rather than costed tidying.
 
 ### 1. ~~The 91-day window is a magic number in the app~~ — DONE
 
