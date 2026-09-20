@@ -51,6 +51,54 @@ python -c "import duckdb, parkrun_pipeline as p; p.ensure_views(duckdb.connect('
 `build_snapshot()` also re-runs `ensure_views()`, so the view is folded into the
 tracked snapshot on the next `python parkrun_pipeline.py snapshot` (for release).
 
+## The estimates, and tab 6
+
+`parkrun.model_estimates` holds what the estimator said about each run —
+`is_buggy`, `p`, `confidence`, `n_train`, `half_life`, plus `status`
+(`scored` | `unfittable`) and `basis` (`backfill` | `live`). Tab 6
+(`estimator_tab.py`) shows it beside the label.
+
+**A fresh dev DB has none.** Seeding brings across whatever the snapshot
+carries, so a DB seeded from an older snapshot logs `model_estimates absent
+from snapshot — seeded empty` and tab 6 renders its empty state. Fill it:
+
+```bash
+PARKRUN_PIPELINE_DB=data/parkrun_dev.duckdb \
+  python parkrun_pipeline.py estimates --backfill
+```
+
+~33s for the 103 runs in scope (a buggy athlete's runs on or after their first
+buggy-labelled one), at ~0.32s a run. **Idempotent** — the insert is an
+anti-join, so a second run writes nothing and `--backfill` changes only the
+`basis` value recorded and the log line. The refresh calls the same function
+with no flag, which is why the subcommand exists at all: it puts that one-off
+cost somewhere you can watch it rather than inside a Saturday cron.
+
+Three things worth knowing before touching this:
+
+* **Write-once, deliberately.** Nothing recomputes a stored row. That is what
+  makes a later hand correction non-destructive — the correction rewrites
+  `run_modes` and loses the model's confidence, while the estimate survives
+  beside the corrected truth. If you want a run re-scored you must delete its
+  row first, and you should be clear why you want to destroy a record.
+* **It is not on `run_modes`, and must not move there.** `run_modes` cannot be
+  rebuilt from anything; its guarantee is that no automated path is *capable*
+  of changing an existing label, because no such UPDATE exists.
+  `tests/test_buggy_estimator.py::test_nothing_updates_run_modes_but_the_source_migration`
+  asserts exactly that, by reading the pipeline's source. If you add an
+  `UPDATE {SCHEMA}.run_modes SET ...` for anything but the source rename, that
+  test is what will stop you, and it is right to.
+* **The estimator only runs in the pipeline.** `estimator_tab.py` imports no
+  `buggy_estimator` and no scipy — the tab is a plain SELECT. Keep it that
+  way: scoring on a page load would put a ~30s fit in front of a reader.
+
+A stale dev DB is the trap here. One seeded before 5 Sep 2026 still has 681
+`rule` rows where the current snapshot has them as `user`, and `rule` never
+trains — so the backfill starves and reports a dozen spurious `unfittable`
+rows. If the unfittable count is anything but **2** (each athlete's frontier
+run, which has one class behind it), the DB is stale, not the model broken.
+Delete it and re-seed.
+
 ## Promoting to "live"
 
 When a change is ready: commit on `dev`, merge to `main`, and (if the change
@@ -178,7 +226,7 @@ history if some future need proves otherwise.
 ## Tests
 
 ```bash
-pytest                 # from the repo root — 60 cases, ~50s
+pytest                 # from the repo root — 67 cases, ~50s
 pytest -q tests/test_buggy_estimator.py
 pytest -q tests/test_calendar.py       # fast: no model fitting
 ```
@@ -210,6 +258,17 @@ mechanics:
   read `parkrun_core`, and the test asserts no other module redefines the
   constant. Three of its siblings do the same for the label vocabulary and the
   cohort.
+
+* **`score_runs` carries the natural key** — `walk_forward` drops the ids
+  because a report only needs `(name, date, event)`; anything *storing* a score
+  needs the key to write it against. The same tests check that scoring a run
+  cannot see past it, and that `unfittable` is a status rather than an
+  exception — every athlete's frontier run has one class behind it.
+* **nothing UPDATEs `run_modes` but the source rename** — this one reads
+  `parkrun_pipeline.py`'s own source text, in the same spirit as the
+  `TARGET_WINDOW_DAYS` check. The labels cannot be rebuilt from anything, and
+  their protection is that no automated path is *capable* of rewriting one. A
+  test is the only thing that can notice that guarantee being given up.
 
 `tests/test_calendar.py` covers the week scheme, and needs no project database
 either — the SQL case builds its own in-memory DuckDB from a range of dates.
