@@ -644,6 +644,7 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | `docs/DATA.md` | The buggy labels: what each `source` means, how the training set grows, how to correct a label by hand |
 | `docs/MODEL.md` | The estimator as built: the four features and why each survived, the fitted coefficients, every constant, class balancing and recency, the walk-forward numbers, and the features that were removed on evidence. **The fitted numbers move every refresh** — the reasoning is what is durable |
 | `docs/DEPLOY.md` | Deploy/ops: local source-of-truth DB + snapshot delivery, scheduled refresh, rebuilding/seeding, retired MotherDuck path (secret flip, tokens, re-seed) |
+| `TODO.md` | The to-do list: unscoped visualisation ideas plus concrete requests, each with its open questions. An item moves to **Current status** when it ships |
 | `requirements.txt` | Pinned runtime deps for hosting (Streamlit Cloud etc.) |
 | `data/parkrun_events.csv` | Event catalogue (events.json dump + Victoria Dock) |
 | `data/country_lookup.csv` | country_code → country_name |
@@ -898,8 +899,7 @@ the data was last scraped, `max(scrape_timestamp)` — a server-side fact), and
 **App last refreshed** (when this session last pulled data — `data_fetched_at`,
 stamped on each version-keyed refetch).
 
-Future ideas: attendance timeline · fastest times · PB progression · age-grade
-progression · event frequency · form (target) over refreshes.
+Future ideas and requests live in `TODO.md`.
 
 ---
 
