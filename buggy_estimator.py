@@ -453,6 +453,42 @@ def score_one(train: pd.DataFrame, target: pd.DataFrame, half_life=...) -> dict 
     }
 
 
+def score_runs(feat: pd.DataFrame, targets, sources: tuple = TRAINING_SOURCES
+               ) -> list[dict]:
+    """Score the rows of `feat` named by `targets`, each from its own past only.
+
+    The same per-run scoring `walk_forward` does, but over a chosen subset and
+    carrying the identifiers back out. `walk_forward` drops them — it answers
+    "how good is this model", so `(name, date, event)` is enough to print — but
+    a caller storing the result needs the natural key to write it against.
+
+    Returns one dict per target, in `targets` order, with `status` of `scored`
+    or `unfittable`. Writes nothing; the caller decides what to do with them.
+    """
+    known = feat[feat.source.isin(sources) & feat.is_buggy.notna()]
+    out = []
+    for i in targets:
+        row = feat.loc[i]
+        prior = known[known.run_date < row["run_date"]]
+        res = score_one(prior, feat.loc[[i]])
+        rec = {
+            "athlete_id": int(row["athlete_id"]),
+            "run_date": row["run_date"],
+            "event_id": int(row["event_id"]),
+            "short_name": row["short_name"],
+            "time": row["time"],
+        }
+        if res is None:
+            rec.update(p=None, is_buggy=None, confidence=None, n_train=len(prior),
+                       half_life=None, status="unfittable")
+        else:
+            rec.update(p=res["p"], is_buggy=res["is_buggy"],
+                       confidence=res["confidence"], n_train=res["n_train"],
+                       half_life=res["half_life"], status="scored")
+        out.append(rec)
+    return out
+
+
 def athlete_frames(con) -> dict:
     """One featured frame per athlete, built once. Scoring and diagnostics both
     need it and building features is the expensive part, so the refresh does it

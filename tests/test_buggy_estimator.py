@@ -456,3 +456,94 @@ class TestDiagnose:
         f = be.build_features(athlete_runs(*[(i * 7, 1, 1200, False) for i in range(10)]))
         d = be.diagnose(f)
         assert d["acc_all"] is None and d["reliability"] == {}
+
+
+# --------------------------------------------------------------------------- #
+# score_runs — what build_model_estimates stores
+# --------------------------------------------------------------------------- #
+class TestScoreRuns:
+    """`score_runs` is the scoring behind `parkrun.model_estimates`.
+
+    The stored row is a record nothing recomputes, so a regression here is not
+    a wrong number on a page — it is a wrong number written once and kept.
+    """
+
+    def _frame(self, n=30):
+        specs = [(i * 7, 1 + i % 3, 1500 + (i % 2) * 200, i % 4 == 0)
+                 for i in range(n)]
+        return be.build_features(be.runs(*specs) if hasattr(be, "runs")
+                                 else runs(*specs))
+
+    def test_carries_the_natural_key_back_out(self):
+        """walk_forward drops the ids; score_runs must not. A caller storing
+        the result needs the key to write it against."""
+        feat = self._frame()
+        got = be.score_runs(feat, feat.index[-3:])
+        assert len(got) == 3
+        for rec, i in zip(got, feat.index[-3:]):
+            assert rec["athlete_id"] == feat.at[i, "athlete_id"]
+            assert rec["event_id"] == feat.at[i, "event_id"]
+            assert rec["run_date"] == feat.at[i, "run_date"]
+
+    def test_scores_only_the_targets_asked_for(self):
+        feat = self._frame()
+        assert len(be.score_runs(feat, feat.index[:1])) == 1
+        assert len(be.score_runs(feat, [])) == 0
+
+    def test_uses_only_each_run_s_own_past(self):
+        """The whole point of the column: a run must not be scored on evidence
+        that did not exist yet. Truncating everything after it cannot move it."""
+        feat = self._frame()
+        target = feat.index[-1]
+        full = be.score_runs(feat, [target])[0]
+        trimmed = be.score_runs(feat.loc[:target], [target])[0]
+        assert full["p"] == trimmed["p"]
+
+    def test_unfittable_is_a_status_not_an_exception(self):
+        """Every athlete's frontier run has one class behind it. That is a
+        normal row with no call, not an error and not a missing row."""
+        feat = self._frame()
+        rec = be.score_runs(feat, feat.index[:1])[0]
+        assert rec["status"] == "unfittable"
+        assert rec["is_buggy"] is None and rec["p"] is None
+
+    def test_scored_rows_carry_a_confidence_that_matches_p(self):
+        feat = self._frame()
+        for rec in be.score_runs(feat, feat.index[-5:]):
+            if rec["status"] == "scored":
+                assert rec["confidence"] == pytest.approx(
+                    max(rec["p"], 1 - rec["p"]))
+                assert rec["is_buggy"] == (rec["p"] > 0.5)
+
+    def test_rule_rows_do_not_train(self):
+        """`rule` is a statement about a rule, not evidence about a run, so it
+        must stay out of training here exactly as it does everywhere else."""
+        specs = [(i * 7, 1, 1500, i % 3 == 0, "rule") for i in range(20)]
+        feat = be.build_features(runs(*specs))
+        assert be.score_runs(feat, feat.index[-1:])[0]["status"] == "unfittable"
+
+
+# --------------------------------------------------------------------------- #
+# The run_modes write contract
+# --------------------------------------------------------------------------- #
+def test_nothing_updates_run_modes_but_the_source_migration():
+    """`run_modes` holds 844 labels that came out of a review sheet two people
+    filled in by hand, and it cannot be rebuilt from anything else. Its
+    guarantee is structural, not procedural: no automated path is *capable* of
+    changing an existing label, because no such UPDATE exists.
+
+    This is why the estimates went in their own table. If a future change adds
+    `UPDATE parkrun.run_modes SET ...` for anything but the source-vocabulary
+    rename, that guarantee is gone and this test should be the thing that says
+    so — not a corrupted label noticed months later.
+    """
+    import re
+    from pathlib import Path
+
+    src = Path(__file__).resolve().parents[1] / "parkrun_pipeline.py"
+    text = src.read_text()
+    updates = re.findall(r"UPDATE\s+\{SCHEMA\}\.run_modes\s+SET\s+(\w+)", text)
+    assert updates == ["source"], (
+        f"unexpected UPDATE(s) on run_modes: {updates}. Estimates and any other "
+        "derived data belong in their own table — see model_estimates."
+    )

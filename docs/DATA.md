@@ -148,18 +148,33 @@ duckdb ~/.config/parkrun/parkrun_local.duckdb
 ```
 
 ```sql
-INSERT OR REPLACE INTO parkrun.run_modes
-      (athlete_id, run_date, event_id, is_buggy, source, confidence, reason, set_at)
-SELECT athlete_id, run_date, event_id,
-       TRUE,                       -- the correct answer
-       'user',                     -- outranks any estimate, permanently
-       NULL,
-       'corrected by hand',
-       now()
-FROM parkrun.results
-WHERE athlete_id = 5462426          -- Duncan
-  AND run_date   = DATE '2026-03-14';
+UPDATE parkrun.run_modes
+   SET is_buggy = TRUE,               -- the correct answer
+       source   = 'user',             -- outranks any estimate, permanently
+       confidence = NULL,
+       reason   = 'corrected by hand',
+       set_at   = now()
+ WHERE athlete_id = 5462426           -- Duncan
+   AND run_date   = DATE '2026-03-14';
 ```
+
+`UPDATE`, not `INSERT OR REPLACE`. A REPLACE supplies *every* column, so it
+silently nulls anything you forget; an UPDATE touches only what it names. The
+row must already exist — `run_modes` is dense, every run has a label — and if
+it somehow does not, the UPDATE affects 0 rows and tells you, which is the
+better failure.
+
+To record that you checked a call and the model was **right**, write the same
+statement with the label unchanged and `reason = 'confirmed model call'`. There
+is no separate confirmation flag: a confirmation is a person asserting the
+truth, which is what a `user` label is. It also promotes a `model` row to a
+`user` one, growing the human-only training set that `acc_user` is measured on
+— so reviewing sharpens the diagnostic that detects the feedback loop.
+
+Either way the model's own call is **not** lost: it lives in
+`parkrun.model_estimates`, which nothing rewrites. Tab 6 shows the two side by
+side and derives the review state from them (`source = 'user'` and
+`set_at > computed_at` means a person weighed in after the model spoke).
 
 Changing a `rule` row to `user` is how a rule becomes evidence — one statement,
 and it starts training the estimator.

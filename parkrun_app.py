@@ -7,6 +7,7 @@ Reads the `parkrun` schema (read-only) from the local DuckDB and presents:
          + victory lollipop chart + results table)
   Tab 4  form — target time by Saturday
   Tab 5  map — where the head-to-heads happen
+  Tab 6  what the buggy estimator guessed, per run (estimator_tab.py)
 
 This is a PAGE SCRIPT, not the entrypoint: `app.py` routes to it via
 `st.navigation`, which is what lets the handicap analysis live at a path on the
@@ -38,6 +39,7 @@ from matplotlib_venn import venn3
 from streamlit_folium import st_folium
 
 import parkrun_calendar as cal
+from estimator_tab import render_estimates
 from parkrun_core import TARGET_WINDOW_DAYS
 from parkrun_ui import (  # shared with label_impact.py — see that module
     ATHLETE_COLORS,
@@ -1029,9 +1031,9 @@ with st.sidebar:
 
 st.markdown(SECTION_CSS, unsafe_allow_html=True)
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
     ["🏃 parkrun & brunch", "⚔️ Head-to-head summary", "🔎 Head-to-head detail",
-     "📈 Form (target time)", "🗺️ Where they meet"]
+     "📈 Form (target time)", "🗺️ Where they meet", "🤖 What the model guessed"]
 )
 
 # =========================================================================== #
@@ -1737,3 +1739,13 @@ with tab5:
             st.caption(f"**{n_venues}** venue{'s' if n_venues != 1 else ''} · "
                        f"**{n_occ}** head-to-head{'s' if n_occ != 1 else ''}")
             st_folium(fmap, height=520, returned_objects=[])
+
+
+# =========================================================================== #
+# TAB 6 — what the buggy estimator guessed, per run
+# =========================================================================== #
+# Layout lives in estimator_tab.py, following the buggy_handicap/method_impact
+# convention: this file is already ~1,740 lines and docs/DEV.md's deferred
+# refactor #4 wants its loaders lifted out, not added to.
+with tab6:
+    render_estimates(_ver)

@@ -402,3 +402,26 @@ pytest tests/                             # 44 cases, no database
 
 The module writes nothing. `score_unlabelled` returns the calls and the
 pipeline does the insert.
+
+---
+
+## `score_runs` — the scoring behind `model_estimates`
+
+`walk_forward` answers "how good is this model" and scores every labelled run to
+do it; it drops the identifiers because printing `(name, date, event)` is enough
+for a report. `score_runs` is the same per-run scoring over a **chosen subset**,
+carrying `athlete_id` / `run_date` / `event_id` back out, because its caller
+writes the result against that key.
+
+`parkrun_pipeline.build_model_estimates` is the only caller. It scores the
+in-scope runs that have no row yet and inserts them; the model itself still
+writes nothing, so it stays testable without a database.
+
+Two things follow from those rows being a **record** rather than a derivation:
+
+* A stored estimate is what the model said **at `computed_at`**, on the labels
+  known then. It is never recomputed, so it can differ from what a fresh
+  `walk_forward` would say today — that is correct, not drift.
+* `status = 'unfittable'` is a normal row, not an error and not a missing one.
+  Each athlete's frontier run has only one class behind it, so it is the one
+  run the model can never call. Two such rows exist.

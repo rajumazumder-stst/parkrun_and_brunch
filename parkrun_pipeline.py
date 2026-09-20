@@ -70,6 +70,7 @@ SNAPSHOT_TABLES = (
     "course_difficulty",
     "current_targets",
     "events",
+    "model_estimates",
     "results",
     "run_modes",
 )
@@ -259,6 +260,46 @@ def ensure_schema(con: duckdb.DuckDBPyConnection) -> None:
             confidence DOUBLE,                 -- max(p, 1-p); NULL for manual/default
             reason     VARCHAR,
             set_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+            PRIMARY KEY (athlete_id, run_date, event_id)
+        );
+        """
+    )
+    # What the estimator said about a run, kept as a RECORD rather than a
+    # derivation. Its own table, not columns on `run_modes`, for one decisive
+    # reason: `run_modes` holds 844 labels that came out of a review sheet two
+    # people filled in by hand, and it cannot be rebuilt from anything. Its
+    # current guarantee is structural — no automated code path is *capable* of
+    # changing an existing `is_buggy`, because no such UPDATE statement exists.
+    # Estimate columns would need one (a backfill writes rows that already
+    # exist), weakening that to "a statement exists and its SET list happens
+    # not to include is_buggy today". Keeping them apart also leaves the
+    # `parkrun_run_modes.csv` git diff meaning exactly one thing: a label
+    # changed.
+    #
+    # Write-once, like the labels: `build_model_estimates` only ever INSERTs
+    # rows that are absent. That is what makes a later hand correction
+    # non-destructive — the model's original call survives beside the corrected
+    # truth, where INSERT OR REPLACE on a merged table would have erased it.
+    #
+    # A row exists only once scoring was ATTEMPTED. There is no 'pending'
+    # status and no eligibility flag: which runs are in scope is a fact about
+    # the estimator (BUGGY_ATHLETES, and each athlete's first buggy run), not
+    # about the run, so storing it would freeze a copy of the configuration
+    # that goes stale the moment the scope changes.
+    con.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS {SCHEMA}.model_estimates (
+            athlete_id  BIGINT,
+            run_date    DATE,
+            event_id    INTEGER,
+            is_buggy    BOOLEAN,            -- the call; NULL unless status='scored'
+            p           DOUBLE,             -- P(buggy)
+            confidence  DOUBLE,             -- max(p, 1-p)
+            n_train     INTEGER,
+            half_life   DOUBLE,             -- months of recency decay; NULL = none
+            status      VARCHAR NOT NULL,   -- 'scored' | 'unfittable'
+            basis       VARCHAR NOT NULL,   -- 'backfill' | 'live'
+            computed_at TIMESTAMPTZ NOT NULL,
             PRIMARY KEY (athlete_id, run_date, event_id)
         );
         """
@@ -1228,6 +1269,118 @@ def upsert_results(con: duckdb.DuckDBPyConnection) -> None:
         con.unregister("results_stage")
 
 
+def build_model_estimates(con: duckdb.DuckDBPyConnection,
+                          backfill: bool = False) -> None:
+    """Record what the estimator makes of every in-scope run it has not yet
+    scored. Write-once: rows already present are never recomputed.
+
+    In scope = a buggy athlete's runs on or after their first buggy-labelled
+    one. Before that frontier the model cannot fit (one class only), and for
+    everyone else the question does not arise.
+
+    `backfill` changes **only** the `basis` value written and the log line —
+    the set of runs is computed identically either way, so the one-off and the
+    weekly path cannot drift apart in what they score. The anti-join makes both
+    idempotent: a second run inserts nothing.
+
+    Cost: ~0.32s per scored run. The first call after this ships scores ~103
+    runs (~33s); every refresh after that scores at most the week's new ones.
+
+    Guarded exactly as `apply_model_labels` is. This is an extra, and the
+    refresh is the delivery path for the whole app — an empty table renders as
+    an empty tab, which the app handles.
+    """
+    if os.environ.get("PARKRUN_ESTIMATOR") == "off":
+        log("  estimates: skipped (PARKRUN_ESTIMATOR=off)")
+        return
+    try:
+        import buggy_estimator as be
+    except ImportError as exc:                       # pragma: no cover
+        log(f"  WARN: estimator unavailable ({exc}); estimates not recorded")
+        return
+
+    ids = ", ".join(str(a) for a in be.ATHLETES)
+    todo = con.execute(
+        f"""
+        WITH frontier AS (
+            SELECT athlete_id, min(run_date) AS first_buggy
+            FROM {SCHEMA}.run_modes
+            WHERE is_buggy AND athlete_id IN ({ids})
+            GROUP BY 1
+        )
+        SELECT r.athlete_id, r.run_date, r.event_id
+        FROM {SCHEMA}.results r
+        JOIN frontier f USING (athlete_id)
+        LEFT JOIN {SCHEMA}.model_estimates e USING (athlete_id, run_date, event_id)
+        WHERE r.run_date >= f.first_buggy
+          AND r.time_seconds IS NOT NULL
+          AND e.athlete_id IS NULL
+        """
+    ).fetchdf()
+
+    if todo.empty:
+        log("  estimates: none to score")
+        return
+
+    want = {(int(a), pd.Timestamp(d).date(), int(e))
+            for a, d, e in zip(todo.athlete_id, todo.run_date, todo.event_id)}
+    label = "backfill" if backfill else "live"
+    log(f"  estimates: scoring {len(want)} run(s) [{label}]")
+
+    frames = be.athlete_frames(con)
+    rows = []
+    for aid, (name, feat) in frames.items():
+        idx = [i for i in feat.index
+               if (int(feat.at[i, "athlete_id"]),
+                   feat.at[i, "run_date"].date(),
+                   int(feat.at[i, "event_id"])) in want]
+        if not idx:
+            continue
+        got = be.score_runs(feat, idx)
+        rows.extend(got)
+        n_ok = sum(1 for g in got if g["status"] == "scored")
+        log(f"    {name}: {n_ok} scored, {len(got) - n_ok} unfittable")
+
+    if not rows:
+        log("  estimates: nothing scorable")
+        return
+
+    stage = pd.DataFrame(rows)[
+        ["athlete_id", "run_date", "event_id", "is_buggy", "p",
+         "confidence", "n_train", "half_life", "status"]
+    ]
+    stage["basis"] = label
+    con.register("estimates_stage", stage)
+    try:
+        con.execute("BEGIN;")
+        con.execute(
+            f"""
+            INSERT INTO {SCHEMA}.model_estimates
+                (athlete_id, run_date, event_id, is_buggy, p, confidence,
+                 n_train, half_life, status, basis, computed_at)
+            SELECT s.athlete_id, s.run_date, s.event_id, s.is_buggy, s.p,
+                   s.confidence, s.n_train, s.half_life, s.status, s.basis, now()
+            FROM estimates_stage s
+            WHERE NOT EXISTS (
+                SELECT 1 FROM {SCHEMA}.model_estimates m
+                WHERE m.athlete_id = s.athlete_id
+                  AND m.run_date   = s.run_date
+                  AND m.event_id   = s.event_id
+            )
+            """
+        )
+        con.execute("COMMIT;")
+        total = con.execute(
+            f"SELECT count(*) FROM {SCHEMA}.model_estimates"
+        ).fetchone()[0]
+        log(f"  estimates: +{len(stage)} written, {total} stored")
+    except Exception as e:  # noqa: BLE001
+        con.execute("ROLLBACK;")
+        log(f"  ERROR: estimates rolled back ({e})")
+    finally:
+        con.unregister("estimates_stage")
+
+
 def update_current_targets(con: duckdb.DuckDBPyConnection) -> None:
     """Snapshot each athlete's current-form target (91-day median, min 1 run)
     as of today. Stored per refresh_date so form history accumulates.
@@ -1663,6 +1816,7 @@ def _finalize(con: duckdb.DuckDBPyConnection) -> None:
     apply_course_difficulty(con)
     apply_rule_labels(con)
     apply_model_labels(con)
+    build_model_estimates(con)
     update_current_targets(con)
     export_results_snapshot(con)
     export_run_modes(con)
@@ -1732,6 +1886,11 @@ def main() -> None:
             seed_from_snapshot(
                 con, Path(sys.argv[2]) if len(sys.argv) > 2 else SNAPSHOT_PATH
             )
+        elif cmd == "estimates":
+            # The one-off backfill. The refresh does this itself, so this
+            # exists to make the ~33s land while someone is watching rather
+            # than inside a Saturday cron. Idempotent either way.
+            build_model_estimates(con, backfill="--backfill" in sys.argv)
         elif cmd == "motherduck":
             # (Re)seed the cloud FROM a local DB; sourcing from md: is nonsensical.
             if is_md:
