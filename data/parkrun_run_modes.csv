@@ -319,6 +319,7 @@ athlete_id,run_date,event_id,is_buggy,source,confidence,reason,set_at
 5672,2026-09-05,3163,false,rule,,Raju has never used a buggy,2026-09-05 21:33:10.908057+01
 5672,2026-09-12,1152,false,rule,,Raju has never used a buggy,2026-09-12 14:30:13.333584+01
 5672,2026-09-19,3943,false,rule,,Raju has never used a buggy,2026-09-19 14:38:31.60636+01
+5672,2026-09-26,357,false,rule,,Raju has never used a buggy,2026-09-26 16:53:13.672132+01
 3087156,2017-01-14,620,false,user,,confirmed by the athlete: no buggy in this era,2026-09-02 18:29:09.827493+01
 3087156,2017-02-18,674,false,user,,confirmed by the athlete: no buggy in this era,2026-09-02 18:29:09.827493+01
 3087156,2017-02-25,620,false,user,,confirmed by the athlete: no buggy in this era,2026-09-02 18:29:09.827493+01
@@ -671,6 +672,7 @@ athlete_id,run_date,event_id,is_buggy,source,confidence,reason,set_at
 3087156,2026-09-05,3614,false,model,0.7178570621928806,"model p=0.282 on 4 features, 349 training runs, half-life 36",2026-09-05 23:34:24.427175+01
 3087156,2026-09-12,3614,false,model,0.8474472181221702,"model p=0.153 on 4 features, 350 training runs, half-life 36",2026-09-12 14:30:16.975504+01
 3087156,2026-09-19,1876,true,model,0.8218292163395748,"model p=0.822 on 4 features, 351 training runs, half-life None",2026-09-19 14:38:41.49046+01
+3087156,2026-09-26,357,false,model,0.8082479379843075,"model p=0.192 on 4 features, 352 training runs, half-life None",2026-09-26 16:53:17.520449+01
 5462426,2019-07-06,2165,false,user,,confirmed by the athlete: no buggy in this era,2026-09-02 18:29:09.827493+01
 5462426,2019-11-09,1211,false,user,,confirmed by the athlete: no buggy in this era,2026-09-02 18:29:09.827493+01
 5462426,2020-01-18,674,false,user,,confirmed by the athlete: no buggy in this era,2026-09-02 18:29:09.827493+01
@@ -849,3 +851,4 @@ athlete_id,run_date,event_id,is_buggy,source,confidence,reason,set_at
 5462426,2026-09-05,3163,true,user,,confirmed by the athlete,2026-09-05 15:24:19.997563+01
 5462426,2026-09-12,1152,true,user,,corrected by hand,2026-09-12 14:50:20.320761+01
 5462426,2026-09-19,3943,true,user,,corrected by hand,2026-09-20 11:45:33.722515+01
+5462426,2026-09-26,357,false,model,0.5343819768205468,"model p=0.466 on 4 features, 178 training runs, half-life None",2026-09-26 16:54:35.356936+01
