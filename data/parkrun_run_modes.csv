@@ -851,4 +851,4 @@ athlete_id,run_date,event_id,is_buggy,source,confidence,reason,set_at
 5462426,2026-09-05,3163,true,user,,confirmed by the athlete,2026-09-05 15:24:19.997563+01
 5462426,2026-09-12,1152,true,user,,corrected by hand,2026-09-12 14:50:20.320761+01
 5462426,2026-09-19,3943,true,user,,corrected by hand,2026-09-20 11:45:33.722515+01
-5462426,2026-09-26,357,false,model,0.5343819768205468,"model p=0.466 on 4 features, 178 training runs, half-life None",2026-09-26 16:54:35.356936+01
+5462426,2026-09-26,357,true,user,,corrected by hand,2026-09-26 16:58:24.714968+01
