@@ -16,8 +16,10 @@ belongs in that one.
 
 from __future__ import annotations
 
+import math
 import os
 from pathlib import Path
+from typing import NamedTuple
 
 REPO = Path(__file__).resolve().parent
 SNAPSHOT = REPO / "data" / "parkrun_snapshot.duckdb"
@@ -60,6 +62,64 @@ LABEL_SOURCES = {"user", "model", "rule"}
 # a real time belongs in a form window and a course baseline whoever labelled
 # it. It is only its label that carries no information.
 TRAINING_SOURCES = ("user", "model")
+
+
+# --- mainland Great Britain ------------------------------------------------
+# The tab 7 planner and parkrun_travel must agree on which parkruns are
+# candidates: the travel step routes only these, and the app lists only these
+# when it has no drive times to go on.
+class Box(NamedTuple):
+    name: str
+    lat_min: float
+    lat_max: float
+    lon_min: float
+    lon_max: float
+
+    def holds(self, lat: float, lon: float) -> bool:
+        return (self.lat_min <= lat <= self.lat_max
+                and self.lon_min <= lon <= self.lon_max)
+
+
+# Everything parkrun files under the UK (country 97) that is NOT reachable from
+# Great Britain by road. Country 97 is wider than it looks: it includes the
+# Falklands, St Helena, the Cayman Islands and Gibraltar as well as Northern
+# Ireland and the Crown Dependencies. Road-bridged islands — Anglesey, Skye,
+# Hayling — are mainland here and must stay outside every box; the tests pin
+# the awkward neighbours (Lymington beside the Isle of Wight, Dunoon beside
+# Bute, Oban and Crinan beside Mull and Jura, Skye beside the Hebrides).
+#
+# Boxes rather than a routing flag because the OSRM demo server rejects
+# `exclude=ferry`, and ORS's matrix endpoint cannot avoid ferries either: both
+# happily return a drive to Belfast with the crossing folded into the time.
+UK_COUNTRY_CODE = 97
+GB_EXTENT = Box("Great Britain", 49.85, 60.95, -8.7, 1.8)
+NON_MAINLAND = (
+    Box("Channel Islands", 49.0, 49.8, -3.0, -2.0),
+    Box("Isles of Scilly", 49.85, 50.0, -6.5, -6.1),
+    Box("Northern Ireland", 54.0, 55.35, -8.3, -5.4),
+    Box("Isle of Man", 54.03, 54.43, -4.85, -4.3),
+    # The west end stops short of Lymington (50.748, -1.545), which is not.
+    Box("Isle of Wight (west)", 50.57, 50.725, -1.6, -1.45),
+    Box("Isle of Wight", 50.57, 50.775, -1.45, -1.05),
+    Box("Arran", 55.43, 55.72, -5.45, -5.05),
+    Box("Bute", 55.72, 55.92, -5.2, -4.98),
+    Box("Islay and Jura", 55.55, 56.15, -6.6, -5.85),
+    Box("Mull", 56.27, 56.65, -6.5, -5.8),
+    Box("Outer Hebrides (Lewis, Harris)", 57.75, 58.6, -7.2, -6.1),
+    Box("Outer Hebrides (Uists, Barra)", 56.75, 57.75, -7.8, -6.9),
+    Box("Orkney and Shetland", 58.7, 61.0, -3.5, -0.5),
+)
+
+
+def is_mainland(lat, lon) -> bool:
+    """True when (lat, lon) is on Great Britain or a road-bridged island."""
+    try:
+        lat, lon = float(lat), float(lon)
+    except (TypeError, ValueError):
+        return False
+    if math.isnan(lat) or math.isnan(lon) or not GB_EXTENT.holds(lat, lon):
+        return False
+    return not any(b.holds(lat, lon) for b in NON_MAINLAND)
 
 
 def resolve_db(db: str | None = None) -> str:
