@@ -108,7 +108,7 @@ Rules:
   listed only for whoever has run it. The head-to-head line appears only where
   one happened. An absence is already shown by the marker; the hover text
   adds detail.
-- The exception is data the reader is choosing on: a tab 7 recommendation
+- The exception is data the reader is choosing on: a tab 5 recommendation
   shows everyone's driving time, because that is what it was ranked on.
 
 ## Phones
@@ -116,7 +116,7 @@ Rules:
 - **Test at 390px, with touch and without hover.** Controls, labels and
   pinned elements behave differently there.
 - **A long panel of filters goes behind a button**, a `closable_popover`,
-  so the result it filters stays at the top of the screen. (Tab 7 once had a
+  so the result it filters stays at the top of the screen. (Tab 5's planner once had a
   sticky "Map ↓" jump pill past an inline panel; the Filters button made it
   pointless, and it was removed.)
 - **Map controls must not cover map labels.** Leaflet draws controls above
@@ -142,9 +142,9 @@ Rules:
 
 - Athletes are always drawn in `ATHLETE_COLORS`, in that fixed order. Any mark
   that has one slot per runner uses that order, so a position means the same
-  runner everywhere. That includes the tab 7 lamps, left to right.
+  runner everywhere. That includes the tab 5 lamps, left to right.
 - A per-runner "has / hasn't" mark is a **rounded square**, like a calendar
-  cell. On the tab 7 map the squares are lamps in a dark traffic-light housing
+  cell. On the tab 5 map the squares are lamps in a dark traffic-light housing
   ("Row, lit"): lit in the runner's colour for yes, unlit for no. A place
   none of them has been is a **black circle**. There are no three unlit lamps
   to draw.

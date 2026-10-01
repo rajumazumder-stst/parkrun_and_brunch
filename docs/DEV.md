@@ -99,11 +99,12 @@ rows. If the unfittable count is anything but **2** (each athlete's frontier
 run, which has one class behind it), the DB is stale, not the model broken.
 Delete it and re-seed.
 
-## Tab 7 and the travel data
+## Tab 5 and the travel data
 
-Tab 7 ("Where they meet (new)", `where_next.py`) runs beside tab 5 until one of
-them is chosen (TODO.md § Where they meet). A toggle switches between the
-head-to-head view and the planner. The markers are settled (30 Sep 2026): "Row, lit" lamps with a top-25 number
+Tab 5 ("Where they meet", `where_next.py`) was built as a trial tab 7 and
+replaced the old head-to-head-only map in fifth position on 1 Oct 2026; its
+widget keys are `t5_*`. A toggle switches between the planner (the default)
+and the head-to-head view. The markers are settled (30 Sep 2026): "Row, lit" lamps with a top-25 number
 inside the housing, and a black circle for a parkrun none of them has run.
 Driving times come from OpenRouteService only (chosen 30 Sep 2026; see
 `parkrun_travel.py` for why OSRM was dropped). No dev-only selectors remain:

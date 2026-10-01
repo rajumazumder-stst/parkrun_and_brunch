@@ -86,7 +86,7 @@ def _run_app(monkeypatch):
 def test_app_runs_and_year_filters_take_several_years(monkeypatch):
     at = _run_app(monkeypatch)
     assert not at.exception
-    assert len(at.tabs) == 7
+    assert len(at.tabs) == 6
 
     at.multiselect(key="t4_year").set_value(["2024", "2025"]).run()
     assert not at.exception
@@ -95,33 +95,33 @@ def test_app_runs_and_year_filters_take_several_years(monkeypatch):
     at.multiselect(key="t4_season").set_value([season]).run()
     assert at.multiselect(key="t4_year").value == []
 
-    # Tab 7 opens on the planner. The head-to-head view has only the
+    # Tab 5 opens on the planner. The head-to-head view has only the
     # classification/year/season row; the planner has none of those.
-    assert at.session_state["t7_view"] == "Planner"
-    at.session_state["t7_view"] = "Head-to-heads"
+    assert at.session_state["t5_view"] == "Planner"
+    at.session_state["t5_view"] = "Head-to-heads"
     at.run()
-    at.selectbox(key="t7_class").set_value(
-        at.selectbox(key="t7_class").options[1]).run()
+    at.selectbox(key="t5_class").set_value(
+        at.selectbox(key="t5_class").options[1]).run()
     assert not at.exception
-    at.session_state["t7_view"] = "Planner"
+    at.session_state["t5_view"] = "Planner"
     at.run()
     assert not at.exception
     keys = {w.key for w in at.selectbox} | {w.key for w in at.multiselect}
-    assert "t7_class" not in keys and "t7_year" not in keys
-    at.multiselect(key="t7_countries").set_value(["United Kingdom"]).run()
-    at.session_state["t7_done_Raju"] = "Not done"
-    at.session_state["t7_h2h_George vs Raju"] = "Happened"
+    assert "t5_class" not in keys and "t5_year" not in keys
+    at.multiselect(key="t5_countries").set_value(["United Kingdom"]).run()
+    at.session_state["t5_done_Raju"] = "Not done"
+    at.session_state["t5_h2h_George vs Raju"] = "Happened"
     at.run()
     assert not at.exception
 
     # Clear all filters: every planner filter back to its default, settings
     # (the view) untouched.
-    at.button(key="t7_clear").click().run()
+    at.button(key="t5_clear").click().run()
     assert not at.exception
-    assert at.multiselect(key="t7_countries").value == []
-    assert at.session_state["t7_done_Raju"] == "Any"
-    assert at.session_state["t7_h2h_George vs Raju"] == "Any"
-    assert at.session_state["t7_view"] == "Planner"
+    assert at.multiselect(key="t5_countries").value == []
+    assert at.session_state["t5_done_Raju"] == "Any"
+    assert at.session_state["t5_h2h_George vs Raju"] == "Any"
+    assert at.session_state["t5_view"] == "Planner"
 
 
 def test_years_desc_is_newest_first_and_keeps_type():
@@ -132,28 +132,28 @@ def test_years_desc_is_newest_first_and_keeps_type():
 @pytest.mark.skipif(not parkrun_core.SNAPSHOT.exists(), reason="no snapshot")
 def test_filters_survive_being_off_screen(monkeypatch):
     """Review finding: Streamlit drops an undrawn widget's state, so hiding
-    tab 3's picker or flipping tab 7's view used to reset the filters."""
+    tab 3's picker or flipping tab 5's view used to reset the filters."""
     at = _run_app(monkeypatch)
 
-    # Every year filter lists newest first (tab 7's sits in its
+    # Every year filter lists newest first (tab 5's sits in its
     # head-to-head view, so show that view first).
-    at.session_state["t7_view"] = "Head-to-heads"
+    at.session_state["t5_view"] = "Head-to-heads"
     at.run()
-    for key in ("t2_year", "t3_year", "t4_year", "t7_year"):
+    for key in ("t2_year", "t3_year", "t4_year", "t5_year"):
         opts = [int(o) for o in at.multiselect(key=key).options]
         assert opts == sorted(opts, reverse=True), key
 
-    # Tab 7: set a planner filter, go to the head-to-head view and back.
-    at.session_state["t7_view"] = "Planner"
+    # Tab 5: set a planner filter, go to the head-to-head view and back.
+    at.session_state["t5_view"] = "Planner"
     at.run()
-    at.session_state["t7_done_Raju"] = "Not done"
+    at.session_state["t5_done_Raju"] = "Not done"
     at.run()
-    at.session_state["t7_view"] = "Head-to-heads"
+    at.session_state["t5_view"] = "Head-to-heads"
     at.run()
-    at.session_state["t7_view"] = "Planner"
+    at.session_state["t5_view"] = "Planner"
     at.run()
     assert not at.exception
-    assert at.session_state["t7_done_Raju"] == "Not done"
+    assert at.session_state["t5_done_Raju"] == "Not done"
 
     # Tab 3: choose a year, hide the picker, run again.
     year = at.multiselect(key="t3_year").options[-1]

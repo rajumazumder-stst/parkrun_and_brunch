@@ -186,7 +186,7 @@ def keep_widget_state(prefixes: tuple, skip: tuple = ()) -> None:
 
     Streamlit deletes a widget's session-state entry on any run that does not
     render that widget — a section hidden by its toggle, or the other view of
-    tab 7 — so its filters came back at their defaults. Writing each key back
+    tab 5 — so its filters came back at their defaults. Writing each key back
     to itself before the widgets are created is Streamlit's documented way to
     keep it. Call at the top of the block, every run.
 
