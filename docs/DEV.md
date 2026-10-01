@@ -113,7 +113,9 @@ touch screen opens the bottom sheet; a mouse gets a tooltip. Test phone
 behaviour with Playwright's `is_mobile=True, has_touch=True` (and an iPhone
 `user_agent=`), or on a phone via the LAN URL `streamlit run` prints.
 
-Drive times come from `parkrun.travel_times`, which **only a local DB has**:
+Drive times come from `parkrun.travel_times`. Every refresh tops it up, and
+the deploy snapshot ships it. A seeded dev DB gets the snapshot's rows; to
+route into one yourself:
 
 ```bash
 # once: the homes file, OUTSIDE the repo (chmod 600)
@@ -129,11 +131,13 @@ PARKRUN_PIPELINE_DB=data/parkrun_dev.duckdb \
 * **Incremental.** A second run routes nothing. It routes a pair only when that
   pair has no row, or when the event has moved more than 200 m since it was
   routed. `--athlete ID --force` re-routes one athlete who has moved.
-* **Never in the snapshot.** `travel_times` is not in `SNAPSHOT_TABLES`, and
-  `tests/test_where_next.py` asserts that. It holds no home coordinates, only
-  results and the *event's* coordinates. With no table, the hosted app shows
-  the done / not-done planner and a note that drive times are local-only.
-* **Not in `refresh`.** Wiring it in waits on the privacy decision in TODO.md.
+* **Shipped, from neighbourhood centroids.** `travel_times` is in
+  `SNAPSHOT_TABLES` (since 1 Oct 2026). It holds no origin, only results and
+  the *event's* coordinates; `tests/test_where_next.py` asserts both. The
+  centroids live in `~/.config/parkrun/homes.csv`, never in git.
+* **In every refresh** (`apply_travel_times`, first in `_finalize`). It is
+  non-fatal and logs nothing coordinate-shaped. `PARKRUN_TRAVEL=off` skips
+  it. A machine with no homes file or no ORS key skips it quietly.
 * **A running app notices a `travel` run by itself.** `load_travel` is keyed on
   `travel_version()` (row count and latest `routed_at`), not on `data_version`,
   which only watches results and labels.
@@ -278,7 +282,7 @@ history if some future need proves otherwise.
 ## Tests
 
 ```bash
-pytest                 # from the repo root — 165 cases, ~65s
+pytest                 # from the repo root — 168 cases, ~65s
 pytest -q tests/test_buggy_estimator.py
 pytest -q tests/test_calendar.py       # fast: no model fitting
 pytest -q tests/test_where_next.py     # fast: planner, markers, mainland, travel

@@ -24,13 +24,9 @@ over refreshes** (tab 4) and **age-grade progression** (dropped, not wanted).
 Tab 7 (`where_next.py`) runs beside tab 5 until these are settled. Built
 30 Sep 2026; see `docs/DEV.md` § Tab 7 and the travel data.
 
-- **Privacy — decide whether the live app may show driving times.** Half
-  done: since 1 Oct 2026 the homes are **neighbourhood centroids**, not exact
-  addresses, so the most the drive times can give away is the neighbourhood.
-  Still open: whether to ship `travel_times` at all. Doing so means adding it
-  to `SNAPSHOT_TABLES` and wiring `travel` into the refresh. Showing only
-  ranks or totals would not hide more: triangulation needs only the relative
-  ordering of the times. Until then nothing reaches git or the hosted app.
+- ~~Privacy — may the live app show driving times?~~ — **done** 1 Oct 2026:
+  yes. The origins are neighbourhood centroids, so the times can give away a
+  neighbourhood and nothing finer.
 - ~~Pick the markers~~ — **done** 30 Sep 2026: "Row, lit" lamps, with the
   recommendation number inside the housing. Ring / Dots / Layers, the other
   square variants, and the badge-above / tag-beside placements are in git
@@ -46,9 +42,8 @@ Tab 7 (`where_next.py`) runs beside tab 5 until these are settled. Built
   but slower, more believable times for the short London trips that matter
   (median +3.4 min under an hour). The top-25 recommendations overlap 23/25.
   OSRM's adapter and the Routing selector are removed.
-- **Wire `travel` into the refresh.** Only once the privacy call is made: add
-  `update_travel_times` after `reconcile_events` (it is incremental and
-  non-fatal), and add `travel_times` to `SNAPSHOT_TABLES` if it is to ship.
+- ~~Wire `travel` into the refresh~~ — **done** 1 Oct 2026:
+  `apply_travel_times` runs first in `_finalize`, and `travel_times` ships.
 - **Replace tab 5 with tab 7.** Rename it back to "Where they meet" and drop
   tab 5's block from `parkrun_app.py`. `build_h2h_map` goes too if nothing
   else uses it.

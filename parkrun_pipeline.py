@@ -54,6 +54,7 @@ import requests
 from bs4 import BeautifulSoup
 
 import parkrun_core
+import parkrun_travel
 
 # --------------------------------------------------------------------------- #
 # Configuration
@@ -75,6 +76,11 @@ SNAPSHOT_TABLES = (
     "model_estimates",
     "results",
     "run_modes",
+    # Driving times from each athlete's NEIGHBOURHOOD centroid (never a home
+    # address) to every mainland-GB parkrun. Shipped since 1 Oct 2026, when
+    # the homes became centroids: the times can locate a neighbourhood, which
+    # is what was agreed to show. The table holds no origin coordinates.
+    "travel_times",
 )
 
 # Backfill values for columns newer than the snapshot being seeded from, keyed
@@ -350,6 +356,10 @@ def ensure_schema(con: duckdb.DuckDBPyConnection) -> None:
         );
         """
     )
+    # travel_times belongs to parkrun_travel, which owns its shape; created
+    # here because the snapshot ships it, so every DB must have it to seed,
+    # snapshot or upload — empty until the first `travel` or refresh fills it.
+    parkrun_travel.ensure_table(con)
     ensure_views(con)
 
 
@@ -1805,6 +1815,24 @@ def build_motherduck(con: duckdb.DuckDBPyConnection) -> None:
 # --------------------------------------------------------------------------- #
 # Orchestration
 # --------------------------------------------------------------------------- #
+def apply_travel_times(con: duckdb.DuckDBPyConnection) -> None:
+    """Route whatever travel_times is missing: a new parkrun, one that moved,
+    or a first run. Incremental, so most weeks it routes nothing.
+
+    Never fatal — the refresh is the delivery path for the whole app, and a
+    missing drive time is retried next week. Skipped quietly on a machine with
+    no homes file or no ORS key (parkrun_travel logs which). An exception's
+    text is scrubbed of coordinates before it is logged."""
+    if os.environ.get("PARKRUN_TRAVEL") == "off":
+        log("travel: PARKRUN_TRAVEL=off — skipped")
+        return
+    try:
+        parkrun_travel.update_travel_times(con, log=log)
+    except Exception as e:  # noqa: BLE001 — see docstring
+        log(f"WARN: travel step failed ({type(e).__name__}: "
+            f"{parkrun_travel.scrub(str(e))}) — drive times unchanged")
+
+
 def _finalize(con: duckdb.DuckDBPyConnection) -> None:
     """Post-write steps shared by bootstrap and refresh: label what can be
     labelled, snapshot current-form targets, export the results CSV, and
@@ -1815,6 +1843,7 @@ def _finalize(con: duckdb.DuckDBPyConnection) -> None:
     a frozen snapshot that nothing recomputes. Labelling after any of those
     would leave them built from the wrong set.
     """
+    apply_travel_times(con)
     apply_course_difficulty(con)
     apply_rule_labels(con)
     apply_model_labels(con)
@@ -1894,12 +1923,10 @@ def main() -> None:
             # than inside a Saturday cron. Idempotent either way.
             build_model_estimates(con, backfill="--backfill" in sys.argv)
         elif cmd == "travel":
-            # Drive times from each home to every mainland-GB parkrun, for the
-            # tab 7 planner. Incremental: only missing or moved pairs unless
-            # --force. Not part of `refresh` yet, and `travel_times` is not in
-            # SNAPSHOT_TABLES — see parkrun_travel.py for why.
-            import parkrun_travel
-
+            # Drive times from each neighbourhood centroid to every
+            # mainland-GB parkrun, for the tab 7 planner. The refresh does
+            # this itself (apply_travel_times); this is for a forced re-route
+            # when someone moves. Incremental unless --force.
             args = sys.argv[2:]
 
             def _opt(flag):

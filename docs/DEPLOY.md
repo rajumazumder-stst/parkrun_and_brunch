@@ -84,11 +84,18 @@ over two page scripts.
 
 | Path | Page | Contents |
 |---|---|---|
-| `/` | `parkrun_app.py` | the five tabs |
+| `/` | `parkrun_app.py` | the seven tabs |
 | `/buggy-handicap` | `handicap_page.py` | what the buggy costs · what labelling changed |
 
 `/buggy-handicap` is **unlisted, not access-controlled** — hidden navigation
 means no link to it, not no access. Anyone with the URL reads it.
+
+**The deploy snapshot carries driving times** (`travel_times`, since 1 Oct
+2026), routed from each athlete's neighbourhood centroid. The centroids are
+in `~/.config/parkrun/homes.csv` on the Mac and are never stored, so the
+table holds results and the parkruns' own coordinates only. A neighbourhood
+is the most the times can give away. That was the agreed limit, and it is
+why exact home addresses must never go into that file.
 
 **The deploy snapshot now carries the legacy views.** `build_snapshot` calls
 `ensure_legacy_views(force=True)`, because the second tab of `/buggy-handicap`
@@ -291,7 +298,15 @@ changed.
 
 ---
 
-## Two known warts
+## Three known warts
+
+**A code push can leave the hosted app importing stale modules.** Streamlit
+Cloud pulls the new files but may keep already-imported modules in memory. A
+push that changes `parkrun_app.py` together with a module it imports (e.g.
+`parkrun_ui.py`) can then fail at the import with `ImportError: This app has
+encountered an error` (1 Oct 2026). Data-only refreshes are unaffected. Fix:
+**Manage app → ⋮ → Reboot app**. To rule out the code first, a fresh clone of
+`main` should run cleanly under `AppTest`.
 
 **The working-copy sync helper is tested before the pull.**
 `parkrun_refresh.sh` sources `scripts/sync_working_copy.sh` at line ~89 but

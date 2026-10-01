@@ -1,17 +1,19 @@
-"""Driving time and distance from each athlete's home to every mainland-GB
-parkrun — the data behind the tab 7 planner.
+"""Driving time and distance from each athlete's neighbourhood to every
+mainland-GB parkrun — the data behind the tab 7 planner.
 
-Run by hand, on the Mac only:
+Run by every refresh (`parkrun_pipeline.apply_travel_times`), on the Mac only;
+by hand to force a re-route when someone moves:
 
     PARKRUN_PIPELINE_DB=<target> python parkrun_pipeline.py travel \\
         [--athlete ID] [--force]
 
-**Home coordinates never leave this machine except as the origin of a routing
-request.** They are read from a file outside the repo (`HOMES_FILE`), are never
-logged, and are not stored in the database — `travel_times` holds only the
-result of each route and the *destination's* coordinates. The table is also
-deliberately absent from `SNAPSHOT_TABLES`, so none of it reaches git or the
-hosted app until a decision is made about exposing it (TODO.md).
+**The origins are neighbourhood centroids, not home addresses** (since 1 Oct
+2026), read from a file outside the repo (`HOMES_FILE`). They never leave
+this machine except as the origin of a routing request: they are never logged
+and never stored — `travel_times` holds only the result of each route and the
+*destination's* coordinates. The table IS shipped in the deploy snapshot
+(`SNAPSHOT_TABLES`, since 1 Oct 2026), so the hosted app shows drive times;
+what the times can give away is a neighbourhood, which is what was agreed.
 
 The work is a one-off bulk route plus small top-ups. A pair is (re)routed when
 it has no row, when the event has moved more than
