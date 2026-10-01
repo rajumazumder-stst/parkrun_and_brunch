@@ -611,8 +611,42 @@ def test_no_homes_file_skips_quietly(tmp_path):
 # --------------------------------------------------------------------------- #
 # Privacy contracts
 # --------------------------------------------------------------------------- #
-def test_travel_times_never_ships_in_the_snapshot():
-    assert "travel_times" not in parkrun_pipeline.SNAPSHOT_TABLES
+def test_travel_times_ships_in_the_snapshot():
+    """Shipped since 1 Oct 2026, when the origins became neighbourhood
+    centroids. What makes that safe is the next test: no origin column."""
+    assert "travel_times" in parkrun_pipeline.SNAPSHOT_TABLES
+
+
+def test_every_db_gets_the_travel_table():
+    """It ships, so seed / snapshot / upload all expect it to exist."""
+    import duckdb
+    con = duckdb.connect()
+    parkrun_pipeline.ensure_schema(con)
+    assert con.execute("SELECT count(*) FROM information_schema.tables "
+                       "WHERE table_name = 'travel_times'").fetchone()[0] == 1
+
+
+def test_a_failed_travel_step_never_stops_the_refresh(monkeypatch):
+    def boom(con, **kw):
+        raise ValueError("bad origin 51.401234,-0.205678")
+
+    monkeypatch.setattr(parkrun_pipeline.parkrun_travel, "update_travel_times", boom)
+    msgs = []
+    monkeypatch.setattr(parkrun_pipeline, "log", msgs.append)
+    parkrun_pipeline.apply_travel_times(None)              # must not raise
+    text = " ".join(msgs)
+    assert "travel step failed" in text and "ValueError" in text
+    assert "51.401234" not in text and "0.205678" not in text
+
+
+def test_travel_can_be_switched_off(monkeypatch):
+    called = []
+    monkeypatch.setattr(parkrun_pipeline.parkrun_travel, "update_travel_times",
+                        lambda con, **kw: called.append(1))
+    monkeypatch.setattr(parkrun_pipeline, "log", lambda m: None)
+    monkeypatch.setenv("PARKRUN_TRAVEL", "off")
+    parkrun_pipeline.apply_travel_times(None)
+    assert not called
 
 
 def test_the_travel_table_holds_no_origin():

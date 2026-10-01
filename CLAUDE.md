@@ -167,9 +167,10 @@ where they differ from the original brief, **the spec wins**.
   A merged-into-`run_modes` design was worked through and rejected; the reasons
   are in § Data model.
 - 🧪 **Tab 7 — where they meet, and where next** (built 30 Sep 2026, live
-  1 Oct 2026, in trial beside tab 5 until it replaces it — `TODO.md`). The
-  hosted app has no `travel_times`, so it shows the planner without driving
-  times: matches in A–Z order, in an unnumbered layer. `where_next.py`: a toggle between two views of one
+  1 Oct 2026, in trial beside tab 5 until it replaces it — `TODO.md`). Driving
+  times are live too (1 Oct 2026), routed from each athlete's neighbourhood
+  centroid. A database without `travel_times` rows still works: the planner
+  then shows matches in A–Z order, in an unnumbered layer. `where_next.py`: a toggle between two views of one
   Folium map, each with only its own filters; **Planner** is the default.
   **Head-to-heads**: tab 5's pies,
   with classification / year / season. **Planner**: every regular parkrun
@@ -198,10 +199,9 @@ where they differ from the original brief, **the spec wins**.
   shows its name and country. Runs and last visit are listed for whoever has
   run it. Head-to-heads appear only where one happened. A recommendation adds
   everyone's driving times, to 0.1. Both views open on London with a live "k of n in view · m outside"
-  counter. Drive times live
-  in `travel_times` (`parkrun_travel.py`, `pipeline travel`), which is **local
-  only**: it is not in `SNAPSHOT_TABLES`, and the homes file is outside the
-  repo. The same change made Year/Season **multiselect** everywhere, locked
+  counter. Drive times live in `travel_times` (`parkrun_travel.py`), routed
+  by every refresh and shipped in the deploy snapshot; the origins are
+  neighbourhood centroids in a file outside the repo, never stored. The same change made Year/Season **multiselect** everywhere, locked
   zoom on every plotly chart (`show_chart`), and rebuilt tab 6's tiles as
   **stat slots** (label above value, the PB-box anatomy). All of it is recorded
   in `docs/STYLE.md`. Promotion checklist: `TODO.md` § Where they meet.
@@ -478,12 +478,16 @@ ones. Both paths are the same function and the same anti-join, so they cannot
 drift apart and a second run inserts nothing.
 
 ### `travel_times`
-Drive time and distance from each athlete's home to every live mainland-GB 5k
-parkrun, for the tab 7 planner. **Local only.** It is not in
-`SNAPSHOT_TABLES`, so it never reaches git or the hosted app. Written by
-`python parkrun_pipeline.py travel` (not by `refresh`). Created by
-`parkrun_travel.ensure_table`, not `ensure_schema`, so a DB that has never
-been routed does not have the table at all.
+Drive time and distance from each athlete's **neighbourhood centroid** to
+every live mainland-GB 5k parkrun, for the tab 7 planner. **Shipped** in the
+deploy snapshot since 1 Oct 2026 (`SNAPSHOT_TABLES`), so the hosted app shows
+drive times; what they can give away is a neighbourhood, which is what was
+agreed. Written by every refresh (`apply_travel_times`, the first step of
+`_finalize` — incremental, non-fatal, skipped where there is no homes file or
+ORS key, off with `PARKRUN_TRAVEL=off`) and by `python parkrun_pipeline.py
+travel [--athlete ID] [--force]` for a re-route when someone moves. The table
+belongs to `parkrun_travel.ensure_table`, which `ensure_schema` calls, so
+every DB has it.
 
 | Column | Notes |
 |---|---|
@@ -681,7 +685,9 @@ Saturday" (a skipped gate doesn't advance it).
 4. Wrap all three athletes in **one** transaction; if any athlete's page fails,
    roll back all three and retry (results stay internally consistent).
 
-After Path B, the refresh runs `apply_rule_labels()` (labels any unlabelled run whose answer follows from a rule rather than a judgement — Raju has never pushed a buggy; write-once, so a correction always outranks it), then `apply_model_labels()` (the estimator, on George's and Duncan's unlabelled runs — **forward-only**: a run behind an athlete's label frontier is logged for hand review, never back-filled, because rewriting a head-to-head settled months ago would show up nowhere. `PARKRUN_ESTIMATOR=off` disables it, and an ImportError only warns — the refresh is the delivery path for the whole app and must not die for a missing optional dependency), then `build_model_estimates()` (records what the estimator makes of every in-scope run it has not scored yet — **write-once**, so the call survives a later hand correction instead of being erased by it; ~0.32s per run, so at most a second a week once backfilled), then `update_current_targets()` (snapshots today's
+After Path B, the refresh runs `apply_travel_times()` (routes any mainland
+parkrun missing a drive time, or one that has moved — most weeks nothing;
+never fatal), then `apply_rule_labels()` (labels any unlabelled run whose answer follows from a rule rather than a judgement — Raju has never pushed a buggy; write-once, so a correction always outranks it), then `apply_model_labels()` (the estimator, on George's and Duncan's unlabelled runs — **forward-only**: a run behind an athlete's label frontier is logged for hand review, never back-filled, because rewriting a head-to-head settled months ago would show up nowhere. `PARKRUN_ESTIMATOR=off` disables it, and an ImportError only warns — the refresh is the delivery path for the whole app and must not die for a missing optional dependency), then `build_model_estimates()` (records what the estimator makes of every in-scope run it has not scored yet — **write-once**, so the call survives a later hand correction instead of being erased by it; ~0.32s per run, so at most a second a week once backfilled), then `update_current_targets()` (snapshots today's
 current-form targets), exports the results snapshot CSV and rebuilds
 `data/parkrun_snapshot.duckdb`; `scripts/parkrun_refresh.sh` then commits and
 pushes both — that push is what deploys the new data. The analytics views
@@ -765,7 +771,7 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | `static/logo-512.png` | `page_icon` source: the browser-tab favicon |
 | `static/apple-touch-icon.png` | 180×180 for the iOS "Add to Home Screen" icon, served at `/app/static/` |
 | `.streamlit/config.toml` | `enableStaticServing = true` so `static/` is reachable at `/app/static/` |
-| `tests/` | pytest suite, run from the repo root. **pytest is dev-only, deliberately not in `requirements.txt`** (same convention as `openpyxl` and `cairosvg`). 165 cases; only `test_ui.py`'s one app smoke run reads a database (the committed snapshot, read-only). `test_where_next.py` (90: planner, head-to-head filter, range ends, the lamp and circle markers, mainland boxes, travel top-ups with a fake HTTP session, and the privacy contracts that `travel_times` never ships and holds no origin), `test_ui.py` (8: no `st.plotly_chart` outside `show_chart`, no `st.popover` outside `closable_popover`, the stat-slot order, newest-first years, the smoke run, and that filters survive being off screen), plus: `buggy_estimator` (51 — four of them cross-module contracts, that `TARGET_WINDOW_DAYS`, the label vocabulary and the cohort each have exactly one definition in `parkrun_core.py`; six covering `score_runs`, and one that reads the pipeline's source to assert nothing UPDATEs `run_modes` but the vocabulary rename) and the calendar week scheme (16, including a parity check that the Python rule and `WEEK_SQL` agree, run against an in-memory DuckDB) |
+| `tests/` | pytest suite, run from the repo root. **pytest is dev-only, deliberately not in `requirements.txt`** (same convention as `openpyxl` and `cairosvg`). 168 cases; only `test_ui.py`'s one app smoke run reads a database (the committed snapshot, read-only). `test_where_next.py` (93: planner, head-to-head filter, range ends, the lamp and circle markers, mainland boxes, travel top-ups with a fake HTTP session, and the privacy contracts that `travel_times` never ships and holds no origin), `test_ui.py` (8: no `st.plotly_chart` outside `show_chart`, no `st.popover` outside `closable_popover`, the stat-slot order, newest-first years, the smoke run, and that filters survive being off screen), plus: `buggy_estimator` (51 — four of them cross-module contracts, that `TARGET_WINDOW_DAYS`, the label vocabulary and the cohort each have exactly one definition in `parkrun_core.py`; six covering `score_runs`, and one that reads the pipeline's source to assert nothing UPDATEs `run_modes` but the vocabulary rename) and the calendar week scheme (16, including a parity check that the Python rule and `WEEK_SQL` agree, run against an in-memory DuckDB) |
 | `docs/DEV.md` | Local dev workflow (incl. `PARKRUN_LABEL_AUDIT=1` for the label-impact app). Also **§ Deferred refactors** — streamlining that has been identified and costed but not done, each with value/risk/size, so the analysis is not redone every time the code looks tidyable. **Read it before starting a cleanup**; two items in it were considered and deliberately rejected. Also **§ Open decisions** — unsettled data-safety questions (the pipeline's default write target, whether the dev DB still needs a `parkrun` schema, a shrink gate on the committed artefacts), each with the options and what they cost |
 | `docs/DATA.md` | The buggy labels: what each `source` means, how the training set grows, how to correct a label by hand |
 | `docs/MODEL.md` | The estimator as built: the four features and why each survived, the fitted coefficients, every constant, class balancing and recency, the walk-forward numbers, and the features that were removed on evidence. **The fitted numbers move every refresh** — the reasoning is what is durable |

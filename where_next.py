@@ -73,9 +73,10 @@ LAYER_H2H = "Head-to-heads"
 LAYER_DONE = "parkruns done (min 1 person)"
 LAYER_NOT_DONE = "parkruns not done by anyone"
 LAYER_TOP = "top recommendations"
-# Without driving times there is nothing to rank on — the hosted app — so the
-# matches are a plain layer of their own, unnumbered: numbering an
-# alphabetical list would present A-to-Z as a recommendation.
+# Without driving times there is nothing to rank on — a database with no
+# travel rows, or nobody chosen to rank by — so the matches are a plain layer
+# of their own, unnumbered: numbering an alphabetical list would present A-to-Z
+# as a recommendation.
 LAYER_MATCH = "parkruns matching the filters"
 
 CANDIDATE_PINS = 25   # the top recommendations, numbered on the map
@@ -1221,10 +1222,9 @@ def render_planner(version, h2h: pd.DataFrame) -> None:
     st.caption(
         "Every regular parkrun, with a square per runner for who has run it. "
         "The filters pick out possible next parkruns on mainland Great Britain"
-        + (", with driving times from each home — free-flow estimates, no "
-           "traffic." if has_travel else
-           ". Driving times and distances are only in the local version of "
-           "the app.")
+        + (", with driving times from each runner's neighbourhood — "
+           "free-flow estimates, no traffic." if has_travel else
+           ". There are no driving times in this database yet.")
     )
     base = plan_candidates(events, done, None, done_filter={})
     with closable_popover("⚙️ Filters", key="t7_filters_pop", width="stretch"):
