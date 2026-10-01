@@ -26,7 +26,6 @@ from html import escape
 from pathlib import Path
 
 import duckdb
-import folium
 import matplotlib
 
 matplotlib.use("Agg")
@@ -53,10 +52,25 @@ from parkrun_ui import (  # shared with label_impact.py — see that module
     HL_BUGGY,
     HL_REGULAR,
     REGULAR_LABEL,
+    STAT_LINE,
+    STAT_PHONE_BREAKPOINT,
+    STAT_PHONE_SMALL,
+    STAT_SMALL,
     UK_TZ,
     data_version,
     fmt_time,
+    POPOVER_CLOSE_CSS,
+    closable_popover,
+    keep_widget_state,
+    show_chart,
+    years_desc,
+    stat_label,
+    stat_note,
+    stat_phone_css,
+    stat_value,
 )
+from where_next import (build_h2h_map, load_events_geo, render_h2h_view,
+                        render_planner, view_toggle)
 
 # Logo built by scripts/build_logo.py (three runners in ATHLETE_COLORS on a
 # fried egg). Resolved off __file__, not the CWD, so it survives being launched
@@ -266,13 +280,6 @@ def load_saturday_targets(version) -> pd.DataFrame:
     return _with_date_cols(_read_sql("SELECT * FROM parkrun.v_saturday_targets"))
 
 
-@st.cache_data(show_spinner=False)
-def load_event_coords(version) -> pd.DataFrame:
-    return _read_sql(
-        "SELECT event_id, short_name, latitude, longitude FROM parkrun.events"
-    )
-
-
 # --------------------------------------------------------------------------- #
 # Helpers
 # --------------------------------------------------------------------------- #
@@ -309,40 +316,56 @@ def _ordered_seasons(df: pd.DataFrame) -> list:
 
 def _date_options(df: pd.DataFrame):
     """(year_opts, season_opts) for the given (already classification-filtered)
-    rows, each led by 'All'. Drives the head-to-head-aware filter lists."""
-    years = ["All"] + [str(y) for y in sorted(df["year"].unique())]
-    seasons = ["All"] + _ordered_seasons(df)
+    rows. Drives the head-to-head-aware filter lists."""
+    years = [str(y) for y in years_desc(df["year"])]
+    seasons = _ordered_seasons(df)
     return years, seasons
 
 
 def _clear_other(active_key: str, other_key: str) -> None:
-    """Year/Season are mutually exclusive: picking a real value in one resets the
-    other to 'All' (two dropdowns, auto-clear)."""
-    if st.session_state.get(active_key, "All") != "All":
-        st.session_state[other_key] = "All"
+    """Year/Season are mutually exclusive: choosing anything in one empties the
+    other (two multiselects, auto-clear)."""
+    if st.session_state.get(active_key):
+        st.session_state[other_key] = []
 
 
 def _sanitize(key: str, opts: list) -> None:
-    """Drop a stored selection no longer offered (e.g. after the classification
-    changed) so the selectbox doesn't error on an out-of-range value."""
-    if st.session_state.get(key, "All") not in opts:
-        st.session_state[key] = "All"
+    """Drop stored selections no longer offered (e.g. after the classification
+    changed) so the multiselect doesn't error on an out-of-range value."""
+    cur = st.session_state.get(key)
+    if cur is None:
+        return
+    if isinstance(cur, str):  # a pre-multiselect session held one value
+        cur = [] if cur == "All" else [cur]
+    st.session_state[key] = [v for v in cur if v in opts]
 
 
 def year_season_filters(df: pd.DataFrame, prefix: str, col_year, col_season):
-    """Render the mutually-exclusive Year/Season dropdowns for `df` into the two
-    given columns, keyed by `prefix`; return the (year, season) selections. Each
-    defaults to 'All', options are limited to what `df` holds, and picking one
-    auto-clears the other. Shared by every tab that offers date filtering."""
+    """Render the mutually-exclusive Year/Season multiselects for `df` into the
+    two given columns, keyed by `prefix`; return the (years, seasons) lists.
+    Empty means all — tab 1's and tab 6's convention — options are limited to
+    what `df` holds, and choosing in one clears the other. Shared by every tab
+    that offers date filtering."""
     yr_opts, se_opts = _date_options(df)
     yk, sk = f"{prefix}_year", f"{prefix}_season"
     _sanitize(yk, yr_opts)
     _sanitize(sk, se_opts)
-    yr = col_year.selectbox("Year", yr_opts, key=yk,
-                            on_change=_clear_other, args=(yk, sk))
-    se = col_season.selectbox("Season", se_opts, key=sk,
-                              on_change=_clear_other, args=(sk, yk))
+    yr = col_year.multiselect("Year", yr_opts, key=yk, placeholder="All years",
+                              on_change=_clear_other, args=(yk, sk))
+    se = col_season.multiselect("Season", se_opts, key=sk,
+                                placeholder="All seasons",
+                                on_change=_clear_other, args=(sk, yk))
     return yr, se
+
+
+def period_text(yr: list, se: list, default: str = "the entire date range") -> str:
+    """The selected years or seasons as prose, for captions."""
+    chosen = yr or se
+    if not chosen:
+        return default
+    if len(chosen) == 1:
+        return chosen[0]
+    return ", ".join(chosen[:-1]) + " and " + chosen[-1]
 
 
 def _fmt_uk_dt(ts) -> str:
@@ -441,10 +464,9 @@ def _render_window_runs(runs: pd.DataFrame, athlete_name: str) -> None:
 
 
 # One type size for the scope label and the where/when line, a larger one for
-# the time itself — the block's whole point is that the times read first.
-PB_SMALL = "0.82rem"
-PB_BIG = "1.65rem"
-PB_LINE = 1.35  # line-height of the small type, in em
+# the time itself — the block's whole point is that the times read first. The
+# sizes are the shared stat-slot ones (parkrun_ui's STAT_*, docs/STYLE.md), so
+# tab 6's reliability tiles read the same way.
 PB_VENUE_LINES = 2  # venue block is ALWAYS this tall — see _venue
 # The bordered container pads all four sides equally, but the athlete name's
 # line box adds half-leading at the top that the last (small) line doesn't
@@ -468,12 +490,8 @@ PB_GLYPH_GAP = "0.38em"
 # Scoped to the keyed scope rows (`st.container(key=...)` emits `st-key-<key>`)
 # so the athlete boxes themselves still stack — three side by side on a phone
 # would be unreadable — and so no other column layout in the app is touched.
-PB_PHONE_BREAKPOINT = "640px"
-PB_PHONE_BIG = "1.05rem"    # the time, shrunk to fit three across a phone
-PB_PHONE_SMALL = "0.66rem"  # scope label, venue and date at that width
 
-# Current-target box: the mode label small, the time itself large.
-TGT_SMALL = "0.82rem"
+# Current-target box: the time itself large.
 TGT_BIG = "1.5rem"
 TGT_GAP = "0.75rem"   # space between the last target and the popover button
 
@@ -505,14 +523,10 @@ def render_personal_bests(pb: pd.DataFrame) -> None:
     # that forces the wrap regardless of `flex-wrap`. The athlete boxes are
     # left to stack: three of those side by side would be unreadable.
     st.markdown(
-        f"""<style>
-        @media (max-width: {PB_PHONE_BREAKPOINT}) {{
-          .st-key-pb-block .pb-big {{
-              font-size: {PB_PHONE_BIG} !important;
-          }}
-          .st-key-pb-block .pb-small,
+        f"""<style>{stat_phone_css("pb-block", "pb-scopes-")}
+        @media (max-width: {STAT_PHONE_BREAKPOINT}) {{
           .st-key-pb-block .pb-venue {{
-              font-size: {PB_PHONE_SMALL} !important;
+              font-size: {STAT_PHONE_SMALL} !important;
           }}
           /* Slightly under the time's size so the mark annotates the number
              rather than competing with it, and never wraps it at this width. */
@@ -525,15 +539,6 @@ def render_personal_bests(pb: pd.DataFrame) -> None:
           .st-key-pb-block hr {{
               margin: 0.4rem 0 0.35rem !important;
           }}
-          [class*="st-key-pb-scopes-"] [data-testid="stHorizontalBlock"] {{
-              flex-wrap: nowrap !important;
-              gap: 0.4rem !important;
-          }}
-          [class*="st-key-pb-scopes-"] [data-testid="stColumn"] {{
-              flex: 1 1 0 !important;
-              min-width: 0 !important;
-              width: auto !important;
-          }}
         }}
         </style>""",
         unsafe_allow_html=True,
@@ -542,19 +547,12 @@ def render_personal_bests(pb: pd.DataFrame) -> None:
     all_time = pb[pb["scope"] == "All time"].sort_values("time_seconds")
     order = list(all_time["athlete_name"])
 
-    # The class on each helper is what the phone media query re-sizes; the
-    # inline style stays the desktop default so the block still renders
-    # correctly if the stylesheet below ever fails to inject.
+    # Label / value / note are the shared stat-slot helpers (parkrun_ui):
+    # the scope is the label, the time the value, the date the note.
     def _small(text: str, muted: bool = True) -> str:
-        op = "opacity:.72;" if muted else ""
-        return (f"<div class='pb-small' style='font-size:{PB_SMALL};{op}"
-                f"line-height:1.35'>{text}</div>")
+        return stat_note(text) if muted else stat_label(text)
 
-    def _big(text: str) -> str:
-        return (
-            f"<div class='pb-big' style='font-size:{PB_BIG};font-weight:600;"
-            f"line-height:1.15;font-variant-numeric:tabular-nums'>{text}</div>"
-        )
+    _big = stat_value
 
     def _timed(row) -> str:
         """The time, with 🛒 appended when that run was pushed.
@@ -580,12 +578,29 @@ def render_personal_bests(pb: pd.DataFrame) -> None:
         clamped with an ellipsis and kept in full in the tooltip."""
         safe = escape(str(text))
         return (
-            f"<div class='pb-venue' title='{safe}' style='font-size:{PB_SMALL};"
-            f"opacity:.72;line-height:{PB_LINE};"
-            f"height:{PB_VENUE_LINES * PB_LINE:.2f}em;"
+            f"<div class='pb-venue' title='{safe}' style='font-size:{STAT_SMALL};"
+            f"opacity:.72;line-height:{STAT_LINE};"
+            f"height:{PB_VENUE_LINES * STAT_LINE:.2f}em;"
             "overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;"
             f"-webkit-line-clamp:{PB_VENUE_LINES}'>{safe}</div>"
         )
+
+    def _slot(name: str, scope: str) -> None:
+        """One slot: the scope, then that run's time, venue and date — or
+        dashes where the athlete has no run in that scope."""
+        m = pb[(pb["athlete_name"] == name) & (pb["scope"] == scope)]
+        if m.empty:
+            value, venue, date = "—", "no runs", "—"
+        else:
+            r = m.iloc[0]
+            # Glyph beside the time, NOT a second box per athlete: the
+            # layout is fixed-height and pinned, and splitting it would
+            # break the alignment the whole block is built on.
+            value, venue = _timed(r), r["short_name"]
+            date = pd.Timestamp(r["run_date"]).strftime("%d %b %Y")
+        for html in (_small(scope, muted=False), _big(value), _venue(venue),
+                     _small(date)):
+            st.markdown(html, unsafe_allow_html=True)
 
     # Keyed wrapper so the phone type rules above have one selector covering
     # every slot in the block, scope columns and latest-run strip alike.
@@ -601,44 +616,15 @@ def render_personal_bests(pb: pd.DataFrame) -> None:
             # this row: the key becomes an `st-key-…` class on the wrapper.
             scope_row = st.container(key=f"pb-scopes-{name}")
             for scol, scope in zip(scope_row.columns(len(PB_SCOPES)), PB_SCOPES):
-                m = pb[(pb["athlete_name"] == name) & (pb["scope"] == scope)]
                 with scol:
-                    st.markdown(_small(scope, muted=False), unsafe_allow_html=True)
-                    if m.empty:
-                        st.markdown(_big("—"), unsafe_allow_html=True)
-                        st.markdown(_venue("no runs"), unsafe_allow_html=True)
-                        st.markdown(_small("—"), unsafe_allow_html=True)
-                        continue
-                    r = m.iloc[0]
-                    # Glyph beside the time, NOT a second box per athlete: the
-                    # layout is fixed-height and pinned, and splitting it would
-                    # break the alignment the whole block is built on.
-                    st.markdown(_big(_timed(r)), unsafe_allow_html=True)
-                    st.markdown(_venue(r["short_name"]), unsafe_allow_html=True)
-                    st.markdown(
-                        _small(pd.Timestamp(r["run_date"]).strftime("%d %b %Y")),
-                        unsafe_allow_html=True,
-                    )
+                    _slot(name, scope)
 
-            latest = pb[(pb["athlete_name"] == name) & (pb["scope"] == PB_LATEST)]
             st.markdown(
                 "<hr style='margin:.55rem 0 .5rem;border:0;"
                 "border-top:1px solid rgba(128,128,128,.25)'>",
                 unsafe_allow_html=True,
             )
-            st.markdown(_small(PB_LATEST, muted=False), unsafe_allow_html=True)
-            if latest.empty:
-                st.markdown(_big("—"), unsafe_allow_html=True)
-                st.markdown(_venue("no runs"), unsafe_allow_html=True)
-                st.markdown(_small("—"), unsafe_allow_html=True)
-            else:
-                r = latest.iloc[0]
-                st.markdown(_big(_timed(r)), unsafe_allow_html=True)
-                st.markdown(_venue(r["short_name"]), unsafe_allow_html=True)
-                st.markdown(
-                    _small(pd.Timestamp(r["run_date"]).strftime("%d %b %Y")),
-                    unsafe_allow_html=True,
-                )
+            _slot(name, PB_LATEST)
             st.markdown(
                 f"<div style='height:{PB_BOTTOM_PAD}'></div>",
                 unsafe_allow_html=True,
@@ -672,95 +658,6 @@ def _gap_filled_saturdays(sat: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def _pie_svg(wins: dict, diameter: int) -> str:
-    """A small SVG pie for a venue marker — one slice per athlete, area split by
-    their share of form-adjusted 1sts, coloured by ATHLETE_COLORS."""
-    r = diameter / 2
-    items = [(n, c) for n, c in wins.items() if c > 0]
-    total = sum(c for _, c in items)
-    if not items or total == 0:
-        return ""
-    head = (f'<svg width="{diameter}" height="{diameter}" '
-            f'viewBox="0 0 {diameter} {diameter}" '
-            f'style="filter:drop-shadow(0 1px 1px rgba(0,0,0,.4))">')
-    if len(items) == 1:  # a full circle (one 360° arc won't render)
-        name = items[0][0]
-        return (head + f'<circle cx="{r}" cy="{r}" r="{r - 1}" '
-                f'fill="{ATHLETE_COLORS.get(name, "#888888")}" '
-                f'stroke="white" stroke-width="1"/></svg>')
-    parts, a0 = [head], 0.0
-    for name, c in items:
-        a1 = a0 + (c / total) * 2 * math.pi
-        x0, y0 = r + r * math.sin(a0), r - r * math.cos(a0)
-        x1, y1 = r + r * math.sin(a1), r - r * math.cos(a1)
-        large = 1 if (a1 - a0) > math.pi else 0
-        parts.append(
-            f'<path d="M{r},{r} L{x0:.2f},{y0:.2f} '
-            f'A{r},{r} 0 {large},1 {x1:.2f},{y1:.2f} Z" '
-            f'fill="{ATHLETE_COLORS.get(name, "#888888")}" '
-            f'stroke="white" stroke-width="1"/>'
-        )
-        a0 = a1
-    parts.append("</svg>")
-    return "".join(parts)
-
-
-def build_h2h_map(mh: pd.DataFrame, coords: pd.DataFrame):
-    """Folium map of head-to-head venues. Each venue is a pie marker sized by the
-    number of head-to-heads there and split by wins per athlete. `mh` is a
-    (filtered) slice of v_head_to_head; `coords` maps event_id → lat/lon/name.
-    Returns a folium.Map, or None when there's nothing to plot."""
-    if mh.empty:
-        return None
-    n_h2h = mh.drop_duplicates(["event_id", "run_date"]).groupby("event_id").size()
-    firsts = mh[mh["place_rank"] == 1]
-    wins = firsts.groupby(["event_id", "athlete_name"]).size().unstack(fill_value=0)
-    # Buggy wins counted PER ATHLETE. A trailing "of which 4 with buggy" would
-    # be ambiguous about whose wins it counts.
-    if "is_buggy" in firsts.columns:
-        bw = (firsts[firsts["is_buggy"]]
-              .groupby(["event_id", "athlete_name"]).size().unstack(fill_value=0))
-    else:
-        bw = pd.DataFrame()
-    c = coords.set_index("event_id")
-
-    venues = []
-    for event_id, count in n_h2h.items():
-        if event_id not in c.index:
-            continue
-        lat, lon = float(c.at[event_id, "latitude"]), float(c.at[event_id, "longitude"])
-        wdict = wins.loc[event_id].to_dict() if event_id in wins.index else {}
-        wdict = {k: int(v) for k, v in wdict.items() if v > 0}
-        bdict = (bw.loc[event_id].to_dict()
-                 if not bw.empty and event_id in bw.index else {})
-        d = int(round(14 + 5 * math.sqrt(count)))
-        breakdown = " · ".join(
-            f"{k} {v}" + (f" ({int(bdict[k])} {BUGGY_GLYPH})"
-                          if bdict.get(k) else "")
-            for k, v in sorted(wdict.items(), key=lambda x: -x[1]))
-        tip = (f"<b>{c.at[event_id, 'short_name']}</b><br>"
-               f"{count} head-to-head{'s' if count != 1 else ''}<br>{breakdown}")
-        venues.append((lat, lon, d, _pie_svg(wdict, d), tip))
-
-    if not venues:
-        return None
-    lats = [v[0] for v in venues]
-    lons = [v[1] for v in venues]
-    center = [sum(lats) / len(lats), sum(lons) / len(lons)]
-    fmap = folium.Map(location=center, zoom_start=11 if len(venues) == 1 else 5,
-                      tiles="OpenStreetMap", control_scale=True)
-    for lat, lon, d, svg, tip in venues:
-        folium.Marker(
-            [lat, lon],
-            icon=folium.DivIcon(html=svg, icon_size=(d, d),
-                                icon_anchor=(d // 2, d // 2)),
-            tooltip=folium.Tooltip(tip),
-        ).add_to(fmap)
-    if len(venues) > 1:
-        fmap.fit_bounds([[min(lats), min(lons)], [max(lats), max(lons)]])
-    return fmap
-
-
 def render_occasion(rows: pd.DataFrame, victory: bool = False) -> None:
     """Render the detail block for a single head-to-head occasion; `victory`
     adds the scoreline one-liner + victory lollipops above the table."""
@@ -770,7 +667,7 @@ def render_occasion(rows: pd.DataFrame, victory: bool = False) -> None:
     st.caption(f"**{first['classification']}**")
     if victory:
         st.markdown(_h2h_headline(rows))
-        st.plotly_chart(_victory_fig(rows), width="stretch")
+        show_chart(_victory_fig(rows))
     d = rows.sort_values("place_rank").assign(
         Place=lambda d: d["place_rank"].map(PLACE_LABEL),
         Target=lambda d: d["target_seconds"].map(fmt_time),
@@ -878,14 +775,15 @@ div[class*="st-key-sec-"] [data-testid="stButton"] button:hover {
 """
 
 
-def apply_filters(df: pd.DataFrame, cls: str = "All", yr: str = "All",
-                  se: str = "All") -> pd.DataFrame:
+def apply_filters(df: pd.DataFrame, cls: str = "All", yr=(), se=()) -> pd.DataFrame:
+    """Classification is a single choice; years and seasons are lists, empty
+    meaning all."""
     if cls != "All":
         df = df[df["classification"] == cls]
-    if yr != "All":
-        df = df[df["year"] == int(yr)]
-    if se != "All":
-        df = df[df["season_label"] == se]
+    if yr:
+        df = df[df["year"].isin([int(y) for y in yr])]
+    if se:
+        df = df[df["season_label"].isin(list(se))]
     return df
 
 
@@ -943,14 +841,17 @@ def apply_calendar_click(hit: dict, cells: pd.DataFrame, h2h: pd.DataFrame, *,
     pending = {}
     if cls != "All" and cls != crow["classification"]:
         pending["t3_class"] = crow["classification"]
-    # Year and season are mutually exclusive in this app, so a year change
-    # clears the season exactly as `_clear_other` does.
-    if yr != "All" and int(yr) != clicked[0].year:
-        pending["t3_year"] = str(clicked[0].year)
-        pending["t3_season"] = "All"
-    elif se != "All" and _season_label(clicked[0]) != se:
-        pending["t3_season"] = _season_label(clicked[0])
-        pending["t3_year"] = "All"
+    # A click outside the chosen years (or seasons) ADDS that year to the
+    # selection rather than replacing it — the reader built that set on
+    # purpose. Year and season are mutually exclusive, so touching one clears
+    # the other exactly as `_clear_other` does.
+    cy, cs = str(clicked[0].year), _season_label(clicked[0])
+    if yr and cy not in yr:
+        pending["t3_year"] = [str(y) for y in years_desc([*yr, cy])]
+        pending["t3_season"] = []
+    elif se and cs not in se:
+        pending["t3_season"] = [*se, cs]
+        pending["t3_year"] = []
     if pending:
         st.session_state["t3_pending"] = pending
         st.session_state["t3_from_click"] = True
@@ -1029,11 +930,12 @@ with st.sidebar:
         st.cache_data.clear()
         st.rerun()
 
-st.markdown(SECTION_CSS, unsafe_allow_html=True)
+st.markdown(SECTION_CSS + POPOVER_CLOSE_CSS, unsafe_allow_html=True)
 
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(
     ["🏃 parkrun & brunch", "⚔️ Head-to-head summary", "🔎 Head-to-head detail",
-     "📈 Form (target time)", "🗺️ Where they meet", "🤖 What the model guessed"]
+     "📈 Form (target time)", "🗺️ Where they meet", "🤖 What the model guessed",
+     "🧭 Where they meet (new)"]
 )
 
 # =========================================================================== #
@@ -1068,7 +970,7 @@ with tab1:
         _cal_runs = cal.load_runs(_ver)
         _cal_weeks = cal.week_frame(_cal_runs)
         _cal_tot = cal.athlete_year_totals(_cal_runs)
-        _all_years = sorted(_cal_weeks["iso_year"].unique(), reverse=True)
+        _all_years = years_desc(_cal_weeks["iso_year"])
 
         # Sized so the two controls sit next to each other rather than at
         # opposite ends of the page: the radio needs about as much room as its
@@ -1079,7 +981,7 @@ with tab1:
             key="t1_calview",
         )
         _pick_years = _c2.multiselect(
-            "Years", _all_years, default=[_all_years[0]], key="t1_calyears",
+            "Year", _all_years, default=[_all_years[0]], key="t1_calyears",
             placeholder="All years",
         )
         _cal_years = sorted(_pick_years) if _pick_years else sorted(_all_years)
@@ -1185,7 +1087,7 @@ with tab1:
                 xaxis_title="parkruns", yaxis_title=None, legend_title=None,
                 margin=dict(t=50, b=0, l=0, r=0),
             )
-            st.plotly_chart(fig2, width="stretch")
+            show_chart(fig2)
 
 # =========================================================================== #
 # TAB 2 — head-to-head summary
@@ -1307,7 +1209,9 @@ with tab2:
                             unsafe_allow_html=True,
                         )
                         total = len(target_runs[target_runs["athlete_name"] == name])
-                        with st.popover(f"{total} runs in window", width="stretch"):
+                        with closable_popover(f"{total} runs in window",
+                                              key=f"t2_runs_{name}",
+                                              width="stretch"):
                             st.markdown(
                                 f"**{name} — {total} runs in the 91-day window**"
                             )
@@ -1370,7 +1274,7 @@ with tab2:
             )
             fig3.update_layout(xaxis_title=None, yaxis_title="head-to-heads",
                                legend_title=None, margin=dict(t=10, b=0, l=0, r=0))
-            st.plotly_chart(fig3, width="stretch")
+            show_chart(fig3)
 
             # How many of each placing were run with the buggy, in the same form as
             # the map tooltips: "83 (5 🛒)". The chart keeps the plain counts — a
@@ -1404,7 +1308,7 @@ with tab2:
                     "1st places add up over time."
                 )
             else:
-                period = yr if yr != "All" else (se if se != "All" else "the entire date range")
+                period = period_text(yr, se)
                 st.caption(
                     f"Running total of 1st places in **{pick}** over "
                     f"**{period}**. A shared 1st counts for both of them."
@@ -1448,7 +1352,7 @@ with tab2:
                     )
                     fig4.update_layout(legend_title=None, hovermode="closest",
                                        margin=dict(t=10, b=0, l=0, r=0))
-                    st.plotly_chart(fig4, width="stretch")
+                    show_chart(fig4)
                     for name in no_wins:
                         st.markdown(f"_{name} has no 1st-place finishes in this selection._")
                 else:
@@ -1459,6 +1363,9 @@ with tab2:
 # =========================================================================== #
 with tab3:
     st.header("🔎 Head-to-head detail")
+    # Hiding "Choose a head-to-head" stops drawing its filters, and Streamlit
+    # then drops their values — the result below jumped to the newest contest.
+    keep_widget_state(("t3_class", "t3_year", "t3_season"))
 
     # A click on the calendar cannot write to the filter widgets directly —
     # Streamlit refuses to set a widget's state after that widget has been
@@ -1475,8 +1382,8 @@ with tab3:
     # hide what they last chose.
     pick3, yr3, se3 = (h2h_filter_row("t3") if show_pick
                        else (st.session_state.get("t3_class", "All"),
-                             st.session_state.get("t3_year", "All"),
-                             st.session_state.get("t3_season", "All")))
+                             st.session_state.get("t3_year", []),
+                             st.session_state.get("t3_season", [])))
     pool = apply_filters(h2h, pick3, yr3, se3)
 
     cells = cal.h2h_calendar_frame(h2h)
@@ -1487,7 +1394,7 @@ with tab3:
     # week you were looking at. The exception is a filter the calendar itself
     # moved: a click has just said exactly which contest it wants, and
     # re-selecting the newest would throw that away in the same breath.
-    _fkey = (pick3, yr3, se3)
+    _fkey = (pick3, tuple(yr3), tuple(se3))
     if st.session_state.get("t3_filters") != _fkey:
         st.session_state["t3_filters"] = _fkey
         if not st.session_state.pop("t3_from_click", False):
@@ -1711,7 +1618,7 @@ with tab4:
             fig.update_xaxes(autorange=True)
             fig.update_layout(legend_title=None, hovermode="closest",
                               margin=dict(t=10, b=0, l=0, r=0))
-            st.plotly_chart(fig, width="stretch")
+            show_chart(fig)
 
 # =========================================================================== #
 # TAB 5 — where the head-to-heads happen (map)
@@ -1730,7 +1637,7 @@ with tab5:
         st.info("Pick a head-to-head classification above to show the map.")
     else:
         mh = apply_filters(h2h, cls=pick5, yr=yr5, se=se5)
-        fmap = build_h2h_map(mh, load_event_coords(_ver))
+        fmap = build_h2h_map(mh, load_events_geo(_ver))
         if fmap is None:
             st.info("No head-to-heads match those filters.")
         else:
@@ -1749,3 +1656,23 @@ with tab5:
 # refactor #4 wants its loaders lifted out, not added to.
 with tab6:
     render_estimates(_ver)
+
+
+# =========================================================================== #
+# TAB 7 — where they meet, what each has run, where to go next (in trial)
+# =========================================================================== #
+# Runs beside tab 5 until it replaces it (TODO.md § Where they meet). Layout in
+# where_next.py; only the shared head-to-head filter row lives here.
+with tab7:
+    st.header("🧭 Where they meet — and where next")
+    # Two views, each with only its own filters: the head-to-head map keeps
+    # tab 5's classification / year / season row; the planner has its own.
+    # Each view's filters are off screen while the other shows, so keep them —
+    # bar the clear button and the maps, whose values cannot be set.
+    keep_widget_state(("t7_",), skip=("t7_clear", "t7_map_", "t7_filters_pop"))
+    if view_toggle() == "Head-to-heads":
+        pick7, yr7, se7 = h2h_filter_row("t7")
+        render_h2h_view(_ver, None if pick7 == "All" else
+                        apply_filters(h2h, cls=pick7, yr=yr7, se=se7))
+    else:
+        render_planner(_ver, h2h)

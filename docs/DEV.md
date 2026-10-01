@@ -99,6 +99,58 @@ rows. If the unfittable count is anything but **2** (each athlete's frontier
 run, which has one class behind it), the DB is stale, not the model broken.
 Delete it and re-seed.
 
+## Tab 7 and the travel data
+
+Tab 7 ("Where they meet (new)", `where_next.py`) runs beside tab 5 until one of
+them is chosen (TODO.md § Where they meet). A toggle switches between the
+head-to-head view and the planner. The markers are settled (30 Sep 2026): "Row, lit" lamps with a top-25 number
+inside the housing, and a black circle for a parkrun none of them has run.
+Driving times come from OpenRouteService only (chosen 30 Sep 2026; see
+`parkrun_travel.py` for why OSRM was dropped). No dev-only selectors remain:
+the filters sit behind a "⚙️ Filters" button, and runners left out of the
+ranking are grey and italic on the map and in the table. A tapped marker on a
+touch screen opens the bottom sheet; a mouse gets a tooltip. Test phone
+behaviour with Playwright's `is_mobile=True, has_touch=True` (and an iPhone
+`user_agent=`), or on a phone via the LAN URL `streamlit run` prints.
+
+Drive times come from `parkrun.travel_times`, which **only a local DB has**:
+
+```bash
+# once: the homes file, OUTSIDE the repo (chmod 600)
+#   ~/.config/parkrun/homes.csv  ->  athlete_id,latitude,longitude
+# once: the ORS key, also outside the repo (chmod 600)
+#   ~/.config/parkrun/ors_key  (or the ORS_API_KEY env var)
+#   free account at openrouteservice.org -> dashboard -> Request a token
+
+PARKRUN_PIPELINE_DB=data/parkrun_dev.duckdb \
+  python parkrun_pipeline.py travel          # ~11s: 6 requests (2 per home, ≤500 places each)
+```
+
+* **Incremental.** A second run routes nothing. It routes a pair only when that
+  pair has no row, or when the event has moved more than 200 m since it was
+  routed. `--athlete ID --force` re-routes one athlete who has moved.
+* **Never in the snapshot.** `travel_times` is not in `SNAPSHOT_TABLES`, and
+  `tests/test_where_next.py` asserts that. It holds no home coordinates, only
+  results and the *event's* coordinates. With no table, the hosted app shows
+  the done / not-done planner and a note that drive times are local-only.
+* **Not in `refresh`.** Wiring it in waits on the privacy decision in TODO.md.
+* **A running app notices a `travel` run by itself.** `load_travel` is keyed on
+  `travel_version()` (row count and latest `routed_at`), not on `data_version`,
+  which only watches results and labels.
+* **Mainland** means `parkrun_core.is_mainland`, a set of named boxes. ORS's
+  matrix endpoint cannot avoid ferries, and the OSRM demo server tried first
+  rejected `exclude=ferry` ("Exclude flag combination is not supported"). Both
+  fold a ferry into the time without saying so. Country 97 also contains the Falklands, St Helena, Cayman and Gibraltar.
+  The tests pin the awkward neighbours (Lymington, Dunoon, Crinan, Skye).
+* **The planner's markers are built in the browser** (`JsMarkers`). ~2,400
+  folium Markers would be several MB of generated script. Instead, one compact
+  point list is sent and each distinct icon is defined once (eight done-patterns,
+  plus one per recommendation number). Tooltip strings are built in Python,
+  with every name HTML-escaped, and inlined through `_js`, which writes every
+  `<` as `\u003c` so no parkrun name can end or confuse the script block.
+* A **seeded** dev DB has no travel rows, because seeding copies the snapshot.
+  Re-run `travel` after re-seeding.
+
 ## Promoting to "live"
 
 When a change is ready: commit on `dev`, merge to `main`, and (if the change
@@ -226,9 +278,11 @@ history if some future need proves otherwise.
 ## Tests
 
 ```bash
-pytest                 # from the repo root — 67 cases, ~50s
+pytest                 # from the repo root — 165 cases, ~65s
 pytest -q tests/test_buggy_estimator.py
 pytest -q tests/test_calendar.py       # fast: no model fitting
+pytest -q tests/test_where_next.py     # fast: planner, markers, mainland, travel
+pytest -q tests/test_ui.py             # zoom lock, stat slots, one app smoke run
 ```
 
 **pytest is a dev tool, deliberately not in `requirements.txt`** — same

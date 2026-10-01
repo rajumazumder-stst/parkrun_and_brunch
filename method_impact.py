@@ -25,6 +25,7 @@ from parkrun_ui import (
     _read_sql,
     _victory_fig,
     _winning_margin,
+    show_chart,
 )
 
 
@@ -255,7 +256,7 @@ def render_impact(version: str) -> None:
         st.markdown(_h2h_headline(o))
         f = _victory_fig(o)
         f.update_xaxes(range=XR)
-        st.plotly_chart(f, width="stretch", key="old")
+        show_chart(f, key="old")
 
     st.markdown("##### New method — per-mode median + handicap bridge")
     if n is None:
@@ -264,7 +265,7 @@ def render_impact(version: str) -> None:
         st.markdown(_h2h_headline(n))
         f = _victory_fig(n)
         f.update_xaxes(range=XR)
-        st.plotly_chart(f, width="stretch", key="new")
+        show_chart(f, key="new")
 
     if n is not None and o is not None:
         om, nm = _winning_margin(o), _winning_margin(n)

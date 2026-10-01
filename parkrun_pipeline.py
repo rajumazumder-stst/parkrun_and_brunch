@@ -16,6 +16,8 @@ Usage:
     python parkrun_pipeline.py snapshot    # rebuild the deploy snapshot only
     python parkrun_pipeline.py seed [FILE] # fill an EMPTY DB from a snapshot
     python parkrun_pipeline.py motherduck  # push parkrun-only data to MotherDuck
+    python parkrun_pipeline.py travel [--athlete ID] [--force]
+                                           # drive times, homes -> mainland GB (Mac only)
 
 bootstrap and refresh rebuild the deploy snapshot (data/parkrun_snapshot.duckdb)
 automatically; `snapshot` rebuilds just that file from the current DB.
@@ -57,7 +59,7 @@ import parkrun_core
 # Configuration
 # --------------------------------------------------------------------------- #
 DB_PATH = Path.home() / "Documents" / "duckdb" / "my_database.duckdb"
-SCHEMA = "parkrun"
+SCHEMA = parkrun_core.SCHEMA
 DATA_DIR = Path(__file__).parent / "data"
 
 # Read-only, parkrun-ONLY DuckDB the hosted app serves (see CLAUDE.md). Tables
@@ -1891,6 +1893,23 @@ def main() -> None:
             # exists to make the ~33s land while someone is watching rather
             # than inside a Saturday cron. Idempotent either way.
             build_model_estimates(con, backfill="--backfill" in sys.argv)
+        elif cmd == "travel":
+            # Drive times from each home to every mainland-GB parkrun, for the
+            # tab 7 planner. Incremental: only missing or moved pairs unless
+            # --force. Not part of `refresh` yet, and `travel_times` is not in
+            # SNAPSHOT_TABLES — see parkrun_travel.py for why.
+            import parkrun_travel
+
+            args = sys.argv[2:]
+
+            def _opt(flag):
+                return args[args.index(flag) + 1] if flag in args else None
+
+            ath = _opt("--athlete")
+            parkrun_travel.update_travel_times(
+                con, athletes=None if ath is None else {int(ath)},
+                force="--force" in args, log=log,
+            )
         elif cmd == "motherduck":
             # (Re)seed the cloud FROM a local DB; sourcing from md: is nonsensical.
             if is_md:

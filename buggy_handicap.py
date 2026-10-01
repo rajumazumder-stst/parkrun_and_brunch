@@ -26,7 +26,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from scipy import stats as sps
 
-from parkrun_ui import BUGGY_GLYPH, _read_sql, fmt_time
+from parkrun_ui import BUGGY_GLYPH, _read_sql, fmt_time, show_chart
 
 # One pair for both athletes: the series here is the MODE, not the runner, so
 # the same two colours must mean the same two things on every chart it draws.
@@ -262,7 +262,7 @@ def render_handicap(version: str) -> None:
             st.warning("Too few runs in one mode to estimate anything.")
             continue
 
-        st.plotly_chart(_dist_fig(name, keep), width="stretch", key=f"dist_{name}")
+        show_chart(_dist_fig(name, keep), key=f"dist_{name}")
         if len(dropped):
             st.caption(
                 "Set aside as beyond Q3 + 3·IQR: "

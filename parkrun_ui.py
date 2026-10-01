@@ -13,13 +13,15 @@ method difference indistinguishable from a rounding difference.
 from __future__ import annotations
 
 import os
-from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import duckdb
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+
+from parkrun_core import SNAPSHOT
+
 
 def _resolve_db_path() -> str:
     """Locate the DuckDB to read, in priority order:
@@ -39,7 +41,7 @@ def _resolve_db_path() -> str:
             return str(secret)
     except Exception:
         pass
-    return str(Path(__file__).resolve().parent / "data" / "parkrun_snapshot.duckdb")
+    return str(SNAPSHOT)
 
 
 def _ensure_motherduck_token() -> None:
@@ -126,6 +128,179 @@ def fmt_time(sec) -> str:
 
 
 UK_TZ = ZoneInfo("Europe/London")
+
+
+# --------------------------------------------------------------------------- #
+# Filters
+# --------------------------------------------------------------------------- #
+def years_desc(values) -> list:
+    """The distinct years in `values`, newest first — the one order every year
+    filter in the app offers (docs/STYLE.md § Filters). The most recent year is
+    the one most often wanted, so it leads rather than sitting at the end of a
+    list that grows every January. Keeps the values' own type."""
+    return sorted(set(values), reverse=True)
+
+
+# --------------------------------------------------------------------------- #
+# Pop-over panels — every one gets a Close button on a phone
+# --------------------------------------------------------------------------- #
+# A popover closes when you tap outside it, but on a phone a tall one fills
+# the screen and there is no "outside" left to tap. The button closes it by
+# setting the popover's own state, which Streamlit allows for a keyed popover
+# with `on_change="rerun"`. Desktop keeps the old behaviour: the button is
+# hidden above the 640px breakpoint, where the outside is always in reach.
+POPOVER_CLOSE_PREFIX = "popclose-"
+# Injected once per page by the page script (parkrun_app does, beside its
+# SECTION_CSS): a <style> emitted inside each popover took a row of its own and
+# left a gap above the button.
+POPOVER_CLOSE_CSS = f"""<style>
+[class*="st-key-{POPOVER_CLOSE_PREFIX}"],
+[class*="st-key-{POPOVER_CLOSE_PREFIX}"] [data-testid="stButton"] {{
+  display: flex; justify-content: flex-end; width: 100%;
+}}
+[class*="st-key-{POPOVER_CLOSE_PREFIX}"] button {{
+  min-height: 0; padding: 2px 4px; width: auto !important; margin-left: auto;
+}}
+@media (min-width: 641px) {{
+  [class*="st-key-{POPOVER_CLOSE_PREFIX}"] {{ display: none !important; }}
+}}
+</style>"""
+
+
+def _close_popover(key: str) -> None:
+    st.session_state[key] = False
+
+
+def closable_popover(label: str, key: str, **kwargs):
+    """`st.popover` with a Close ✕ button at the top of its panel (phone only).
+    Use it for every popover in the app, so they all close the same way."""
+    pop = st.popover(label, key=key, on_change="rerun", **kwargs)
+    with pop:
+        st.button("Close ✕", key=f"{POPOVER_CLOSE_PREFIX}{key}", type="tertiary",
+                  on_click=_close_popover, args=(key,))
+    return pop
+
+
+def keep_widget_state(prefixes: tuple, skip: tuple = ()) -> None:
+    """Keep widget values alive across runs where the widget is not drawn.
+
+    Streamlit deletes a widget's session-state entry on any run that does not
+    render that widget — a section hidden by its toggle, or the other view of
+    tab 7 — so its filters came back at their defaults. Writing each key back
+    to itself before the widgets are created is Streamlit's documented way to
+    keep it. Call at the top of the block, every run.
+
+    `skip` names keys that must not be written: a button's or a component's
+    value cannot be set through session state, and Streamlit raises if one is.
+    """
+    ss = st.session_state
+    for k in list(ss.keys()):
+        if (isinstance(k, str) and k.startswith(prefixes)
+                and not k.startswith(skip)):
+            ss[k] = ss[k]
+
+
+# --------------------------------------------------------------------------- #
+# Stat slots — a headline number with its label above and a note below
+# --------------------------------------------------------------------------- #
+# The anatomy of the tab 2 personal-best scopes, shared so every headline
+# number in the app reads the same way (docs/STYLE.md § Stat slots):
+#
+#     label   small, full opacity       "All time" / "right overall"
+#     value   big, 600, tabular figures "21:36"    / "85%"
+#     note    small, muted              "Bushy Park" / "of 34"
+#
+# The classes are what the phone media query (`stat_phone_css`) re-sizes; the
+# inline styles stay the desktop default, so a slot still renders correctly if
+# that stylesheet ever fails to inject.
+STAT_SMALL = "0.82rem"
+STAT_BIG = "1.65rem"
+STAT_LINE = 1.35  # line-height of the small type, in em
+STAT_PHONE_BREAKPOINT = "640px"
+STAT_PHONE_BIG = "1.05rem"    # the value, shrunk to fit three or four across a phone
+STAT_PHONE_SMALL = "0.66rem"  # label and note at that width
+
+
+def stat_label(text: str, lines: int = 1) -> str:
+    """`lines` > 1 reserves that many lines and sits the text on the bottom
+    one, so a label that wraps on a narrow screen does not push its value below
+    its neighbours'. The PB scopes use 1: they are fixed words that fit."""
+    box = ""
+    if lines > 1:
+        box = (f"height:{lines * STAT_LINE:.2f}em;display:flex;"
+               "flex-direction:column;justify-content:flex-end;")
+    return (f"<div class='pb-small' style='font-size:{STAT_SMALL};"
+            f"line-height:{STAT_LINE};{box}'><span>{text}</span></div>")
+
+
+def stat_value(text: str, *, color: str | None = None) -> str:
+    col = f"color:{color};" if color else ""
+    return (f"<div class='pb-big' style='font-size:{STAT_BIG};font-weight:600;"
+            f"line-height:1.15;font-variant-numeric:tabular-nums;{col}'>{text}</div>")
+
+
+def stat_note(text: str) -> str:
+    """Muted. An empty note still takes its line (a non-breaking space), so
+    values sit on one level whether or not their neighbours carry a note."""
+    return (f"<div class='pb-small' style='font-size:{STAT_SMALL};opacity:.72;"
+            f"line-height:{STAT_LINE}'>{text or '&nbsp;'}</div>")
+
+
+def stat_phone_css(block_key: str, row_key_prefix: str) -> str:
+    """The phone rules for a block of stat slots, as a <style> string.
+
+    Type sizes hang off the whole keyed block; un-stacking is scoped to the
+    keyed slot rows. Streamlit stacks every column below its own 640px
+    breakpoint and sets a per-column min-width that forces the wrap whatever
+    `flex-wrap` says, so `flex:1 1 0` with `min-width:0` is what actually keeps
+    the slots side by side. Only rows whose key starts with `row_key_prefix`
+    are touched — no other column layout in the app."""
+    return f"""
+        @media (max-width: {STAT_PHONE_BREAKPOINT}) {{
+          .st-key-{block_key} .pb-big {{
+              font-size: {STAT_PHONE_BIG} !important;
+          }}
+          .st-key-{block_key} .pb-small {{
+              font-size: {STAT_PHONE_SMALL} !important;
+          }}
+          [class*="st-key-{row_key_prefix}"] [data-testid="stHorizontalBlock"] {{
+              flex-wrap: nowrap !important;
+              gap: 0.4rem !important;
+          }}
+          [class*="st-key-{row_key_prefix}"] [data-testid="stColumn"] {{
+              flex: 1 1 0 !important;
+              min-width: 0 !important;
+              width: auto !important;
+          }}
+        }}"""
+
+
+# --------------------------------------------------------------------------- #
+# Charts — every plotly chart in both apps goes through `show_chart`
+# --------------------------------------------------------------------------- #
+# Zoom and pan are locked. On a phone a swipe that starts on a chart was being
+# taken as a pan/zoom of that chart, so the page could not be scrolled past it;
+# nothing here needs zooming, and the date-filtered charts have year/season
+# filters for narrowing the range. `fixedrange` stops the drag; the config stops
+# wheel zoom and double-click reset and hides the mode bar, whose zoom buttons
+# would otherwise still work. Legend clicks are untouched — they still hide a
+# trace — and autorange still rescales to whatever is left visible.
+PLOTLY_CONFIG = {"scrollZoom": False, "displayModeBar": False, "doubleClick": False}
+
+
+def lock_zoom(fig: go.Figure) -> go.Figure:
+    """Fix every axis so a drag on the chart cannot pan or zoom it."""
+    fig.update_xaxes(fixedrange=True)
+    fig.update_yaxes(fixedrange=True)
+    return fig
+
+
+def show_chart(fig: go.Figure, **kwargs) -> None:
+    """`st.plotly_chart` with the zoom lock applied. The one place a plotly
+    chart is rendered — `tests/test_ui.py` asserts there is no other — so a new
+    chart cannot forget it."""
+    kwargs.setdefault("width", "stretch")
+    st.plotly_chart(lock_zoom(fig), config=PLOTLY_CONFIG, **kwargs)
 
 
 

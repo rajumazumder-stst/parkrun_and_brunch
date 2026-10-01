@@ -28,6 +28,12 @@ from parkrun_ui import (
     REGULAR_LABEL,
     _read_sql,
     _surface_color,
+    show_chart,
+    years_desc,
+    stat_label,
+    stat_note,
+    stat_phone_css,
+    stat_value,
 )
 
 # Red for a wrong call. Deliberately local rather than in `parkrun_ui`: one
@@ -204,7 +210,7 @@ def filter_row(df: pd.DataFrame) -> dict:
         sel[key] = _strip_count(st.session_state.get(f"t6_{key}", []))
 
     universes = {
-        "year": sorted(df["year"].unique()),
+        "year": years_desc(df["year"]),
         "venue": sorted(df["short_name"].unique()),
         "outcome": OUTCOME_ORDER,
         "review": [r for r in REVIEW_ORDER if r in set(df["review"])],
@@ -244,13 +250,15 @@ def _phrase(chosen, noun) -> str | None:
 # --------------------------------------------------------------------------- #
 # Pieces
 # --------------------------------------------------------------------------- #
-def _tiles(pop: pd.DataFrame) -> None:
+def _tiles(pop: pd.DataFrame, name: str) -> None:
     """Reliability, over the population-filtered set only.
 
-    The n lives in the label rather than a tooltip: "85% right, of 34" and "of
-    4" are different claims. A direction right less than half the time is
-    coloured — worse than a coin flip on a binary call is a real line, not an
-    invented threshold.
+    Stat slots, as in tab 2's personal bests (docs/STYLE.md § Stat slots):
+    label above, the figure, then the n as a note. The n is on the page rather
+    than in a tooltip: "85% right, of 34" and "of 4" are different claims. A
+    direction right less than half the time is coloured — worse than a coin
+    flip on a binary call is a real line, not an invented threshold — and a
+    figure over fewer than THIN_N calls is dimmed.
     """
     scored = pop[pop["status"] == "scored"]
     bug = scored[scored["called_buggy"]]
@@ -263,27 +271,26 @@ def _tiles(pop: pd.DataFrame) -> None:
 
     overall, bug_pct, reg_pct = fig(scored), fig(bug), fig(reg)
     cells = [
-        (f"{len(pop)}", "calls in scope", False, False),
-        ("—" if overall is None else f"{overall}%", "right overall",
-         False, len(scored) < THIN_N),
-        ("—" if bug_pct is None else f"{bug_pct}%",
-         f"{BUGGY_GLYPH} buggy calls right, of {len(bug)}",
+        ("calls in scope", f"{len(pop)}", "", False, False),
+        ("right overall", "—" if overall is None else f"{overall}%",
+         f"of {len(scored)}", False, len(scored) < THIN_N),
+        (f"{BUGGY_GLYPH} buggy calls right",
+         "—" if bug_pct is None else f"{bug_pct}%", f"of {len(bug)}",
          bug_pct is not None and bug_pct < 50, len(bug) < THIN_N),
-        ("—" if reg_pct is None else f"{reg_pct}%",
-         f"{REGULAR_LABEL} calls right, of {len(reg)}",
+        (f"{REGULAR_LABEL} calls right",
+         "—" if reg_pct is None else f"{reg_pct}%", f"of {len(reg)}",
          reg_pct is not None and reg_pct < 50, len(reg) < THIN_N),
     ]
-    for col, (big, label, bad, thin) in zip(st.columns(len(cells)), cells):
-        style = "font-size:2rem;font-weight:700;line-height:1.1;" \
-                "font-variant-numeric:tabular-nums;"
-        if bad:
-            style += f"color:{ERR};"
-        if thin:
-            style += "opacity:.45;font-weight:600;"
+    key = f"t6-tiles-{name}"
+    st.markdown(f"<style>{stat_phone_css(key, 't6-tiles-')}</style>",
+                unsafe_allow_html=True)
+    row = st.container(key=key)
+    for col, (label, big, note, bad, thin) in zip(row.columns(len(cells)), cells):
+        dim = "opacity:.45" if thin else ""
         col.markdown(
-            f"<div style='{style}'>{big}</div>"
-            f"<div style='font-size:13px;opacity:.72;line-height:1.35;"
-            f"margin-top:2px'>{label}</div>",
+            f"<div style='{dim}'>{stat_label(label, lines=2)}"
+            f"{stat_value(big, color=ERR if bad else None)}"
+            f"{stat_note(note)}</div>",
             unsafe_allow_html=True,
         )
 
@@ -398,15 +405,14 @@ def _athlete(df: pd.DataFrame, sel: dict, name: str) -> pd.DataFrame:
             f"{note}</span></div>",
             unsafe_allow_html=True,
         )
-        _tiles(pop)
+        _tiles(pop, name)
 
         if rows.empty:
             st.info("No calls match the Model call / Review filters.")
             return rows
 
         if (rows["status"] == "scored").any():
-            st.plotly_chart(_strip_fig(rows, name), width="stretch",
-                            key=f"t6_strip_{name}")
+            show_chart(_strip_fig(rows, name), key=f"t6_strip_{name}")
         st.markdown(
             f"**Calls** {len(rows)}"
             + (f" of {len(pop)}" if len(rows) < len(pop) else "")
