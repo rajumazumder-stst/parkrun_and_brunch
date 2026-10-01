@@ -1924,7 +1924,7 @@ def main() -> None:
             build_model_estimates(con, backfill="--backfill" in sys.argv)
         elif cmd == "travel":
             # Drive times from each neighbourhood centroid to every
-            # mainland-GB parkrun, for the tab 7 planner. The refresh does
+            # mainland-GB parkrun, for the tab 5 planner. The refresh does
             # this itself (apply_travel_times); this is for a forced re-route
             # when someone moves. Incremental unless --force.
             args = sys.argv[2:]

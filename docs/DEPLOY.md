@@ -84,7 +84,7 @@ over two page scripts.
 
 | Path | Page | Contents |
 |---|---|---|
-| `/` | `parkrun_app.py` | the seven tabs |
+| `/` | `parkrun_app.py` | the six tabs |
 | `/buggy-handicap` | `handicap_page.py` | what the buggy costs · what labelling changed |
 
 `/buggy-handicap` is **unlisted, not access-controlled** — hidden navigation

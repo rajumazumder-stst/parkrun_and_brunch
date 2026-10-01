@@ -35,7 +35,6 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 from matplotlib_venn import venn3
-from streamlit_folium import st_folium
 
 import parkrun_calendar as cal
 from estimator_tab import render_estimates
@@ -69,8 +68,7 @@ from parkrun_ui import (  # shared with label_impact.py — see that module
     stat_phone_css,
     stat_value,
 )
-from where_next import (build_h2h_map, load_events_geo, render_h2h_view,
-                        render_planner, view_toggle)
+from where_next import render_h2h_view, render_planner, view_toggle
 
 # Logo built by scripts/build_logo.py (three runners in ATHLETE_COLORS on a
 # fried egg). Resolved off __file__, not the CWD, so it survives being launched
@@ -932,10 +930,9 @@ with st.sidebar:
 
 st.markdown(SECTION_CSS + POPOVER_CLOSE_CSS, unsafe_allow_html=True)
 
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
     ["🏃 parkrun & brunch", "⚔️ Head-to-head summary", "🔎 Head-to-head detail",
-     "📈 Form (target time)", "🗺️ Where they meet", "🤖 What the model guessed",
-     "🧭 Where they meet (new)"]
+     "📈 Form (target time)", "🗺️ Where they meet", "🤖 What the model guessed"]
 )
 
 # =========================================================================== #
@@ -1621,31 +1618,24 @@ with tab4:
             show_chart(fig)
 
 # =========================================================================== #
-# TAB 5 — where the head-to-heads happen (map)
+# TAB 5 — where they meet, what each has run, where to go next
 # =========================================================================== #
+# Layout in where_next.py; only the shared head-to-head filter row lives here.
+# It replaced the head-to-head-only map that held this position until 1 Oct
+# 2026, whose pies are now its head-to-head view.
 with tab5:
-    st.header("🗺️ Where the head-to-heads happen")
-    st.caption(
-        "Every parkrun where two or more of them have raced each other. "
-        "Each circle is sized by how many head-to-heads happened there and "
-        "split by who won them, in their colours. Hover a circle for the "
-        "breakdown."
-    )
-    pick5, yr5, se5 = h2h_filter_row("t5")
-
-    if pick5 == "All":
-        st.info("Pick a head-to-head classification above to show the map.")
+    st.header("🗺️ Where they meet — and where next")
+    # Two views, each with only its own filters: the head-to-head map keeps
+    # the classification / year / season row; the planner has its own.
+    # Each view's filters are off screen while the other shows, so keep them —
+    # bar the clear button and the maps, whose values cannot be set.
+    keep_widget_state(("t5_",), skip=("t5_clear", "t5_map_", "t5_filters_pop"))
+    if view_toggle() == "Head-to-heads":
+        pick5, yr5, se5 = h2h_filter_row("t5")
+        render_h2h_view(_ver, None if pick5 == "All" else
+                        apply_filters(h2h, cls=pick5, yr=yr5, se=se5))
     else:
-        mh = apply_filters(h2h, cls=pick5, yr=yr5, se=se5)
-        fmap = build_h2h_map(mh, load_events_geo(_ver))
-        if fmap is None:
-            st.info("No head-to-heads match those filters.")
-        else:
-            n_venues = mh["event_id"].nunique()
-            n_occ = mh.drop_duplicates(["event_id", "run_date"]).shape[0]
-            st.caption(f"**{n_venues}** venue{'s' if n_venues != 1 else ''} · "
-                       f"**{n_occ}** head-to-head{'s' if n_occ != 1 else ''}")
-            st_folium(fmap, height=520, returned_objects=[])
+        render_planner(_ver, h2h)
 
 
 # =========================================================================== #
@@ -1656,23 +1646,3 @@ with tab5:
 # refactor #4 wants its loaders lifted out, not added to.
 with tab6:
     render_estimates(_ver)
-
-
-# =========================================================================== #
-# TAB 7 — where they meet, what each has run, where to go next (in trial)
-# =========================================================================== #
-# Runs beside tab 5 until it replaces it (TODO.md § Where they meet). Layout in
-# where_next.py; only the shared head-to-head filter row lives here.
-with tab7:
-    st.header("🧭 Where they meet — and where next")
-    # Two views, each with only its own filters: the head-to-head map keeps
-    # tab 5's classification / year / season row; the planner has its own.
-    # Each view's filters are off screen while the other shows, so keep them —
-    # bar the clear button and the maps, whose values cannot be set.
-    keep_widget_state(("t7_",), skip=("t7_clear", "t7_map_", "t7_filters_pop"))
-    if view_toggle() == "Head-to-heads":
-        pick7, yr7, se7 = h2h_filter_row("t7")
-        render_h2h_view(_ver, None if pick7 == "All" else
-                        apply_filters(h2h, cls=pick7, yr=yr7, se=se7))
-    else:
-        render_planner(_ver, h2h)

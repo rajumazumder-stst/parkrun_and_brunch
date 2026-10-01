@@ -1,5 +1,5 @@
 """Driving time and distance from each athlete's neighbourhood to every
-mainland-GB parkrun — the data behind the tab 7 planner.
+mainland-GB parkrun — the data behind the tab 5 planner.
 
 Run by every refresh (`parkrun_pipeline.apply_travel_times`), on the Mac only;
 by hand to force a re-route when someone moves:

@@ -1,4 +1,4 @@
-"""Tab 7 — the planner, the done markers, the mainland rule and the travel
+"""Tab 5 (where they meet) — the planner, the done markers, the mainland rule and the travel
 top-ups.
 
 No app runtime, no project database and no network: every test builds its own

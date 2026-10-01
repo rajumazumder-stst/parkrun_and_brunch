@@ -65,7 +65,7 @@ TRAINING_SOURCES = ("user", "model")
 
 
 # --- mainland Great Britain ------------------------------------------------
-# The tab 7 planner and parkrun_travel must agree on which parkruns are
+# The tab 5 planner and parkrun_travel must agree on which parkruns are
 # candidates: the travel step routes only these, and the app lists only these
 # when it has no drive times to go on.
 class Box(NamedTuple):

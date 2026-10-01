@@ -1,10 +1,11 @@
-"""Tab 7 — where they meet, and where to go next.
+"""Tab 5 — where they meet, and where to go next.
 
-The enhanced successor to tab 5, run beside it until one is chosen (TODO.md §
-Where they meet). A toggle switches between two views of one Folium map, each
-with only its own filters:
+Built as a trial tab 7 beside the old head-to-head-only map, and moved into
+that map's place — tab 5 — on 1 Oct 2026. A toggle switches between two views
+of one Folium map, each with only its own filters:
 
-- **Head-to-heads** — tab 5's pies (the same functions draw both), filtered by
+- **Head-to-heads** — one pie per venue, sized by the number of head-to-heads
+  and split by who won them (the old tab 5's map), filtered by
   classification, year and season.
 - **Planner** (the default) — every regular (5k) parkrun in three layers:
   the top recommendations (numbered), parkruns at least one of them has run
@@ -14,8 +15,9 @@ with only its own filters:
   happened there and, when the database holds `travel_times`, driving time
   and distance from each home; ranked by total driving time or distance.
 
-`travel_times` exists only in a local DB (parkrun_travel.py). The hosted app
-gets every filter but the driving ones, and a note saying why.
+Driving times come from `travel_times` (parkrun_travel.py), which every
+refresh tops up and the deploy snapshot ships. A database without it still
+works: the planner drops the driving filters and lists matches A–Z.
 
 The planner draws ~2,400 parkruns. Built as one folium Marker each, that is
 several MB of generated script, so the markers are built in the browser
@@ -392,7 +394,7 @@ def _icon(svg: str, w: int, h: int) -> folium.DivIcon:
 
 
 # --------------------------------------------------------------------------- #
-# Head-to-head layer (shared with tab 5)
+# Head-to-head layer
 # --------------------------------------------------------------------------- #
 def h2h_venues(mh: pd.DataFrame, coords: pd.DataFrame) -> list:
     """[(event_id, lat, lon, diameter, svg, tooltip)] — one pie per venue,
@@ -431,27 +433,6 @@ def h2h_venues(mh: pd.DataFrame, coords: pd.DataFrame) -> list:
                f"{count} head-to-head{'s' if count != 1 else ''}<br>{breakdown}")
         venues.append((event_id, lat, lon, d, _pie_svg(wdict, d), tip))
     return venues
-
-
-def build_h2h_map(mh: pd.DataFrame, coords: pd.DataFrame):
-    """Folium map of head-to-head venues (tab 5). `mh` is a (filtered) slice of
-    v_head_to_head; `coords` maps event_id → lat/lon/name. Returns a folium.Map,
-    or None when there's nothing to plot."""
-    venues = h2h_venues(mh, coords)
-    if not venues:
-        return None
-    lats = [v[1] for v in venues]
-    lons = [v[2] for v in venues]
-    center = [sum(lats) / len(lats), sum(lons) / len(lons)]
-    fmap = folium.Map(location=center, zoom_start=11 if len(venues) == 1 else 5,
-                      tiles="OpenStreetMap", control_scale=True)
-    for _, lat, lon, d, svg, tip in venues:
-        folium.Marker(
-            [lat, lon], icon=_icon(svg, d, d), tooltip=folium.Tooltip(tip),
-        ).add_to(fmap)
-    if len(venues) > 1:
-        fmap.fit_bounds([[min(lats), min(lons)], [max(lats), max(lons)]])
-    return fmap
 
 
 # --------------------------------------------------------------------------- #
@@ -827,7 +808,7 @@ def _base_map() -> folium.Map:
 
 
 def build_h2h_view_map(venues: list):
-    """The head-to-head view: tab 5's pies, opening on London, with the counter.
+    """The head-to-head view: a pie per venue, opening on London, with the counter.
     Built with JsMarkers, like the planner, so both views label alike."""
     fmap = _base_map()
     g = folium.FeatureGroup(name=LAYER_H2H, show=True).add_to(fmap)
@@ -945,15 +926,15 @@ def _show_map(fmap, counted: dict, key: str, what: str) -> None:
 def _first(key: str, value):
     """A widget's default on the run that creates its state, None after.
 
-    keep_widget_state writes every tab 7 key back each run, and Streamlit
+    keep_widget_state writes every tab 5 key back each run, and Streamlit
     warns about a widget that has both a `default=` and a value set through
     session state. Once the state exists the default is ignored anyway."""
     return value if key not in st.session_state else None
 
 
 def view_toggle() -> str:
-    return st.segmented_control("View", VIEWS, default=_first("t7_view", VIEWS[0]),
-                                key="t7_view",
+    return st.segmented_control("View", VIEWS, default=_first("t5_view", VIEWS[0]),
+                                key="t5_view",
                                 label_visibility="collapsed") or VIEWS[0]
 
 
@@ -1020,8 +1001,8 @@ def range_filter(label: str, key: str, top, step, unit: str):
 # each widget comes back at its default on the rerun — for a range, the full
 # track (range_filter re-seeds its three keys when they are missing). Units
 # and the view toggle are settings, not filters, and are left alone.
-PLANNER_FILTER_KEYS = ("t7_countries", "t7_done_", "t7_h2h_", "t7_min_",
-                       "t7_dist_", "t7_rank_by", "t7_exclude")
+PLANNER_FILTER_KEYS = ("t5_countries", "t5_done_", "t5_h2h_", "t5_min_",
+                       "t5_dist_", "t5_rank_by", "t5_exclude")
 
 
 def clear_planner_filters() -> None:
@@ -1108,7 +1089,8 @@ def _legend_html(ranked_by_drive: bool) -> str:
 # --------------------------------------------------------------------------- #
 def render_h2h_view(version, mh: pd.DataFrame | None) -> None:
     """`mh` is the filtered head-to-head slice, or None when no classification
-    is picked — tab 5's rule."""
+    is picked: pies pooled across 2-way and 3-way contests would not mean
+    one thing."""
     if mh is None:
         st.info("Pick a head-to-head classification above to show the map.")
         return
@@ -1122,7 +1104,7 @@ def render_h2h_view(version, mh: pd.DataFrame | None) -> None:
                f"circle is sized by how many head-to-heads happened there and "
                f"split by who won them.")
     fmap, counted = build_h2h_view_map(venues)
-    _show_map(fmap, counted, "t7_map_h2h", "venues")
+    _show_map(fmap, counted, "t5_map_h2h", "venues")
 
 
 # The planner's filters sit behind a "⚙️ Filters" button (chosen 1 Oct 2026
@@ -1136,8 +1118,8 @@ def _planner_filters(*, counts, hc, travel, has_travel, base) -> dict:
     out["countries"] = st.multiselect(
         "Countries", list(counts.index),
         format_func=lambda c: f"{c} ({counts[c]})",
-        key="t7_countries", placeholder="All countries")
-    st.button("Clear all filters", key="t7_clear", width="stretch",
+        key="t5_countries", placeholder="All countries")
+    st.button("Clear all filters", key="t5_clear", width="stretch",
               on_click=clear_planner_filters,
               help="Every filter back to its default: all countries, anyone, "
                    "any head-to-head, the full driving ranges, nothing left "
@@ -1147,29 +1129,29 @@ def _planner_filters(*, counts, hc, travel, has_travel, base) -> dict:
     if has_travel:
         c1, c2 = st.container(), st.container()
         units = c1.segmented_control("Units", ["miles", "km"],
-                                     default=_first("t7_units", "miles"),
-                                     key="t7_units") or "miles"
+                                     default=_first("t5_units", "miles"),
+                                     key="t5_units") or "miles"
         metric_label = c2.segmented_control(
             "Rank by total", ["Driving time", "Driving distance"],
-            default=_first("t7_rank_metric", "Driving time"),
-            key="t7_rank_metric",
+            default=_first("t5_rank_metric", "Driving time"),
+            key="t5_rank_metric",
             help="What the recommendations are ordered by; the other breaks "
                  "ties.") or "Driving time"
         metric = "distance" if metric_label == "Driving distance" else "time"
         routed = [n for n in ATHLETES
                   if not travel[travel["athlete_name"] == n].empty]
         rank_by = st.multiselect(
-            "… of", routed, default=_first("t7_rank_by", routed),
-            key="t7_rank_by",
+            "… of", routed, default=_first("t5_rank_by", routed),
+            key="t5_rank_by",
             help="Whose journeys are summed — one, two or all three. A runner "
                  "left out is marked as not ranked.")
     out.update(units=units, metric=metric, rank_by=rank_by)
 
     classes = sorted(hc["classification"].unique())
     out["done_filter"] = _choice_rows("Who has run it", ATHLETES,
-                                      DONE_CHOICES, "t7_done")
+                                      DONE_CHOICES, "t5_done")
     out["h2h_filter"] = _choice_rows("Head-to-heads there", classes,
-                                     H2H_CHOICES, "t7_h2h", dot=False)
+                                     H2H_CHOICES, "t5_h2h", dot=False)
 
     minutes_range, distance_range = {}, {}
     if has_travel:
@@ -1188,13 +1170,13 @@ def _planner_filters(*, counts, hc, travel, has_travel, base) -> dict:
                     if metric_key == "min":
                         top = int(math.ceil(mine["duration_s"].max() / 60 / 10) * 10)
                         minutes_range[name] = range_filter(
-                            f"{name} driving time", f"t7_min_{name}", top, 5, "min")
+                            f"{name} driving time", f"t5_min_{name}", top, 5, "min")
                     else:
                         top = float(math.ceil(mine["distance_m"].max() / per / 10) * 10)
                         # Keyed by unit: a mile range is not a km range.
                         distance_range[name] = range_filter(
                             f"{name} driving distance",
-                            f"t7_dist_{name}_{units}", top, 0.1, unit)
+                            f"t5_dist_{name}_{units}", top, 0.1, unit)
     out.update(minutes_range=minutes_range, distance_range=distance_range)
 
     # Session state only: a reload clears it. Options are every candidate, not
@@ -1202,7 +1184,7 @@ def _planner_filters(*, counts, hc, travel, has_travel, base) -> dict:
     out["exclude"] = st.multiselect(
         "Leave out these parkruns", base["event_id"].tolist(),
         format_func=dict(zip(base["event_id"], base["short_name"])).get,
-        key="t7_exclude", placeholder="None left out")
+        key="t5_exclude", placeholder="None left out")
     return out
 
 
@@ -1227,7 +1209,7 @@ def render_planner(version, h2h: pd.DataFrame) -> None:
            ". There are no driving times in this database yet.")
     )
     base = plan_candidates(events, done, None, done_filter={})
-    with closable_popover("⚙️ Filters", key="t7_filters_pop", width="stretch"):
+    with closable_popover("⚙️ Filters", key="t5_filters_pop", width="stretch"):
         f = _planner_filters(counts=counts, hc=hc, travel=travel,
                              has_travel=has_travel, base=base)
     st.markdown(_legend_html(has_travel), unsafe_allow_html=True)
@@ -1252,7 +1234,7 @@ def render_planner(version, h2h: pd.DataFrame) -> None:
         parkruns=filter_countries(parkruns, f["countries"]), dt=dt,
         candidates=cands if filtered else None, h2h_by_event=h2h_index(hc),
         units=units, rank_by=rank_by, metric=f["metric"])
-    _show_map(fmap, counted, "t7_map_plan", "parkruns")
+    _show_map(fmap, counted, "t5_map_plan", "parkruns")
 
     if not filtered:
         st.caption("Set a filter to pick out possible next parkruns.")
