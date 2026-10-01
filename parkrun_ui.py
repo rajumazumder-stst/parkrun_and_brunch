@@ -129,6 +129,76 @@ UK_TZ = ZoneInfo("Europe/London")
 
 
 # --------------------------------------------------------------------------- #
+# Filters
+# --------------------------------------------------------------------------- #
+def years_desc(values) -> list:
+    """The distinct years in `values`, newest first — the one order every year
+    filter in the app offers (docs/STYLE.md § Filters). The most recent year is
+    the one most often wanted, so it leads rather than sitting at the end of a
+    list that grows every January. Keeps the values' own type."""
+    return sorted(set(values), reverse=True)
+
+
+# --------------------------------------------------------------------------- #
+# Pop-over panels — every one gets a Close button on a phone
+# --------------------------------------------------------------------------- #
+# A popover closes when you tap outside it, but on a phone a tall one fills
+# the screen and there is no "outside" left to tap. The button closes it by
+# setting the popover's own state, which Streamlit allows for a keyed popover
+# with `on_change="rerun"`. Desktop keeps the old behaviour: the button is
+# hidden above the 640px breakpoint, where the outside is always in reach.
+POPOVER_CLOSE_PREFIX = "popclose-"
+# Injected once per page by the page script (parkrun_app does, beside its
+# SECTION_CSS): a <style> emitted inside each popover took a row of its own and
+# left a gap above the button.
+POPOVER_CLOSE_CSS = f"""<style>
+[class*="st-key-{POPOVER_CLOSE_PREFIX}"],
+[class*="st-key-{POPOVER_CLOSE_PREFIX}"] [data-testid="stButton"] {{
+  display: flex; justify-content: flex-end; width: 100%;
+}}
+[class*="st-key-{POPOVER_CLOSE_PREFIX}"] button {{
+  min-height: 0; padding: 2px 4px; width: auto !important; margin-left: auto;
+}}
+@media (min-width: 641px) {{
+  [class*="st-key-{POPOVER_CLOSE_PREFIX}"] {{ display: none !important; }}
+}}
+</style>"""
+
+
+def _close_popover(key: str) -> None:
+    st.session_state[key] = False
+
+
+def closable_popover(label: str, key: str, **kwargs):
+    """`st.popover` with a Close ✕ button at the top of its panel (phone only).
+    Use it for every popover in the app, so they all close the same way."""
+    pop = st.popover(label, key=key, on_change="rerun", **kwargs)
+    with pop:
+        st.button("Close ✕", key=f"{POPOVER_CLOSE_PREFIX}{key}", type="tertiary",
+                  on_click=_close_popover, args=(key,))
+    return pop
+
+
+def keep_widget_state(prefixes: tuple, skip: tuple = ()) -> None:
+    """Keep widget values alive across runs where the widget is not drawn.
+
+    Streamlit deletes a widget's session-state entry on any run that does not
+    render that widget — a section hidden by its toggle, or the other view of
+    tab 7 — so its filters came back at their defaults. Writing each key back
+    to itself before the widgets are created is Streamlit's documented way to
+    keep it. Call at the top of the block, every run.
+
+    `skip` names keys that must not be written: a button's or a component's
+    value cannot be set through session state, and Streamlit raises if one is.
+    """
+    ss = st.session_state
+    for k in list(ss.keys()):
+        if (isinstance(k, str) and k.startswith(prefixes)
+                and not k.startswith(skip)):
+            ss[k] = ss[k]
+
+
+# --------------------------------------------------------------------------- #
 # Stat slots — a headline number with its label above and a note below
 # --------------------------------------------------------------------------- #
 # The anatomy of the tab 2 personal-best scopes, shared so every headline

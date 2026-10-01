@@ -37,6 +37,7 @@ from __future__ import annotations
 import csv
 import math
 import os
+import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -76,14 +77,30 @@ def load_homes(path: Path = HOMES_FILE) -> dict[int, tuple[float, float]]:
     """{athlete_id: (lat, lon)} from a CSV with athlete_id,latitude,longitude.
 
     Returns {} when the file is absent — that is the normal state on any
-    machine but the Mac that runs the refresh."""
+    machine but the Mac that runs the refresh.
+
+    A bad row raises with its line number only. Python's own message would
+    quote the offending text — `could not convert string to float: '51.4x'`,
+    a home coordinate — and a traceback reaches the log. `from None` drops
+    that chained exception too. Out-of-range values are refused here for the
+    same reason: ORS answers one with an error that repeats the coordinate.
+    """
     if not path.exists():
         return {}
     homes = {}
     with path.open(newline="") as f:
-        for row in csv.DictReader(f):
-            homes[int(row["athlete_id"])] = (float(row["latitude"]),
-                                             float(row["longitude"]))
+        for line, row in enumerate(csv.DictReader(f), start=2):
+            try:
+                aid = int(row["athlete_id"])
+                lat, lon = float(row["latitude"]), float(row["longitude"])
+            except (KeyError, TypeError, ValueError):
+                raise ValueError(
+                    f"{path.name} line {line}: needs numeric athlete_id, "
+                    "latitude, longitude") from None
+            if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+                raise ValueError(f"{path.name} line {line}: latitude or "
+                                 "longitude out of range") from None
+            homes[aid] = (lat, lon)
     return homes
 
 
@@ -115,7 +132,9 @@ def candidate_events(con) -> pd.DataFrame:
         ORDER BY event_id
         """
     ).fetchdf()
-    keep = [is_mainland(la, lo) for la, lo in zip(ev["latitude"], ev["longitude"])]
+    keep = pd.Series([is_mainland(la, lo) for la, lo in
+                      zip(ev["latitude"], ev["longitude"])],
+                     index=ev.index, dtype=bool)
     return ev[keep].reset_index(drop=True)
 
 
@@ -155,6 +174,23 @@ def _session() -> requests.Session:
     return s
 
 
+def _ors_error_code(r) -> str:
+    try:
+        return str(int(r.json()["error"]["code"]))
+    except Exception:  # noqa: BLE001 — any shape of body: just say unknown
+        return "unknown"
+
+
+_COORD = re.compile(r"-?\d{1,3}\.\d{2,}")
+
+
+def scrub(text: str) -> str:
+    """Blank anything shaped like a coordinate (2+ decimal places) out of a
+    message before it is logged — a last line of defence for exception text
+    this module did not write, such as a requests error."""
+    return _COORD.sub("…", text)
+
+
 def route_ors(origin, dests, key, session=None, sleep=time.sleep) -> list:
     session = session or _session()
     out = []
@@ -171,9 +207,12 @@ def route_ors(origin, dests, key, session=None, sleep=time.sleep) -> list:
             timeout=TIMEOUT_SECONDS,
         )
         if r.status_code != 200:
-            # The body names the limit that was hit; it never echoes the
-            # coordinates back, so it is safe to log.
-            raise RuntimeError(f"ORS HTTP {r.status_code}: {r.text[:300]}")
+            # Never the body: ORS repeats the offending coordinate in its error
+            # text ("Source point(s) [0] out of bounds: 51.4,-0.2"), and point
+            # 0 is a home. The status and ORS's numeric error code are enough
+            # to look the failure up.
+            raise RuntimeError(f"ORS HTTP {r.status_code}, error code "
+                               f"{_ors_error_code(r)}")
         body = r.json()
         dur, dist = body["durations"][0], body["distances"][0]
         out.extend(None if d is None or m is None else (d, m)
@@ -240,7 +279,8 @@ def update_travel_times(con, athletes=None, force: bool = False,
         try:
             got = route_ors(homes[aid], dests, key)
         except Exception as e:  # noqa: BLE001 — logged, retried next run
-            log(f"travel: failed for athlete {aid}: {e}")
+            log(f"travel: failed for athlete {aid}: "
+                f"{type(e).__name__}: {scrub(str(e))}")
             continue
         now = datetime.now(timezone.utc)
         rows = [

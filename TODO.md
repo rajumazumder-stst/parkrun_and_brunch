@@ -24,19 +24,24 @@ over refreshes** (tab 4) and **age-grade progression** (dropped, not wanted).
 Tab 7 (`where_next.py`) runs beside tab 5 until these are settled. Built
 30 Sep 2026; see `docs/DEV.md` § Tab 7 and the travel data.
 
-- **Privacy — decide what the live app may show.** The homes are exact today,
-  used only in the local dev DB. Drive times to ~840 parkruns can be used to
-  triangulate a home to within a few km. Options: keep exact homes and never
-  ship `travel_times`; or route from a neighbourhood midpoint and ship it.
-  Nothing reaches git or the hosted app until this is decided (`travel_times`
-  is not in `SNAPSHOT_TABLES`).
+- **Privacy — decide whether the live app may show driving times.** Half
+  done: since 1 Oct 2026 the homes are **neighbourhood centroids**, not exact
+  addresses, so the most the drive times can give away is the neighbourhood.
+  Still open: whether to ship `travel_times` at all. Doing so means adding it
+  to `SNAPSHOT_TABLES` and wiring `travel` into the refresh. Showing only
+  ranks or totals would not hide more: triangulation needs only the relative
+  ordering of the times. Until then nothing reaches git or the hosted app.
 - ~~Pick the markers~~ — **done** 30 Sep 2026: "Row, lit" lamps, with the
   recommendation number inside the housing. Ring / Dots / Layers, the other
   square variants, and the badge-above / tag-beside placements are in git
   history.
-- **Pick the phone label style** for a tapped map marker: Tooltip (compact,
-  wrapping), Pop-up (pans the map to fit), or Panel (docked along the foot of
-  the map). Then delete the other two and the "Phone labels (dev)" selector.
+- ~~Pick the phone label style~~ — **done** 1 Oct 2026: a bottom sheet like
+  the calendars'. The tooltip and pop-up variants were removed.
+- ~~Pick where the planner's filters sit~~ — **done** 1 Oct 2026: a
+  "⚙️ Filters" button. The two sidebar placements were removed.
+- ~~Pick how a runner left out of the ranking shows~~ — **done** 1 Oct 2026:
+  grey and italic, on the map and in the table. The other two styles were
+  removed.
 - ~~Pick a router~~ — **done** 30 Sep 2026: ORS. The same distances as OSRM,
   but slower, more believable times for the short London trips that matter
   (median +3.4 min under an hour). The top-25 recommendations overlap 23/25.

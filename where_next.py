@@ -34,14 +34,15 @@ from branca.element import MacroElement
 from jinja2 import Template
 from streamlit_folium import st_folium
 
+from parkrun_calendar import theme as cal_theme
 from parkrun_core import UK_COUNTRY_CODE, is_mainland
-from parkrun_ui import ATHLETE_COLORS, BUGGY_GLYPH, _read_sql
+from parkrun_ui import ATHLETE_COLORS, BUGGY_GLYPH, _read_sql, closable_popover
 
 # Fixed athlete order for every per-athlete mark: a square means the same
 # runner in every marker, so the order can never depend on the data.
 ATHLETES = list(ATHLETE_COLORS)          # George, Raju, Duncan
 
-VIEWS = ["Head-to-heads", "Planner"]
+VIEWS = ["Planner", "Head-to-heads"]   # the first is the default
 DONE_CHOICES = ["Any", "Done", "Not done"]
 H2H_CHOICES = ["Any", "Happened", "Never"]
 
@@ -71,31 +72,18 @@ LAYER_H2H = "Head-to-heads"
 LAYER_DONE = "parkruns done (min 1 person)"
 LAYER_NOT_DONE = "parkruns not done by anyone"
 LAYER_TOP = "top recommendations"
+# Without driving times there is nothing to rank on — the hosted app — so the
+# matches are a plain layer of their own, unnumbered: numbering an
+# alphabetical list would present A-to-Z as a recommendation.
+LAYER_MATCH = "parkruns matching the filters"
 
 CANDIDATE_PINS = 25   # the top recommendations, numbered on the map
 
-# How a marker's details show on a phone (a pointer that cannot hover). Three
-# ways, compared with a dev selector (TODO.md): a compact tooltip, a pop-up
-# that pans the map until it fits, or a panel docked along the bottom of the
-# map. A desktop always gets the tooltip, whatever is picked.
-PHONE_LABELS = ["Tooltip", "Pop-up", "Panel"]
-_LABEL_MODE = {"Tooltip": "tooltip", "Pop-up": "popup", "Panel": "panel"}
-
-# Label styling, injected into each map. The compact tooltip wraps at a fixed
-# width instead of Leaflet's single unbroken line, which ran off the side of a
-# phone-width map; the panel spans the map's foot, so it always fits.
-LABEL_CSS = """
-.pr-compact.leaflet-tooltip { font: 11px/1.3 sans-serif; padding: 3px 6px;
-  white-space: normal; width: max-content; max-width: 210px; }
-.pr-pop .leaflet-popup-content { margin: 6px 8px; font: 11px/1.3 sans-serif; }
-.pr-pop .leaflet-popup-content-wrapper { border-radius: 6px; }
-.pr-pop .leaflet-popup-tip-container { display: none; }
-.pr-panel { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1000;
-  background: rgba(255,255,255,.97); color: #222; font: 12px/1.35 sans-serif;
-  padding: 6px 30px 7px 9px; box-shadow: 0 -1px 4px rgba(0,0,0,.25);
-  max-height: 45%; overflow-y: auto; display: none; }
-.pr-panel-x { position: absolute; top: 2px; right: 6px; border: 0;
-  background: none; font: 18px/1 sans-serif; color: #555; padding: 4px; }
+# Map styling injected into each map: the close row a narrow map adds to the
+# layer box (CollapseLayersWhenNarrow).
+MAP_CSS = """
+.pr-layers-close { text-align: right; font: 600 12px/1 sans-serif; color: #444;
+  padding: 2px 2px 8px; cursor: pointer; user-select: none; }
 """
 KM_PER_MILE = 1.609344
 
@@ -228,7 +216,8 @@ def plan_candidates(events: pd.DataFrame, done: pd.DataFrame,
                     h2h_filter: dict | None = None,
                     minutes_range: dict | None = None,
                     distance_range: dict | None = None, units: str = "miles",
-                    rank_by: list | None = None, exclude=()) -> pd.DataFrame:
+                    rank_by: list | None = None, rank_metric: str = "time",
+                    exclude=()) -> pd.DataFrame:
     """The planner's shortlist.
 
     `events` is every event (load_events_geo); only live 5k mainland-GB ones are
@@ -239,11 +228,17 @@ def plan_candidates(events: pd.DataFrame, done: pd.DataFrame,
     skipped and the list is alphabetical. `minutes_range` / `distance_range`
     map athlete → (low, high), inclusive; an athlete without one is
     unconstrained. `rank_by` names the athletes whose driving times are summed
-    into `total_min`, the sort key. `exclude` holds event_ids to drop.
+    into `total_min` and whose distances are summed into `total_dist`;
+    `rank_metric` ("time" | "distance") picks which of the two is the sort
+    key, the other breaking ties. `exclude` holds event_ids to drop.
     """
     c = events[(events["seriesid"] == 1) & events["live"]
                & (events["country_code"] == UK_COUNTRY_CODE)]
-    c = c[[is_mainland(la, lo) for la, lo in zip(c["latitude"], c["longitude"])]]
+    # A Series, not a bare list: an empty list indexes *columns* (`c[[]]`),
+    # so an empty database crashed on the next line instead of matching none.
+    c = c[pd.Series([is_mainland(la, lo) for la, lo in
+                     zip(c["latitude"], c["longitude"])],
+                    index=c.index, dtype=bool)]
     c = c[~c["event_id"].isin(list(exclude))]
     dt = done_table(done)
     c = c.merge(dt[ATHLETES], left_on="event_id", right_index=True, how="left")
@@ -281,11 +276,16 @@ def plan_candidates(events: pd.DataFrame, done: pd.DataFrame,
         if rng is not None and f"dist_{name}" in c:
             c = c[_within(c[f"dist_{name}"], rng)]
 
-    cols = [f"min_{n}" for n in (rank_by or []) if f"min_{n}" in c]
-    if cols:
-        c = c.dropna(subset=cols)
-        c["total_min"] = c[cols].sum(axis=1)
-        c = c.sort_values(["total_min", "short_name"])
+    names = [n for n in (rank_by or []) if f"min_{n}" in c]
+    if names:
+        mins = [f"min_{n}" for n in names]
+        dists = [f"dist_{n}" for n in names]
+        c = c.dropna(subset=mins + dists)
+        c["total_min"] = c[mins].sum(axis=1)
+        c["total_dist"] = c[dists].sum(axis=1)
+        keys = (["total_dist", "total_min"] if rank_metric == "distance"
+                else ["total_min", "total_dist"])
+        c = c.sort_values(keys + ["short_name"])
     else:
         c = c.sort_values("short_name")
     return c.reset_index(drop=True)
@@ -445,11 +445,13 @@ def h2h_venues(mh: pd.DataFrame, coords: pd.DataFrame) -> list:
         bdict = (bw.loc[event_id].to_dict()
                  if not bw.empty and event_id in bw.index else {})
         d = int(round(14 + 5 * math.sqrt(count)))
+        # Escaped: names come from parkrun's events.json, not from us, and
+        # this HTML becomes a tooltip's innerHTML on a public page.
         breakdown = " · ".join(
-            f"{k} {v}" + (f" ({int(bdict[k])} {BUGGY_GLYPH})"
-                          if bdict.get(k) else "")
+            f"{escape(str(k))} {v}" + (f" ({int(bdict[k])} {BUGGY_GLYPH})"
+                                       if bdict.get(k) else "")
             for k, v in sorted(wdict.items(), key=lambda x: -x[1]))
-        tip = (f"<b>{c.at[event_id, 'short_name']}</b><br>"
+        tip = (f"<b>{escape(str(c.at[event_id, 'short_name']))}</b><br>"
                f"{count} head-to-head{'s' if count != 1 else ''}<br>{breakdown}")
         venues.append((event_id, lat, lon, d, _pie_svg(wdict, d), tip))
     return venues
@@ -480,9 +482,12 @@ def build_h2h_map(mh: pd.DataFrame, coords: pd.DataFrame):
 # Browser-side pieces
 # --------------------------------------------------------------------------- #
 def _js(obj) -> str:
-    """JSON for inlining in a <script>: `</` escaped so a parkrun name can never
-    close the tag."""
-    return json.dumps(obj, separators=(",", ":")).replace("</", "<\\/")
+    """JSON for inlining in a <script>, with every `<` written as `\\u003c`.
+    Escaping only `</` was not enough: `<!--<script` in a name switches the
+    HTML parser into a state where the real `</script>` no longer ends the
+    block. A JSON string decodes `\\u003c` back to `<`, so the text is
+    unchanged once parsed."""
+    return json.dumps(obj, separators=(",", ":")).replace("<", "\\u003c")
 
 
 class JsMarkers(MacroElement):
@@ -493,10 +498,9 @@ class JsMarkers(MacroElement):
     lifts a marker (a top recommendation) above its neighbours. Thousands of points
     cost a few hundred KB this way, against several MB as folium Markers.
 
-    `label_mode` (PHONE_LABELS, as its _LABEL_MODE value) decides how the
-    details show where the pointer cannot hover; a hovering pointer always
-    gets a tooltip. The group must already be on the map — the panel mode
-    hangs its panel off `group._map`."""
+    A pointer that can hover gets a Leaflet tooltip. One that cannot — a
+    phone — gets the bottom sheet instead (`MapSheet`, which must be on the
+    map first): a tooltip on a phone-width map ran off its edges."""
 
     _template = Template("""
 {% macro script(this, kwargs) %}
@@ -508,36 +512,14 @@ class JsMarkers(MacroElement):
     icons[k] = L.divIcon({html: d[0], className: 'pr-icon',
                           iconSize: [d[1], d[2]], iconAnchor: [d[3], d[4]]});
   });
-  var map = group._map;
-  var touch = window.matchMedia && window.matchMedia('(hover: none)').matches;
-  var mode = touch ? '{{ this.label_mode }}' : 'tooltip';
-  function panel() {
-    if (map._prPanel) return map._prPanel;
-    var el = L.DomUtil.create('div', 'pr-panel', map.getContainer());
-    var body = L.DomUtil.create('div', '', el);
-    var x = L.DomUtil.create('button', 'pr-panel-x', el);
-    x.innerHTML = '&times;';
-    L.DomEvent.disableClickPropagation(el);
-    L.DomEvent.disableScrollPropagation(el);
-    var hide = function () { el.style.display = 'none'; };
-    L.DomEvent.on(x, 'click', hide);
-    map.on('click', hide);
-    map._prPanel = {show: function (h) { body.innerHTML = h; el.style.display = 'block'; }};
-    return map._prPanel;
-  }
+  var hover = window.matchMedia && window.matchMedia('(hover: hover)').matches;
   {{ this.points_json }}.forEach(function (p) {
     var m = L.marker([p[0], p[1]], {icon: icons[p[2]],
                                     zIndexOffset: (p[4] || 0) + {{ this.z }}});
-    if (mode === 'popup') {
-      // Top padding clears the zoom buttons and the layers icon, which
-      // Leaflet draws above pop-ups.
-      m.bindPopup(p[3], {maxWidth: 230, minWidth: 140, closeButton: false,
-                         autoPanPaddingTopLeft: [8, 84],
-                         autoPanPaddingBottomRight: [8, 8], className: 'pr-pop'});
-    } else if (mode === 'panel') {
-      m.on('click', function () { panel().show(p[3]); });
+    if (hover || !window.prSheet) {
+      m.bindTooltip(p[3]);
     } else {
-      m.bindTooltip(p[3], {className: touch ? 'pr-compact' : ''});
+      m.on('click', function () { window.prSheet.show(p[3]); });
     }
     m.addTo(group);
   });
@@ -546,30 +528,135 @@ class JsMarkers(MacroElement):
 """)
 
     def __init__(self, group: folium.FeatureGroup, icons: dict, points: list,
-                 z: int = 0, label_mode: str = "tooltip"):
+                 z: int = 0):
         super().__init__()
         self._name = "JsMarkers"
-        self.label_mode = label_mode if label_mode in _LABEL_MODE.values() else "tooltip"
         self.group_name = group.get_name()
         self.icons_json = _js(icons)
         self.points_json = _js(points)
         self.z = int(z)
 
 
+class MapSheet(MacroElement):
+    """The phone's detail sheet for a tapped marker, built to match the
+    calendars' (components/calendar/detail.js) so the app has one way of
+    showing a tapped thing's details.
+
+    Like that sheet it is built in the PARENT document — a fixed element in
+    the map's frame would be pinned to the frame, not the screen — rises
+    from the bottom edge of what is actually on screen (visualViewport, so
+    pinch-zoom does not push it off-screen or scale it up), uses the
+    calendar theme's label colours, and any tap elsewhere — the map, or the
+    page — dismisses it. It differs in one thing: it takes the tooltip's
+    HTML rather than plain text, for the athlete-coloured squares; that HTML
+    is built by this module with every name escaped."""
+
+    _template = Template("""
+{% macro script(this, kwargs) %}
+(function () {
+  var map = {{ this._parent.get_name() }};
+  var BG = '{{ this.bg }}', FG = '{{ this.fg }}';
+  var pd, vv;
+  try {
+    pd = window.parent.document; vv = window.parent.visualViewport;
+    if (!pd.body) { throw new Error('no parent body'); }
+  } catch (e) { pd = document; vv = window.visualViewport; }
+  var HID = 'translateY(0)', SHOWN = 'translateY(-100%)';
+  function fit(el) {
+    if (!vv) { return; }
+    var k = 1 / (vv.scale || 1);
+    el.style.left = vv.offsetLeft + 'px'; el.style.right = 'auto';
+    el.style.bottom = 'auto'; el.style.width = vv.width + 'px';
+    el.style.top = (vv.offsetTop + vv.height) + 'px';
+    el.style.fontSize = (13 * k) + 'px';
+    el.style.padding = (14 * k) + 'px ' + (16 * k) + 'px calc(' +
+      (16 * k) + 'px + env(safe-area-inset-bottom))';
+    el.style.borderRadius = (14 * k) + 'px ' + (14 * k) + 'px 0 0';
+    el.style.maxHeight = (vv.height * 0.5) + 'px';
+    var bar = el.firstChild;
+    bar.style.width = (38 * k) + 'px'; bar.style.height = (4 * k) + 'px';
+    bar.style.margin = (-6 * k) + 'px auto ' + (10 * k) + 'px';
+  }
+  function sheet() {
+    var el = pd.getElementById('map-sheet');
+    if (el) { return el; }
+    el = pd.createElement('div');
+    el.id = 'map-sheet';
+    el.style.cssText =
+      'position:fixed;left:0;right:0;bottom:0;z-index:1000;box-sizing:border-box;' +
+      'background:' + BG + ';color:' + FG + ';' +
+      'padding:14px 16px calc(16px + env(safe-area-inset-bottom));' +
+      'border-radius:14px 14px 0 0;box-shadow:0 -6px 24px rgba(0,0,0,.3);' +
+      'font:13px/1.55 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;' +
+      'transform:' + (vv ? HID : 'translateY(110%)') + ';' +
+      'transition:transform .22s ease-out;max-height:50vh;overflow:auto';
+    var bar = pd.createElement('div');
+    bar.style.cssText = 'width:38px;height:4px;border-radius:2px;opacity:.45;' +
+      'margin:-6px auto 10px;background:' + FG;
+    var body = pd.createElement('div');
+    body.id = 'map-sheet-body';
+    el.appendChild(bar); el.appendChild(body);
+    el.addEventListener('click', hide);
+    pd.addEventListener('click', function (ev) {
+      if (!el.contains(ev.target)) { hide(); }
+    });
+    if (vv) {
+      var track = function () { fit(el); };
+      vv.addEventListener('resize', track); vv.addEventListener('scroll', track);
+    }
+    pd.body.appendChild(el);
+    fit(el);
+    return el;
+  }
+  function hide() {
+    var el = pd.getElementById('map-sheet');
+    if (el) { el.style.transform = vv ? HID : 'translateY(110%)'; }
+  }
+  window.prSheet = {
+    show: function (html) {
+      var sh = sheet(); fit(sh);
+      pd.getElementById('map-sheet-body').innerHTML = html;
+      sh.style.transform = vv ? SHOWN : 'translateY(0)';
+    },
+    hide: hide
+  };
+  map.on('click', hide);
+})();
+{% endmacro %}
+""")
+
+    def __init__(self, bg: str, fg: str):
+        super().__init__()
+        self._name = "MapSheet"
+        self.bg, self.fg = bg, fg
+
+
 class CollapseLayersWhenNarrow(MacroElement):
-    """Fold the layer box into Leaflet's layers icon on a narrow map.
+    """Fold the layer box into Leaflet's layers icon on a narrow map, and
+    make it closable again once opened.
 
     Expanded, it covered the top third of a phone-width map, and Leaflet
-    draws controls above tooltips and pop-ups — so a label near the top of
-    the map slid underneath it and could not be read. A tap on the icon opens
-    it. Wide maps keep it open, as before."""
+    draws controls above tooltips — so a label near the top slid underneath
+    it. A tap on the icon opens it; a tap on the map, or on its own "Close"
+    row, folds it again. (Leaflet only wires the map tap for a control
+    created collapsed, and this one is created open for wide maps — so a
+    narrow map had no way to close it once opened.) Wide maps keep it open."""
 
     _template = Template("""
 {% macro script(this, kwargs) %}
 (function () {
   var map = {{ this._parent.get_name() }};
   var ctl = {{ this.control_name }};
-  if (map.getContainer().clientWidth < {{ this.max_width }}) ctl.collapse();
+  if (map.getContainer().clientWidth >= {{ this.max_width }}) { return; }
+  ctl.collapse();
+  map.on('click', function () { ctl.collapse(); });
+  var list = ctl._section || ctl._form;
+  if (list) {
+    var x = L.DomUtil.create('div', 'pr-layers-close');
+    x.textContent = 'Close \u2715';
+    list.insertBefore(x, list.firstChild);
+    L.DomEvent.on(x, 'click', function (e) { L.DomEvent.stop(e); ctl.collapse(); });
+  }
 })();
 {% endmacro %}
 """)
@@ -634,13 +721,15 @@ class InViewCounter(MacroElement):
 {% endmacro %}
 """)
 
-    def __init__(self, layers: dict):
+    def __init__(self, layers: dict, visible: dict | None = None):
         super().__init__()
         self._name = "InViewCounter"
         self.layers_json = _js(
             {k: [[int(e), round(float(la), 5), round(float(lo), 5)]
                  for e, la, lo in pts] for k, pts in layers.items()})
-        self.visible_json = _js({k: True for k in layers})
+        # Must match each layer's `show`, or the count starts out counting
+        # layers that are switched off.
+        self.visible_json = _js({k: (visible or {}).get(k, True) for k in layers})
 
 
 # --------------------------------------------------------------------------- #
@@ -698,23 +787,48 @@ def _base_tip(row, dt, h2h_by_event) -> str:
     return "<br>".join(lines + ([h] if h else []))
 
 
+# A runner left out of the ranking is shown, but grey and italic, tagged "not
+# ranked" — on the map and in the table alike (chosen 1 Oct 2026 over greying
+# the map only, or hiding them). The grey reads on both the white desktop
+# tooltip and the dark phone sheet.
+NOT_RANKED = "not ranked"
+GREY = "#9aa0a6"
+GREY_STYLE = f"color:{GREY};font-style:italic"
+
+
 def _candidate_tip(rank: int, row, units: str, h2h_by_event: dict,
-                   dt: pd.DataFrame) -> str:
+                   dt: pd.DataFrame, rank_by=None,
+                   metric: str = "time") -> str:
+    """A match's hover text: who has run it, everyone's drive, the totals.
+
+    A runner not in `rank_by` had no say in this rank, so their drive is
+    grey, italic and tagged "not ranked". Both totals are given,
+    the one ranked on in bold, each naming whose journeys it sums."""
     unit = "mi" if units == "miles" else "km"
+    rank_by = list(rank_by or [])
     lines = [_title(row, f" · recommendation #{rank}")]
     lines += _runs_lines(row.event_id, dt)
     drives = []
     for name in ATHLETES:
         m = getattr(row, f"min_{name}", None)
         d = getattr(row, f"dist_{name}", None)
-        if m is not None and not pd.isna(m):
-            drives.append(f"{_dot(name)} {name} {_fmt_min(m)}, {d:.0f} {unit}")
+        if m is None or pd.isna(m):
+            continue
+        text = f"{_dot(name)} {name} {_fmt_min(m)}, {d:.1f} {unit}"
+        if rank_by and name not in rank_by:
+            text = (f"<span style='{GREY_STYLE}'>{name} {_fmt_min(m)}, "
+                    f"{d:.1f} {unit} · {NOT_RANKED}</span>")
+            text = f"{_dot(name)} {text}"
+        drives.append(text)
     if drives:
         lines.append("<span style='opacity:.65'>Driving from home</span>")
         lines += drives
-    tot = getattr(row, "total_min", None)
-    if tot is not None and not pd.isna(tot):
-        lines.append(f"Total driving time: <b>{_fmt_min(tot)}</b>")
+    tot_m = getattr(row, "total_min", None)
+    if tot_m is not None and not pd.isna(tot_m):
+        who = ", ".join(rank_by)
+        t = f"Total driving time ({who}): {_fmt_min(tot_m)}"
+        dd = f"Total distance ({who}): {row.total_dist:.1f} {unit}"
+        lines += ([f"<b>{t}</b>", dd] if metric == "time" else [f"<b>{dd}</b>", t])
     h = _h2h_line(row.event_id, h2h_by_event)
     return "<br>".join(lines + ([h] if h else []))
 
@@ -723,13 +837,19 @@ def _candidate_tip(rank: int, row, units: str, h2h_by_event: dict,
 # The maps
 # --------------------------------------------------------------------------- #
 def _base_map() -> folium.Map:
+    # The tiles are added with control=False: there is one background map, so
+    # the layer box's "openstreetmap" base-layer radio button chose between
+    # one option and did nothing.
     fmap = folium.Map(location=list(LONDON_CENTER), zoom_start=LONDON_ZOOM,
-                      tiles="OpenStreetMap", control_scale=True)
-    fmap.get_root().header.add_child(folium.Element(f"<style>{LABEL_CSS}</style>"))
+                      tiles=None, control_scale=True)
+    folium.TileLayer("OpenStreetMap", control=False).add_to(fmap)
+    fmap.get_root().header.add_child(folium.Element(f"<style>{MAP_CSS}</style>"))
+    t = cal_theme()
+    MapSheet(t.tip_bg, t.tip_fg).add_to(fmap)
     return fmap
 
 
-def build_h2h_view_map(venues: list, phone_labels: str = PHONE_LABELS[0]):
+def build_h2h_view_map(venues: list):
     """The head-to-head view: tab 5's pies, opening on London, with the counter.
     Built with JsMarkers, like the planner, so both views label alike."""
     fmap = _base_map()
@@ -738,7 +858,7 @@ def build_h2h_view_map(venues: list, phone_labels: str = PHONE_LABELS[0]):
     for eid, lat, lon, d, svg, tip in venues:
         icons[str(eid)] = (svg, d, d, d / 2, d / 2)
         points.append([round(lat, 5), round(lon, 5), str(eid), tip])
-    JsMarkers(g, icons, points, label_mode=_LABEL_MODE[phone_labels]).add_to(fmap)
+    JsMarkers(g, icons, points).add_to(fmap)
     counted = {LAYER_H2H: [(v[0], v[1], v[2]) for v in venues]}
     _layer_control(fmap)
     InViewCounter(counted).add_to(fmap)
@@ -747,7 +867,8 @@ def build_h2h_view_map(venues: list, phone_labels: str = PHONE_LABELS[0]):
 
 def build_planner_map(*, parkruns: pd.DataFrame, dt: pd.DataFrame,
                       candidates: pd.DataFrame | None, h2h_by_event: dict,
-                      units: str = "miles", phone_labels: str = PHONE_LABELS[0]):
+                      units: str = "miles", rank_by=None,
+                      metric: str = "time"):
     """The planner view. `parkruns` is every regular parkrun to draw (already
     country-filtered), `dt` the done_table, `candidates` the ranked matches
     (None when no filter is set).
@@ -757,33 +878,46 @@ def build_planner_map(*, parkruns: pd.DataFrame, dt: pd.DataFrame,
     has run it. So switching the other two off leaves only the
     recommendations. A recommendation keeps the look of its kind — lamps if
     someone has run it, a black circle if not — with its number added, and
-    every match's tooltip gives its rank and driving times."""
+    every match's tooltip gives its rank and driving times.
+
+    The candidates are a *ranking* only when they carry `total_min`. Without
+    it (no driving times, or nobody chosen to rank by) the list is merely
+    alphabetical, so every match goes in LAYER_MATCH, unnumbered, with the
+    ordinary tooltip."""
     fmap = _base_map()
-    ranked = {}
+    ranked, matched = {}, set()
     if candidates is not None:
-        ranked = {r.event_id: (i, r) for i, r in
-                  enumerate(candidates.itertuples(index=False), start=1)}
+        if "total_min" in candidates:
+            ranked = {r.event_id: (i, r) for i, r in
+                      enumerate(candidates.itertuples(index=False), start=1)}
+        else:
+            matched = set(candidates["event_id"])
     ran = set(dt.index[dt[ATHLETES].sum(axis=1) > 0]) if not dt.empty else set()
 
     layers = {LAYER_DONE: ({}, [], []), LAYER_NOT_DONE: ({}, [], []),
-              LAYER_TOP: ({}, [], [])}
+              LAYER_TOP: ({}, [], []), LAYER_MATCH: ({}, [], [])}
     for row in parkruns.itertuples(index=False):
         eid = row.event_id
         rank, crow = ranked.get(eid, (None, None))
         top = rank if rank is not None and rank <= CANDIDATE_PINS else None
-        tip = (_candidate_tip(rank, crow, units, h2h_by_event, dt) if rank
+        tip = (_candidate_tip(rank, crow, units, h2h_by_event, dt, rank_by,
+                              metric) if rank
                else _base_tip(row, dt, h2h_by_event))
         if eid in ran:
             r = dt.loc[eid]
             flags = {n: bool(r[n] > 0) for n in ATHLETES}
             key = "".join("1" if flags[n] else "0" for n in ATHLETES)
             key += f"#{top}" if top else ""
-            icons, points, pts = layers[LAYER_TOP if top else LAYER_DONE]
+            layer = (LAYER_TOP if top else LAYER_MATCH if eid in matched
+                     else LAYER_DONE)
+            icons, points, pts = layers[layer]
             if key not in icons:
                 icons[key] = done_marker(flags, top)
         else:
             key = f"#{top}" if top else "dot"
-            icons, points, pts = layers[LAYER_TOP if top else LAYER_NOT_DONE]
+            layer = (LAYER_TOP if top else LAYER_MATCH if eid in matched
+                     else LAYER_NOT_DONE)
+            icons, points, pts = layers[layer]
             if key not in icons:
                 icons[key] = open_marker(top)
         points.append([round(float(row.latitude), 5), round(float(row.longitude), 5),
@@ -791,19 +925,25 @@ def build_planner_map(*, parkruns: pd.DataFrame, dt: pd.DataFrame,
         pts.append((eid, row.latitude, row.longitude))
 
     counted: dict[str, list] = {}
+    shown: dict[str, bool] = {}
+    # The map opens on the picked-out parkruns alone — the recommendations, or
+    # the matches where nothing is ranked — with every other parkrun one tap
+    # away in the layer box. With nothing picked out, everything shows.
+    picked = bool(layers[LAYER_TOP][1] or layers[LAYER_MATCH][1])
     # Stacking is per marker (latitude, then the z lift for a top
     # recommendation), not per layer, so this order only sets the layer box.
-    for name in (LAYER_TOP, LAYER_DONE, LAYER_NOT_DONE):
+    for name in (LAYER_TOP, LAYER_MATCH, LAYER_DONE, LAYER_NOT_DONE):
         icons, points, pts = layers[name]
-        if name == LAYER_TOP and not points:
-            continue   # no filter set, so no recommendations to switch
-        g = folium.FeatureGroup(name=name, show=True).add_to(fmap)
-        JsMarkers(g, icons, points,
-                  label_mode=_LABEL_MODE[phone_labels]).add_to(fmap)
+        if name in (LAYER_TOP, LAYER_MATCH) and not points:
+            continue   # nothing picked out, so no layer to switch
+        shown[name] = name in (LAYER_TOP, LAYER_MATCH) or not picked
+        g = folium.FeatureGroup(name=name, show=shown[name]).add_to(fmap)
+        JsMarkers(g, icons, points).add_to(fmap)
         counted[name] = pts
 
     _layer_control(fmap)
-    InViewCounter(counted).add_to(fmap)
+    InViewCounter(counted, visible=shown).add_to(fmap)
+    fmap.pr_shown = shown        # for _show_map's caption, which counts these
     return fmap, counted
 
 
@@ -843,14 +983,18 @@ def _jump_to_map() -> None:
                 f'🗺️ Map ↓</a>', unsafe_allow_html=True)
 
 
-def _show_map(fmap, counted: dict, key: str, what: str) -> None:
-    _jump_to_map()
+def _show_map(fmap, counted: dict, key: str, what: str, *,
+              jump: bool = True) -> None:
+    if jump:
+        _jump_to_map()
     st.markdown(f'<div id="{JUMP_ANCHOR}"></div>', unsafe_allow_html=True)
-    pts = {e: (la, lo) for layer in counted.values() for e, la, lo in layer}
+    shown = getattr(fmap, "pr_shown", None)
+    pts = pd.DataFrame(
+        [(e, la, lo) for name, layer in counted.items()
+         if shown is None or shown.get(name, True) for e, la, lo in layer],
+        columns=["event_id", "latitude", "longitude"]).drop_duplicates("event_id")
     n_all = len(pts)
-    n_in = sum(1 for la, lo in pts.values()
-               if LONDON_BOUNDS[0][0] <= la <= LONDON_BOUNDS[1][0]
-               and LONDON_BOUNDS[0][1] <= lo <= LONDON_BOUNDS[1][1])
+    n_in = int(in_bounds(pts, LONDON_BOUNDS).sum())
     st.caption(
         f"The map opens on London: **{n_in}** of **{n_all}** {what} are in "
         f"Greater London, **{n_all - n_in}** outside it. The count in the "
@@ -864,19 +1008,18 @@ def _show_map(fmap, counted: dict, key: str, what: str) -> None:
 # --------------------------------------------------------------------------- #
 # Controls
 # --------------------------------------------------------------------------- #
-def phone_labels_selector() -> str:
-    return st.segmented_control(
-        "Phone labels (dev)", PHONE_LABELS, default=PHONE_LABELS[0],
-        key="t7_phone_labels",
-        help="How a tapped marker shows its details on a phone — a compact "
-             "tooltip, a pop-up that moves the map until it fits, or a panel "
-             "along the bottom of the map. Only a touch screen sees the "
-             "difference; a mouse always gets the tooltip.",
-    ) or PHONE_LABELS[0]
+def _first(key: str, value):
+    """A widget's default on the run that creates its state, None after.
+
+    keep_widget_state writes every tab 7 key back each run, and Streamlit
+    warns about a widget that has both a `default=` and a value set through
+    session state. Once the state exists the default is ignored anyway."""
+    return value if key not in st.session_state else None
 
 
 def view_toggle() -> str:
-    return st.segmented_control("View", VIEWS, default=VIEWS[0], key="t7_view",
+    return st.segmented_control("View", VIEWS, default=_first("t7_view", VIEWS[0]),
+                                key="t7_view",
                                 label_visibility="collapsed") or VIEWS[0]
 
 
@@ -885,37 +1028,58 @@ def _name_cell(col, name: str) -> None:
                  unsafe_allow_html=True)
 
 
-def range_filter(label: str, key: str, top: int, step: int, unit: str):
+def reseed_range(stored, old_top, top: int) -> tuple[int, int]:
+    """The range a range_filter starts this run with. Nothing stored, or the
+    stored range was the whole of the old track: the whole of the new one.
+    Otherwise the reader's range, clamped to the track."""
+    cast = type(top)            # int for minutes, float for 0.1-step distances
+    if stored is None or old_top is None or tuple(stored) == (0, old_top):
+        return cast(0), top
+    lo, hi = (min(cast(v), top) for v in stored)
+    return lo, hi
+
+
+def range_filter(label: str, key: str, top, step, unit: str):
     """A two-ended slider between two number boxes, kept in step.
 
     Returns (low, high), or None while the range is the whole track — the full
     range means "no limit", so the furthest parkrun is never dropped for being
     exactly at the top. Callbacks keep the three widgets agreeing: the slider
     writes both boxes; a box writes the slider, swapping low and high if they
-    cross."""
-    rk, lk, hk = f"{key}_rng", f"{key}_lo", f"{key}_hi"
+    cross.
+
+    The track's top is remembered (`_top`), because it moves: a `travel` run
+    that routes a farther parkrun raises it. A range left at the full track
+    then follows it to the new full track — otherwise it would quietly turn
+    into a cap that excludes the new parkrun. A range the reader set is kept,
+    and only clamped if the track shrank under it."""
+    rk, lk, hk, tk = (f"{key}_rng", f"{key}_lo", f"{key}_hi", f"{key}_top")
     ss = st.session_state
-    if rk not in ss or ss[rk][1] > top:
-        ss[rk], ss[lk], ss[hk] = (0, top), 0, top
+    lo, hi = reseed_range(ss.get(rk), ss.get(tk), top)
+    ss[rk], ss[lk], ss[hk], ss[tk] = (lo, hi), lo, hi, top
 
     def from_slider():
         ss[lk], ss[hk] = ss[rk]
 
+    cast = type(top)
+    zero = cast(0)
+    fmt = "%.1f" if cast is float else "%d"
+
     def from_boxes():
-        lo = min(max(int(ss[lk]), 0), top)
-        hi = min(max(int(ss[hk]), 0), top)
+        lo = min(max(cast(ss[lk]), zero), top)
+        hi = min(max(cast(ss[hk]), zero), top)
         lo, hi = min(lo, hi), max(lo, hi)
         ss[lk], ss[hk], ss[rk] = lo, hi, (lo, hi)
 
     c1, c2, c3 = st.columns([1, 3, 1], vertical_alignment="center")
-    c1.number_input(f"{label}: from ({unit})", 0, top, step=step, key=lk,
-                    on_change=from_boxes, label_visibility="collapsed")
-    c2.slider(label, 0, top, step=step, key=rk, on_change=from_slider,
-              label_visibility="collapsed")
-    c3.number_input(f"{label}: to ({unit})", 0, top, step=step, key=hk,
-                    on_change=from_boxes, label_visibility="collapsed")
+    c1.number_input(f"{label}: from ({unit})", zero, top, step=step, key=lk,
+                    format=fmt, on_change=from_boxes, label_visibility="collapsed")
+    c2.slider(label, zero, top, step=step, key=rk, format=fmt,
+              on_change=from_slider, label_visibility="collapsed")
+    c3.number_input(f"{label}: to ({unit})", zero, top, step=step, key=hk,
+                    format=fmt, on_change=from_boxes, label_visibility="collapsed")
     lo, hi = ss[rk]
-    return None if (lo, hi) == (0, top) else (lo, hi)
+    return None if (lo, hi) == (zero, top) else (lo, hi)
 
 
 # Session keys the planner's filters live under. Clearing deletes them, and
@@ -943,40 +1107,66 @@ def _choice_rows(title: str, rows: list, choices: list, key_prefix: str,
         else:
             c1.markdown(escape(label))
         out[label] = c2.segmented_control(
-            f"{title}: {label}", choices, default=choices[0],
+            f"{title}: {label}", choices,
+            default=_first(f"{key_prefix}_{label}", choices[0]),
             key=f"{key_prefix}_{label}", label_visibility="collapsed") or choices[0]
     return out
 
 
-def _results_table(c: pd.DataFrame, units: str) -> pd.DataFrame:
+def _results_table(c: pd.DataFrame, units: str, rank_by=None):
+    """The matches as a table: a DataFrame, or a Styler when distances need
+    formatting or runners outside the ranking are greyed and italic.
+    Distances to 0.1."""
     unit = "mi" if units == "miles" else "km"
-    out = pd.DataFrame({"#": range(1, len(c) + 1), "parkrun": c["short_name"]})
+    c = c.reset_index(drop=True)   # country-filtered upstream: realign rows
+    rank_by = list(rank_by or [])
+    ranked = "total_min" in c
+    # A rank column only for a ranking: on an A-Z list a "#" reads as one.
+    out = pd.DataFrame({"parkrun": c["short_name"]})
+    if ranked:
+        out.insert(0, "#", range(1, len(c) + 1))
+    greyed = []
     for name in ATHLETES:
-        if f"min_{name}" in c:
-            out[f"{name} time"] = c[f"min_{name}"].map(
-                lambda v: "—" if pd.isna(v) else _fmt_min(v))
-            out[f"{name} {unit}"] = c[f"dist_{name}"].round(0)
-    if "total_min" in c:
+        if f"min_{name}" not in c:
+            continue
+        left_out = ranked and rank_by and name not in rank_by
+        tag = f" ({NOT_RANKED})" if left_out else ""
+        tcol, dcol = f"{name} time{tag}", f"{name} {unit}{tag}"
+        out[tcol] = c[f"min_{name}"].map(lambda v: "—" if pd.isna(v) else _fmt_min(v))
+        out[dcol] = c[f"dist_{name}"].round(1)
+        if tag:
+            greyed += [tcol, dcol]
+    if ranked:
         out["Total time"] = c["total_min"].map(_fmt_min)
+        out[f"Total {unit}"] = c["total_dist"].round(1)
     out["Run by"] = c.apply(
         lambda r: ", ".join(f"{n} ({int(r[n])})" for n in ATHLETES if r[n] > 0)
         or "nobody", axis=1)
-    return out
+    fmt = {col: "{:.1f}" for col in out.columns
+           if col.startswith(tuple(f"{n} {unit}" for n in ATHLETES))
+           or col == f"Total {unit}"}
+    if not greyed:
+        return out.style.format(fmt, na_rep="—") if fmt else out
+    return (out.style.format(fmt, na_rep="—")
+            .map(lambda _: GREY_STYLE, subset=greyed))
 
 
-def _legend_html() -> str:
+def _legend_html(ranked_by_drive: bool) -> str:
     order = " · ".join(f"{_dot(n)} {n}" for n in ATHLETES)
     lamps = squares_svg({ATHLETES[0]: True, ATHLETES[2]: True}, DONE_STYLE)
     ranked = done_marker({ATHLETES[0]: True, ATHLETES[2]: True}, 3)[0]
+    last = (f"{ranked}&nbsp;{open_marker(3)[0]}&nbsp; the top {CANDIDATE_PINS} "
+            f"recommendations for the filters below, numbered. Hover any "
+            f"parkrun that matches for its rank and driving times."
+            if ranked_by_drive else
+            "Parkruns matching the filters below get a layer of their own, "
+            "so the others can be switched off.")
     return (
         "<div style='font-size:.85rem;opacity:.85;margin:.25rem 0 .5rem;"
         "line-height:1.9'>"
         f"{lamps}&nbsp; run by at least one of them — a lamp per runner ({order}, "
         f"left to right), lit if they have run it.<br>"
-        f"{open_marker()[0]}&nbsp; run by none of them.<br>"
-        f"{ranked}&nbsp;{open_marker(3)[0]}&nbsp; the top {CANDIDATE_PINS} "
-        f"recommendations for the filters below, numbered. Hover any parkrun "
-        f"that matches for its rank and driving times.</div>")
+        f"{open_marker()[0]}&nbsp; run by none of them.<br>{last}</div>")
 
 
 # --------------------------------------------------------------------------- #
@@ -999,8 +1189,90 @@ def render_h2h_view(version, mh: pd.DataFrame | None) -> None:
                f"**{n_occ}** head-to-head{'s' if n_occ != 1 else ''}. Each "
                f"circle is sized by how many head-to-heads happened there and "
                f"split by who won them.")
-    fmap, counted = build_h2h_view_map(venues, phone_labels_selector())
+    fmap, counted = build_h2h_view_map(venues)
     _show_map(fmap, counted, "t7_map_h2h", "venues")
+
+
+# The planner's filters sit behind a "⚙️ Filters" button (chosen 1 Oct 2026
+# over the sidebar, which every tab shares, so filters there stayed on show
+# from other tabs). The panel belongs to this tab, keeps the map at the top
+# of it on a phone, and has a Close button there (closable_popover).
+def _planner_filters(*, counts, hc, travel, has_travel, base) -> dict:
+    """Every planner filter, drawn into the current container (the Filters
+    panel, a column's width — so rows stack rather than sit side by side)."""
+    out: dict = {}
+    out["countries"] = st.multiselect(
+        "Countries", list(counts.index),
+        format_func=lambda c: f"{c} ({counts[c]})",
+        key="t7_countries", placeholder="All countries")
+    st.button("Clear all filters", key="t7_clear", width="stretch",
+              on_click=clear_planner_filters,
+              help="Every filter back to its default: all countries, anyone, "
+                   "any head-to-head, the full driving ranges, nothing left "
+                   "out. Units stay as they are.")
+
+    units, metric, rank_by = "miles", "time", None
+    if has_travel:
+        c1, c2 = st.container(), st.container()
+        units = c1.segmented_control("Units", ["miles", "km"],
+                                     default=_first("t7_units", "miles"),
+                                     key="t7_units") or "miles"
+        metric_label = c2.segmented_control(
+            "Rank by total", ["Driving time", "Driving distance"],
+            default=_first("t7_rank_metric", "Driving time"),
+            key="t7_rank_metric",
+            help="What the recommendations are ordered by; the other breaks "
+                 "ties.") or "Driving time"
+        metric = "distance" if metric_label == "Driving distance" else "time"
+        routed = [n for n in ATHLETES
+                  if not travel[travel["athlete_name"] == n].empty]
+        rank_by = st.multiselect(
+            "… of", routed, default=_first("t7_rank_by", routed),
+            key="t7_rank_by",
+            help="Whose journeys are summed — one, two or all three. A runner "
+                 "left out is marked as not ranked.")
+    out.update(units=units, metric=metric, rank_by=rank_by)
+
+    classes = sorted(hc["classification"].unique())
+    out["done_filter"] = _choice_rows("Who has run it", ATHLETES,
+                                      DONE_CHOICES, "t7_done")
+    out["h2h_filter"] = _choice_rows("Head-to-heads there", classes,
+                                     H2H_CHOICES, "t7_h2h", dot=False)
+
+    minutes_range, distance_range = {}, {}
+    if has_travel:
+        per = 1609.344 if units == "miles" else 1000.0
+        unit = "mi" if units == "miles" else "km"
+        for title, metric_key in (("Driving time (min)", "min"),
+                                  (f"Driving distance ({unit})", "dist")):
+            st.markdown(f"**{title}**")
+            for name in ATHLETES:
+                mine = travel[travel["athlete_name"] == name]
+                _name_cell(st, name)
+                cell = st.container()
+                if mine.empty:
+                    cell.caption("No home set — no driving times.")
+                    continue
+                with cell:
+                    if metric_key == "min":
+                        top = int(math.ceil(mine["duration_s"].max() / 60 / 10) * 10)
+                        minutes_range[name] = range_filter(
+                            f"{name} driving time", f"t7_min_{name}", top, 5, "min")
+                    else:
+                        top = float(math.ceil(mine["distance_m"].max() / per / 10) * 10)
+                        # Keyed by unit: a mile range is not a km range.
+                        distance_range[name] = range_filter(
+                            f"{name} driving distance",
+                            f"t7_dist_{name}_{units}", top, 0.1, unit)
+    out.update(minutes_range=minutes_range, distance_range=distance_range)
+
+    # Session state only: a reload clears it. Options are every candidate, not
+    # just the current matches, so changing a filter never orphans an exclusion.
+    out["exclude"] = st.multiselect(
+        "Leave out these parkruns", base["event_id"].tolist(),
+        format_func=dict(zip(base["event_id"], base["short_name"])).get,
+        key="t7_exclude", placeholder="None left out")
+    return out
 
 
 def render_planner(version, h2h: pd.DataFrame) -> None:
@@ -1018,6 +1290,7 @@ def render_planner(version, h2h: pd.DataFrame) -> None:
     tv = travel_version()
     travel = load_travel(tv) if tv is not None else None
     has_travel = travel is not None and not travel.empty
+
     st.caption(
         "Every regular parkrun, with a square per runner for who has run it. "
         "The filters pick out possible next parkruns on mainland Great Britain"
@@ -1026,101 +1299,49 @@ def render_planner(version, h2h: pd.DataFrame) -> None:
            ". Driving times and distances are only in the local version of "
            "the app.")
     )
-
-    c1, c2 = st.columns([4, 1], vertical_alignment="bottom")
-    countries = c1.multiselect(
-        "Countries", list(counts.index),
-        format_func=lambda c: f"{c} ({counts[c]})",
-        key="t7_countries", placeholder="All countries")
-    c2.button("Clear all filters", key="t7_clear", on_click=clear_planner_filters,
-              width="stretch",
-              help="Every filter back to its default: all countries, anyone, "
-                   "any head-to-head, the full driving ranges, nothing left "
-                   "out. Units stay as they are.")
-    st.markdown(_legend_html(), unsafe_allow_html=True)
-
-    units = "miles"
-    if has_travel:
-        units = st.segmented_control("Units", ["miles", "km"], default="miles",
-                                     key="t7_units") or "miles"
-
-    c1, c2 = st.columns(2)
-    with c1:
-        done_filter = _choice_rows("Who has run it", ATHLETES, DONE_CHOICES,
-                                   "t7_done")
-    with c2:
-        classes = sorted(hc["classification"].unique())
-        h2h_filter = _choice_rows("Head-to-heads there", classes, H2H_CHOICES,
-                                  "t7_h2h", dot=False)
-
-    minutes_range, distance_range, rank_by = {}, {}, None
-    if has_travel:
-        per = 1609.344 if units == "miles" else 1000.0
-        unit = "mi" if units == "miles" else "km"
-        for title, metric in (("Driving time (min)", "min"),
-                              (f"Driving distance ({unit})", "dist")):
-            st.markdown(f"**{title}**")
-            for name in ATHLETES:
-                mine = travel[travel["athlete_name"] == name]
-                c0, c1 = st.columns([1, 5], vertical_alignment="center")
-                _name_cell(c0, name)
-                if mine.empty:
-                    c1.caption("No home set — no driving times.")
-                    continue
-                with c1:
-                    if metric == "min":
-                        top = int(math.ceil(mine["duration_s"].max() / 60 / 10) * 10)
-                        minutes_range[name] = range_filter(
-                            f"{name} driving time", f"t7_min_{name}", top, 5, "min")
-                    else:
-                        top = int(math.ceil(mine["distance_m"].max() / per / 10) * 10)
-                        # Keyed by unit: a mile range is not a km range.
-                        distance_range[name] = range_filter(
-                            f"{name} driving distance", f"t7_dist_{name}_{units}",
-                            top, 1, unit)
-        routed = [n for n in ATHLETES if not travel[travel["athlete_name"] == n].empty]
-        rank_by = st.multiselect(
-            "Rank by total driving time of", routed, default=routed,
-            key="t7_rank_by",
-            help="Sum of these runners' driving times — one, two or all three.")
-
     base = plan_candidates(events, done, None, done_filter={})
-    # Session state only: a reload clears it. Options are every candidate, not
-    # just the current matches, so changing a filter never orphans an exclusion.
-    exclude = st.multiselect(
-        "Leave out these parkruns", base["event_id"].tolist(),
-        format_func=dict(zip(base["event_id"], base["short_name"])).get,
-        key="t7_exclude", placeholder="None left out")
+    with closable_popover("⚙️ Filters", key="t7_filters_pop", width="stretch"):
+        f = _planner_filters(counts=counts, hc=hc, travel=travel,
+                             has_travel=has_travel, base=base)
+    st.markdown(_legend_html(has_travel), unsafe_allow_html=True)
 
+    units, rank_by = f["units"], f["rank_by"]
     cands = plan_candidates(
-        events, done, travel, done_filter=done_filter, h2h=hc,
-        h2h_filter=h2h_filter, minutes_range=minutes_range,
-        distance_range=distance_range, units=units, rank_by=rank_by,
-        exclude=exclude)
-    cands = filter_countries(cands, countries)
-    filtered = (any(v != "Any" for v in done_filter.values())
-                or any(v != "Any" for v in h2h_filter.values())
-                or any(v is not None for v in minutes_range.values())
-                or any(v is not None for v in distance_range.values())
-                or bool(exclude) or bool(rank_by))
+        events, done, travel, done_filter=f["done_filter"], h2h=hc,
+        h2h_filter=f["h2h_filter"], minutes_range=f["minutes_range"],
+        distance_range=f["distance_range"], units=units, rank_by=rank_by,
+        rank_metric=f["metric"], exclude=f["exclude"])
+    cands = filter_countries(cands, f["countries"])
+    filtered = (any(v != "Any" for v in f["done_filter"].values())
+                or any(v != "Any" for v in f["h2h_filter"].values())
+                or any(v is not None for v in f["minutes_range"].values())
+                or any(v is not None for v in f["distance_range"].values())
+                or bool(f["exclude"]) or bool(rank_by))
     # Ranking alone counts: with every filter at "any" the top recommendations
-    # are simply the nearest parkruns by total driving time. Only the top
-    # CANDIDATE_PINS are marked, so an unfiltered list no longer covers the map.
+    # are simply the nearest parkruns by the chosen total. Only the top
+    # CANDIDATE_PINS are marked, so an unfiltered list does not cover the map.
 
     fmap, counted = build_planner_map(
-        parkruns=filter_countries(parkruns, countries), dt=dt,
-        candidates=cands if filtered else None,
-        h2h_by_event=h2h_by_event, units=units,
-        phone_labels=phone_labels_selector())
-    _show_map(fmap, counted, "t7_map_plan", "parkruns")
+        parkruns=filter_countries(parkruns, f["countries"]), dt=dt,
+        candidates=cands if filtered else None, h2h_by_event=h2h_by_event,
+        units=units, rank_by=rank_by, metric=f["metric"])
+    # No jump pill: the filters are behind a button, so the map is already
+    # near the top of the tab.
+    _show_map(fmap, counted, "t7_map_plan", "parkruns", jump=False)
 
     if not filtered:
-        st.caption("Set a filter above to pick out possible next parkruns.")
+        st.caption("Set a filter to pick out possible next parkruns.")
         return
+    ranked = "total_min" in cands
+    if ranked:
+        tail = (f" — the first {CANDIDATE_PINS} are numbered on the map."
+                if len(cands) > CANDIDATE_PINS else ".")
+    else:
+        tail = (", in A–Z order — there are no driving times to rank them "
+                "by. Switch off the other layers to see only the matches.")
     st.markdown(f"**{len(cands)}** parkrun{'s' if len(cands) != 1 else ''} match"
-                + ("" if len(cands) != 1 else "es")
-                + (f" — the first {CANDIDATE_PINS} are numbered on the map."
-                   if len(cands) > CANDIDATE_PINS else "."))
+                + ("" if len(cands) != 1 else "es") + tail)
     if not cands.empty:
-        st.dataframe(_results_table(cands, units), hide_index=True,
-                     width="stretch", height=min(420, 38 + 35 * len(cands)))
+        st.dataframe(_results_table(cands, units, rank_by),
+                     hide_index=True, width="stretch",
+                     height=min(420, 38 + 35 * len(cands)))

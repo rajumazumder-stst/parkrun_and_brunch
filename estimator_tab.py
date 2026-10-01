@@ -29,6 +29,7 @@ from parkrun_ui import (
     _read_sql,
     _surface_color,
     show_chart,
+    years_desc,
     stat_label,
     stat_note,
     stat_phone_css,
@@ -209,7 +210,7 @@ def filter_row(df: pd.DataFrame) -> dict:
         sel[key] = _strip_count(st.session_state.get(f"t6_{key}", []))
 
     universes = {
-        "year": sorted(df["year"].unique()),
+        "year": years_desc(df["year"]),
         "venue": sorted(df["short_name"].unique()),
         "outcome": OUTCOME_ORDER,
         "review": [r for r in REVIEW_ORDER if r in set(df["review"])],

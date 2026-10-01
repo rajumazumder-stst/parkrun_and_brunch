@@ -36,6 +36,20 @@ def test_every_plotly_chart_goes_through_show_chart():
     assert not offenders, f"use parkrun_ui.show_chart: {offenders}"
 
 
+def test_every_popover_has_a_close_button():
+    """Every popover goes through parkrun_ui.closable_popover, so each gets the
+    phone's Close button (docs/STYLE.md § Phones)."""
+    offenders = []
+    for mod in APP_MODULES:
+        if mod == "parkrun_ui.py":
+            continue
+        for node in ast.walk(ast.parse((REPO / mod).read_text())):
+            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "popover"):
+                offenders.append(f"{mod}:{node.lineno}")
+    assert not offenders, f"use parkrun_ui.closable_popover: {offenders}"
+
+
 def test_lock_zoom_fixes_every_axis_and_keeps_the_legend():
     fig = go.Figure(go.Scatter(x=[1, 2], y=[3, 4], name="a"))
     fig.update_layout(xaxis2=dict(), yaxis2=dict())
@@ -75,8 +89,11 @@ def test_app_runs_and_year_filters_take_several_years(monkeypatch):
     at.multiselect(key="t4_season").set_value([season]).run()
     assert at.multiselect(key="t4_year").value == []
 
-    # Tab 7: the head-to-head view has only the classification/year/season
-    # row; the planner has none of those, and its own filters instead.
+    # Tab 7 opens on the planner. The head-to-head view has only the
+    # classification/year/season row; the planner has none of those.
+    assert at.session_state["t7_view"] == "Planner"
+    at.session_state["t7_view"] = "Head-to-heads"
+    at.run()
     at.selectbox(key="t7_class").set_value(
         at.selectbox(key="t7_class").options[1]).run()
     assert not at.exception
@@ -99,3 +116,48 @@ def test_app_runs_and_year_filters_take_several_years(monkeypatch):
     assert at.session_state["t7_done_Raju"] == "Any"
     assert at.session_state["t7_h2h_George vs Raju"] == "Any"
     assert at.session_state["t7_view"] == "Planner"
+
+
+def test_years_desc_is_newest_first_and_keeps_type():
+    assert ui.years_desc([2019, 2025, 2019, 2023]) == [2025, 2023, 2019]
+    assert ui.years_desc(["2019", "2025"]) == ["2025", "2019"]
+
+
+@pytest.mark.skipif(not parkrun_core.SNAPSHOT.exists(), reason="no snapshot")
+def test_filters_survive_being_off_screen(monkeypatch):
+    """Review finding: Streamlit drops an undrawn widget's state, so hiding
+    tab 3's picker or flipping tab 7's view used to reset the filters."""
+    from streamlit.testing.v1 import AppTest
+
+    monkeypatch.setenv("PARKRUN_DB", str(parkrun_core.SNAPSHOT))
+    at = AppTest.from_file(str(REPO / "parkrun_app.py"), default_timeout=180)
+    at.run()
+
+    # Every year filter lists newest first (tab 7's sits in its
+    # head-to-head view, so show that view first).
+    at.session_state["t7_view"] = "Head-to-heads"
+    at.run()
+    for key in ("t2_year", "t3_year", "t4_year", "t7_year"):
+        opts = [int(o) for o in at.multiselect(key=key).options]
+        assert opts == sorted(opts, reverse=True), key
+
+    # Tab 7: set a planner filter, go to the head-to-head view and back.
+    at.session_state["t7_view"] = "Planner"
+    at.run()
+    at.session_state["t7_done_Raju"] = "Not done"
+    at.run()
+    at.session_state["t7_view"] = "Head-to-heads"
+    at.run()
+    at.session_state["t7_view"] = "Planner"
+    at.run()
+    assert not at.exception
+    assert at.session_state["t7_done_Raju"] == "Not done"
+
+    # Tab 3: choose a year, hide the picker, run again.
+    year = at.multiselect(key="t3_year").options[-1]
+    at.multiselect(key="t3_year").set_value([year]).run()
+    at.button(key="btn_sec_t3_pick").click().run()
+    assert at.session_state["sec_t3_pick"] is False      # the picker is hidden
+    at.run()
+    assert not at.exception
+    assert at.session_state["t3_year"] == [year]

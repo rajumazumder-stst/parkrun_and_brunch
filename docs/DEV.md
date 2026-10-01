@@ -106,11 +106,12 @@ them is chosen (TODO.md § Where they meet). A toggle switches between the
 head-to-head view and the planner. The markers are settled (30 Sep 2026): "Row, lit" lamps with a top-25 number
 inside the housing, and a black circle for a parkrun none of them has run.
 Driving times come from OpenRouteService only (chosen 30 Sep 2026; see
-`parkrun_travel.py` for why OSRM was dropped). One dev-only selector remains:
-**Phone labels** (Tooltip / Pop-up / Panel) sets how a tapped marker shows its
-details on a touch screen. A mouse always gets the tooltip, so test it on a
-phone (the LAN URL `streamlit run` prints, same Wi-Fi) or with Playwright's
-`is_mobile=True, has_touch=True`.
+`parkrun_travel.py` for why OSRM was dropped). No dev-only selectors remain:
+the filters sit behind a "⚙️ Filters" button, and runners left out of the
+ranking are grey and italic on the map and in the table. A tapped marker on a
+touch screen opens the bottom sheet; a mouse gets a tooltip. Test phone
+behaviour with Playwright's `is_mobile=True, has_touch=True` (and an iPhone
+`user_agent=`), or on a phone via the LAN URL `streamlit run` prints.
 
 Drive times come from `parkrun.travel_times`, which **only a local DB has**:
 
@@ -122,7 +123,7 @@ Drive times come from `parkrun.travel_times`, which **only a local DB has**:
 #   free account at openrouteservice.org -> dashboard -> Request a token
 
 PARKRUN_PIPELINE_DB=data/parkrun_dev.duckdb \
-  python parkrun_pipeline.py travel          # ~11s: 3 requests of ~840 places
+  python parkrun_pipeline.py travel          # ~11s: 6 requests (2 per home, ≤500 places each)
 ```
 
 * **Incremental.** A second run routes nothing. It routes a pair only when that
@@ -276,7 +277,7 @@ history if some future need proves otherwise.
 ## Tests
 
 ```bash
-pytest                 # from the repo root — 143 cases, ~60s
+pytest                 # from the repo root — 167 cases, ~65s
 pytest -q tests/test_buggy_estimator.py
 pytest -q tests/test_calendar.py       # fast: no model fitting
 pytest -q tests/test_where_next.py     # fast: planner, markers, mainland, travel

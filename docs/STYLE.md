@@ -78,6 +78,15 @@ Rules:
   placeholder to say so ("All years").
 - **Year and Season are both multiselects and mutually exclusive.** Choosing
   anything in one empties the other (`year_season_filters`).
+- **Years are listed newest first, everywhere, and the label is "Year".** Use
+  `parkrun_ui.years_desc` for the options. It is the one place the order is
+  decided, so a new year filter cannot drift from the rest. (Seasons stay in
+  calendar order.)
+- **A filter keeps its value while it is off screen.** Streamlit discards a
+  widget's state on any run where the widget is not drawn: a hidden section,
+  or the other view of a toggle. `parkrun_ui.keep_widget_state(prefixes)` at
+  the top of the block writes those keys back to themselves, which is
+  Streamlit's documented way to keep them.
 - When a click elsewhere in the app changes a filter (tab 3's calendar),
   **add** to the reader's selection. Never replace it.
 
@@ -115,8 +124,20 @@ Rules:
   tooltips and pop-ups, so a layer box folds to its icon on a narrow map
   (`CollapseLayersWhenNarrow`), and pop-ups pan with top padding that clears
   the zoom buttons.
-- **Map labels on touch are compact and wrap** (11px, 210px wide at most),
-  rather than one unbroken line running off the side of the map.
+- **A tapped thing's details on a phone rise in a bottom sheet**, the same
+  one everywhere: the calendars' (`components/calendar/detail.js`) and the
+  map's (`where_next.MapSheet`) share its look. It is built in the parent
+  document, sits on the visual viewport's bottom edge, uses the calendar
+  theme's `tip_bg`/`tip_fg`, and any tap elsewhere dismisses it. A pointer
+  that can hover gets a tooltip instead.
+- **A control a phone can open must also close.** The layer box closes on a
+  map tap or on its own Close row. Every popover is made with
+  `parkrun_ui.closable_popover`, which puts a "Close ✕" button at the top
+  right of the panel on a phone (a tall panel leaves no "outside" to tap).
+  `tests/test_ui.py` fails on a bare `st.popover`. The button's CSS,
+  `POPOVER_CLOSE_CSS`, is injected once per page by the page script.
+- **Distances show to 0.1** (mi or km), in hover text, tables and range
+  boxes; times to the minute.
 
 ## Colour and marks
 

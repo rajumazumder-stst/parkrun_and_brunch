@@ -59,7 +59,11 @@ from parkrun_ui import (  # shared with label_impact.py — see that module
     UK_TZ,
     data_version,
     fmt_time,
+    POPOVER_CLOSE_CSS,
+    closable_popover,
+    keep_widget_state,
     show_chart,
+    years_desc,
     stat_label,
     stat_note,
     stat_phone_css,
@@ -320,7 +324,7 @@ def _ordered_seasons(df: pd.DataFrame) -> list:
 def _date_options(df: pd.DataFrame):
     """(year_opts, season_opts) for the given (already classification-filtered)
     rows. Drives the head-to-head-aware filter lists."""
-    years = [str(y) for y in sorted(df["year"].unique())]
+    years = [str(y) for y in years_desc(df["year"])]
     seasons = _ordered_seasons(df)
     return years, seasons
 
@@ -865,7 +869,7 @@ def apply_calendar_click(hit: dict, cells: pd.DataFrame, h2h: pd.DataFrame, *,
     # the other exactly as `_clear_other` does.
     cy, cs = str(clicked[0].year), _season_label(clicked[0])
     if yr and cy not in yr:
-        pending["t3_year"] = sorted([*yr, cy])
+        pending["t3_year"] = [str(y) for y in years_desc([*yr, cy])]
         pending["t3_season"] = []
     elif se and cs not in se:
         pending["t3_season"] = [*se, cs]
@@ -948,7 +952,7 @@ with st.sidebar:
         st.cache_data.clear()
         st.rerun()
 
-st.markdown(SECTION_CSS, unsafe_allow_html=True)
+st.markdown(SECTION_CSS + POPOVER_CLOSE_CSS, unsafe_allow_html=True)
 
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(
     ["🏃 parkrun & brunch", "⚔️ Head-to-head summary", "🔎 Head-to-head detail",
@@ -988,7 +992,7 @@ with tab1:
         _cal_runs = cal.load_runs(_ver)
         _cal_weeks = cal.week_frame(_cal_runs)
         _cal_tot = cal.athlete_year_totals(_cal_runs)
-        _all_years = sorted(_cal_weeks["iso_year"].unique(), reverse=True)
+        _all_years = years_desc(_cal_weeks["iso_year"])
 
         # Sized so the two controls sit next to each other rather than at
         # opposite ends of the page: the radio needs about as much room as its
@@ -999,7 +1003,7 @@ with tab1:
             key="t1_calview",
         )
         _pick_years = _c2.multiselect(
-            "Years", _all_years, default=[_all_years[0]], key="t1_calyears",
+            "Year", _all_years, default=[_all_years[0]], key="t1_calyears",
             placeholder="All years",
         )
         _cal_years = sorted(_pick_years) if _pick_years else sorted(_all_years)
@@ -1227,7 +1231,9 @@ with tab2:
                             unsafe_allow_html=True,
                         )
                         total = len(target_runs[target_runs["athlete_name"] == name])
-                        with st.popover(f"{total} runs in window", width="stretch"):
+                        with closable_popover(f"{total} runs in window",
+                                              key=f"t2_runs_{name}",
+                                              width="stretch"):
                             st.markdown(
                                 f"**{name} — {total} runs in the 91-day window**"
                             )
@@ -1379,6 +1385,9 @@ with tab2:
 # =========================================================================== #
 with tab3:
     st.header("🔎 Head-to-head detail")
+    # Hiding "Choose a head-to-head" stops drawing its filters, and Streamlit
+    # then drops their values — the result below jumped to the newest contest.
+    keep_widget_state(("t3_class", "t3_year", "t3_season"))
 
     # A click on the calendar cannot write to the filter widgets directly —
     # Streamlit refuses to set a widget's state after that widget has been
@@ -1680,6 +1689,9 @@ with tab7:
     st.header("🧭 Where they meet — and where next")
     # Two views, each with only its own filters: the head-to-head map keeps
     # tab 5's classification / year / season row; the planner has its own.
+    # Each view's filters are off screen while the other shows, so keep them —
+    # bar the clear button and the maps, whose values cannot be set.
+    keep_widget_state(("t7_",), skip=("t7_clear", "t7_map_", "t7_filters_pop"))
     if view_toggle() == "Head-to-heads":
         pick7, yr7, se7 = h2h_filter_row("t7")
         render_h2h_view(_ver, None if pick7 == "All" else
