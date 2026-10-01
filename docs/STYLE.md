@@ -115,11 +115,10 @@ Rules:
 
 - **Test at 390px, with touch and without hover.** Controls, labels and
   pinned elements behave differently there.
-- **A long filter panel above a result gets a sticky jump pill** (tab 7's
-  "Map ↓"). It is CSS only (`position: sticky; bottom`), it is rendered only
-  when its target is, and it is hidden above 640px. Streamlit's markdown
-  block has a -1rem bottom margin that must be zeroed, or the pill overhangs
-  the screen edge.
+- **A long panel of filters goes behind a button**, a `closable_popover`,
+  so the result it filters stays at the top of the screen. (Tab 7 once had a
+  sticky "Map ↓" jump pill past an inline panel; the Filters button made it
+  pointless, and it was removed.)
 - **Map controls must not cover map labels.** Leaflet draws controls above
   tooltips and pop-ups, so a layer box folds to its icon on a narrow map
   (`CollapseLayersWhenNarrow`), and pop-ups pan with top padding that clears
@@ -143,8 +142,7 @@ Rules:
 
 - Athletes are always drawn in `ATHLETE_COLORS`, in that fixed order. Any mark
   that has one slot per runner uses that order, so a position means the same
-  runner everywhere. That includes the tab 7 squares: left to right in a row,
-  top to bottom in a column.
+  runner everywhere. That includes the tab 7 lamps, left to right.
 - A per-runner "has / hasn't" mark is a **rounded square**, like a calendar
   cell. On the tab 7 map the squares are lamps in a dark traffic-light housing
   ("Row, lit"): lit in the runner's colour for yes, unlit for no. A place

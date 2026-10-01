@@ -172,6 +172,14 @@ def test_h2h_counts_are_occasions_not_rows():
     assert got == {(1, "George vs Raju"): 2, (3, "Duncan vs George vs Raju"): 1}
 
 
+def test_h2h_index_lists_the_most_frequent_classification_first():
+    hc = pd.DataFrame({"event_id": [1, 1, 3], "n": [1, 4, 2],
+                       "classification": ["Duncan vs George", "George vs Raju",
+                                          "George vs Raju"]})
+    assert wn.h2h_index(hc) == {1: [("George vs Raju", 4), ("Duncan vs George", 1)],
+                                3: [("George vs Raju", 2)]}
+
+
 def test_h2h_filter_happened_and_never():
     hc = wn.h2h_counts(h2h())
     yes = wn.plan_candidates(events(), done(), None, done_filter=ANY, h2h=hc,
@@ -254,31 +262,24 @@ def _squares(svg):
                       r'[^>]*fill="([^"]+)"', svg)
 
 
-STYLES = ["Row", "Column", "Row, lit", "Column, lit"]
-
-
-@pytest.mark.parametrize("style", STYLES)
-def test_squares_mark_each_athlete_in_fixed_order(style):
-    sq = _squares(wn.squares_svg({GEORGE: True, RAJU: False, DUNCAN: True}, style))
+def test_lamps_mark_each_athlete_in_fixed_order():
+    svg, *_ = wn.done_marker({GEORGE: True, RAJU: False, DUNCAN: True})
+    sq = _squares(svg)
     assert [a for a, *_ in sq] == wn.ATHLETES
     fills = {a: f for a, _, _, f in sq}
     assert fills[GEORGE] == wn.ATHLETE_COLORS[GEORGE]
     assert fills[DUNCAN] == wn.ATHLETE_COLORS[DUNCAN]
-    assert fills[RAJU] == (wn.UNLIT if style.endswith("lit") else wn.EMPTY)
+    assert fills[RAJU] == wn.UNLIT
     xs = [float(x) for _, x, _, _ in sq]
     ys = [float(y) for _, _, y, _ in sq]
-    if style.startswith("Row"):
-        assert xs == sorted(xs) and len(set(ys)) == 1
-    else:
-        assert ys == sorted(ys) and len(set(xs)) == 1
+    assert xs == sorted(xs) and len(set(ys)) == 1     # a row, left to right
 
 
-def test_lit_styles_have_a_housing_and_are_bigger():
-    assert wn.HOUSING in wn.squares_svg({}, "Row, lit")
-    assert wn.HOUSING not in wn.squares_svg({}, "Row")
-    w, h = wn.square_size("Row")
-    assert wn.square_size("Row, lit") == (w + 2 * wn.SQ_PAD, h + 2 * wn.SQ_PAD)
-    assert wn.square_size("Column") == (h, w)
+def test_lamps_sit_in_a_housing_padded_round_them():
+    svg, w, h, *_ = wn.done_marker({})
+    assert wn.HOUSING in svg
+    assert (w, h) == (3 * wn.SQ + 2 * wn.SQ_GAP + 2 * wn.SQ_PAD,
+                      wn.SQ + 2 * wn.SQ_PAD)
 
 
 @pytest.mark.parametrize("rank", [3, 12])
@@ -461,10 +462,7 @@ def test_a_name_cannot_close_the_script_tag():
 
 
 def test_tooltip_names_head_to_heads():
-    hc = wn.h2h_counts(h2h())
-    by = {}
-    for r in hc.itertuples():
-        by.setdefault(r.event_id, []).append((r.classification, r.n))
+    by = wn.h2h_index(wn.h2h_counts(h2h()))
     assert "<b>2</b> (George vs Raju 2)" in wn._h2h_line(1, by)
     assert wn._h2h_line(2, by) is None
 
@@ -493,10 +491,7 @@ def test_tip_lists_only_who_has_run_it():
 
 
 def test_tip_shows_head_to_heads_only_where_there_were_some():
-    hc = wn.h2h_counts(h2h())
-    by = {}
-    for r in hc.itertuples():
-        by.setdefault(r.event_id, []).append((r.classification, r.n))
+    by = wn.h2h_index(wn.h2h_counts(h2h()))
     dt = wn.done_table(done())
     assert "Head-to-heads" in wn._base_tip(_tip_rows()(1), dt, by)
     assert "Head-to-heads" not in wn._base_tip(_tip_rows()(2), dt, by)
@@ -598,10 +593,16 @@ def test_there_is_one_router():
     assert not hasattr(tr, "route_osrm")
 
 
-def test_no_homes_file_skips_quietly(tmp_path):
+def _empty_db():
+    """An in-memory DuckDB with an empty `parkrun` schema."""
     import duckdb
     con = duckdb.connect()
     con.execute("CREATE SCHEMA parkrun")
+    return con
+
+
+def test_no_homes_file_skips_quietly(tmp_path):
+    con = _empty_db()
     msgs = []
     assert tr.update_travel_times(con, homes={}, log=msgs.append) == 0
     assert "skipped" in msgs[0]
@@ -615,9 +616,7 @@ def test_travel_times_never_ships_in_the_snapshot():
 
 
 def test_the_travel_table_holds_no_origin():
-    import duckdb
-    con = duckdb.connect()
-    con.execute("CREATE SCHEMA parkrun")
+    con = _empty_db()
     tr.ensure_table(con)
     cols = {r[0] for r in con.execute(
         "SELECT column_name FROM information_schema.columns "
@@ -650,9 +649,7 @@ def test_an_ors_error_never_carries_the_home_into_the_message():
 
 
 def test_a_failed_route_logs_no_coordinates(monkeypatch):
-    import duckdb
-    con = duckdb.connect()
-    con.execute("CREATE SCHEMA parkrun")
+    con = _empty_db()
     con.execute("CREATE TABLE parkrun.events (event_id INT, latitude DOUBLE, "
                 "longitude DOUBLE, seriesid INT, live BOOLEAN, country_code INT)")
     con.execute("INSERT INTO parkrun.events VALUES (1, 51.41, -0.34, 1, TRUE, 97)")

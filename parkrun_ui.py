@@ -13,13 +13,15 @@ method difference indistinguishable from a rounding difference.
 from __future__ import annotations
 
 import os
-from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import duckdb
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+
+from parkrun_core import SNAPSHOT
+
 
 def _resolve_db_path() -> str:
     """Locate the DuckDB to read, in priority order:
@@ -39,7 +41,7 @@ def _resolve_db_path() -> str:
             return str(secret)
     except Exception:
         pass
-    return str(Path(__file__).resolve().parent / "data" / "parkrun_snapshot.duckdb")
+    return str(SNAPSHOT)
 
 
 def _ensure_motherduck_token() -> None:

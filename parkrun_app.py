@@ -69,8 +69,8 @@ from parkrun_ui import (  # shared with label_impact.py — see that module
     stat_phone_css,
     stat_value,
 )
-from where_next import (build_h2h_map, render_h2h_view, render_planner,
-                        view_toggle)
+from where_next import (build_h2h_map, load_events_geo, render_h2h_view,
+                        render_planner, view_toggle)
 
 # Logo built by scripts/build_logo.py (three runners in ATHLETE_COLORS on a
 # fried egg). Resolved off __file__, not the CWD, so it survives being launched
@@ -280,13 +280,6 @@ def load_saturday_targets(version) -> pd.DataFrame:
     return _with_date_cols(_read_sql("SELECT * FROM parkrun.v_saturday_targets"))
 
 
-@st.cache_data(show_spinner=False)
-def load_event_coords(version) -> pd.DataFrame:
-    return _read_sql(
-        "SELECT event_id, short_name, latitude, longitude FROM parkrun.events"
-    )
-
-
 # --------------------------------------------------------------------------- #
 # Helpers
 # --------------------------------------------------------------------------- #
@@ -472,10 +465,8 @@ def _render_window_runs(runs: pd.DataFrame, athlete_name: str) -> None:
 
 # One type size for the scope label and the where/when line, a larger one for
 # the time itself — the block's whole point is that the times read first. The
-# sizes are the shared stat-slot ones (parkrun_ui, docs/STYLE.md), so tab 6's
-# reliability tiles read the same way.
-PB_SMALL = STAT_SMALL
-PB_LINE = STAT_LINE
+# sizes are the shared stat-slot ones (parkrun_ui's STAT_*, docs/STYLE.md), so
+# tab 6's reliability tiles read the same way.
 PB_VENUE_LINES = 2  # venue block is ALWAYS this tall — see _venue
 # The bordered container pads all four sides equally, but the athlete name's
 # line box adds half-leading at the top that the last (small) line doesn't
@@ -500,8 +491,7 @@ PB_GLYPH_GAP = "0.38em"
 # so the athlete boxes themselves still stack — three side by side on a phone
 # would be unreadable — and so no other column layout in the app is touched.
 
-# Current-target box: the mode label small, the time itself large.
-TGT_SMALL = "0.82rem"
+# Current-target box: the time itself large.
 TGT_BIG = "1.5rem"
 TGT_GAP = "0.75rem"   # space between the last target and the popover button
 
@@ -588,12 +578,29 @@ def render_personal_bests(pb: pd.DataFrame) -> None:
         clamped with an ellipsis and kept in full in the tooltip."""
         safe = escape(str(text))
         return (
-            f"<div class='pb-venue' title='{safe}' style='font-size:{PB_SMALL};"
-            f"opacity:.72;line-height:{PB_LINE};"
-            f"height:{PB_VENUE_LINES * PB_LINE:.2f}em;"
+            f"<div class='pb-venue' title='{safe}' style='font-size:{STAT_SMALL};"
+            f"opacity:.72;line-height:{STAT_LINE};"
+            f"height:{PB_VENUE_LINES * STAT_LINE:.2f}em;"
             "overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;"
             f"-webkit-line-clamp:{PB_VENUE_LINES}'>{safe}</div>"
         )
+
+    def _slot(name: str, scope: str) -> None:
+        """One slot: the scope, then that run's time, venue and date — or
+        dashes where the athlete has no run in that scope."""
+        m = pb[(pb["athlete_name"] == name) & (pb["scope"] == scope)]
+        if m.empty:
+            value, venue, date = "—", "no runs", "—"
+        else:
+            r = m.iloc[0]
+            # Glyph beside the time, NOT a second box per athlete: the
+            # layout is fixed-height and pinned, and splitting it would
+            # break the alignment the whole block is built on.
+            value, venue = _timed(r), r["short_name"]
+            date = pd.Timestamp(r["run_date"]).strftime("%d %b %Y")
+        for html in (_small(scope, muted=False), _big(value), _venue(venue),
+                     _small(date)):
+            st.markdown(html, unsafe_allow_html=True)
 
     # Keyed wrapper so the phone type rules above have one selector covering
     # every slot in the block, scope columns and latest-run strip alike.
@@ -609,44 +616,15 @@ def render_personal_bests(pb: pd.DataFrame) -> None:
             # this row: the key becomes an `st-key-…` class on the wrapper.
             scope_row = st.container(key=f"pb-scopes-{name}")
             for scol, scope in zip(scope_row.columns(len(PB_SCOPES)), PB_SCOPES):
-                m = pb[(pb["athlete_name"] == name) & (pb["scope"] == scope)]
                 with scol:
-                    st.markdown(_small(scope, muted=False), unsafe_allow_html=True)
-                    if m.empty:
-                        st.markdown(_big("—"), unsafe_allow_html=True)
-                        st.markdown(_venue("no runs"), unsafe_allow_html=True)
-                        st.markdown(_small("—"), unsafe_allow_html=True)
-                        continue
-                    r = m.iloc[0]
-                    # Glyph beside the time, NOT a second box per athlete: the
-                    # layout is fixed-height and pinned, and splitting it would
-                    # break the alignment the whole block is built on.
-                    st.markdown(_big(_timed(r)), unsafe_allow_html=True)
-                    st.markdown(_venue(r["short_name"]), unsafe_allow_html=True)
-                    st.markdown(
-                        _small(pd.Timestamp(r["run_date"]).strftime("%d %b %Y")),
-                        unsafe_allow_html=True,
-                    )
+                    _slot(name, scope)
 
-            latest = pb[(pb["athlete_name"] == name) & (pb["scope"] == PB_LATEST)]
             st.markdown(
                 "<hr style='margin:.55rem 0 .5rem;border:0;"
                 "border-top:1px solid rgba(128,128,128,.25)'>",
                 unsafe_allow_html=True,
             )
-            st.markdown(_small(PB_LATEST, muted=False), unsafe_allow_html=True)
-            if latest.empty:
-                st.markdown(_big("—"), unsafe_allow_html=True)
-                st.markdown(_venue("no runs"), unsafe_allow_html=True)
-                st.markdown(_small("—"), unsafe_allow_html=True)
-            else:
-                r = latest.iloc[0]
-                st.markdown(_big(_timed(r)), unsafe_allow_html=True)
-                st.markdown(_venue(r["short_name"]), unsafe_allow_html=True)
-                st.markdown(
-                    _small(pd.Timestamp(r["run_date"]).strftime("%d %b %Y")),
-                    unsafe_allow_html=True,
-                )
+            _slot(name, PB_LATEST)
             st.markdown(
                 f"<div style='height:{PB_BOTTOM_PAD}'></div>",
                 unsafe_allow_html=True,
@@ -1659,7 +1637,7 @@ with tab5:
         st.info("Pick a head-to-head classification above to show the map.")
     else:
         mh = apply_filters(h2h, cls=pick5, yr=yr5, se=se5)
-        fmap = build_h2h_map(mh, load_event_coords(_ver))
+        fmap = build_h2h_map(mh, load_events_geo(_ver))
         if fmap is None:
             st.info("No head-to-heads match those filters.")
         else:

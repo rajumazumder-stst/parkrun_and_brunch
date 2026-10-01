@@ -998,6 +998,27 @@ def _total(body: list[str], x: float, y: float, g: Geom, text: str,
                       fill=fill, weight=600))
 
 
+def _athlete_year_row(body: list[str], name: str, yr: int, y: float, g: Geom,
+                      t: Theme, cell: dict, tot: dict, stubs,
+                      tx: float) -> None:
+    """One athlete's weeks of one year at height `y`, then their total for
+    the year at `tx`. Shared by both tab 1 layouts, so a square means the same
+    thing in each."""
+    for wk in range(1, WEEKS_PER_YEAR + 1):
+        if wk == STUB_WEEK and yr not in stubs:
+            continue
+        x = cell_x(g, wk)
+        r = cell.get((name, yr, wk))
+        if r is None:
+            body.append(_rect(x, y, g, t.empty))
+        else:
+            body.append(_athlete_cell(x, y, g, name, buggy=r.any_buggy,
+                                      tip=r.hover))
+    a = tot.get((name, yr))
+    if a is not None:
+        _total(body, tx, y, g, _total_label(a.n, a.bug), ATHLETE_COLORS[name])
+
+
 # --------------------------------------------------------------------------- #
 # Layout A — one grid, year blocks of three athlete rows
 # --------------------------------------------------------------------------- #
@@ -1024,24 +1045,10 @@ def render_side_by_side(weeks: pd.DataFrame, years: list[int],
         body.append(_text(g.label_w - 6, y + g.cell - 1, str(yr), fill=t.label,
                           weight=600))
         for ai, name in enumerate(ATHLETES):
-            ry = y + ai * g.pitch
-            for wk in range(1, WEEKS_PER_YEAR + 1):
-                if wk == STUB_WEEK and yr not in stubs:
-                    continue
-                x = cell_x(g, wk)
-                r = cell.get((name, yr, wk))
-                if r is None:
-                    body.append(_rect(x, ry, g, t.empty))
-                else:
-                    body.append(_athlete_cell(x, ry, g, name,
-                                              buggy=r.any_buggy,
-                                              tip=r.hover))
             # One total per athlete row, in their own colour — three stacked
             # numbers at the year's right edge read as a mini standings table.
-            a = tot.get((name, yr))
-            if a is not None:
-                _total(body, tx, ry, g, _total_label(a.n, a.bug),
-                       ATHLETE_COLORS[name])
+            _athlete_year_row(body, name, yr, y + ai * g.pitch, g, t, cell,
+                              tot, stubs, tx)
         y += block_h + g.block_gap
 
     return _svg(g.label_w + 53 * g.pitch + g.total_w, y, "".join(body)), y
@@ -1113,21 +1120,7 @@ def render_individual(weeks: pd.DataFrame, years: list[int],
                 y = _break_row(body, y, g, t, gap)
             body.append(_text(g.label_w - 6, y + g.cell - 1, str(yr),
                               fill=t.label))
-            for wk in range(1, WEEKS_PER_YEAR + 1):
-                if wk == STUB_WEEK and yr not in stubs:
-                    continue
-                x = cell_x(g, wk)
-                r = cell.get((name, yr, wk))
-                if r is None:
-                    body.append(_rect(x, y, g, t.empty))
-                else:
-                    body.append(_athlete_cell(x, y, g, name,
-                                              buggy=r.any_buggy,
-                                              tip=r.hover))
-            a = tot.get((name, yr))
-            if a is not None:
-                _total(body, tx, y, g, _total_label(a.n, a.bug),
-                       ATHLETE_COLORS[name])
+            _athlete_year_row(body, name, yr, y, g, t, cell, tot, stubs, tx)
             y += g.pitch
         y += g.block_gap + 6
 

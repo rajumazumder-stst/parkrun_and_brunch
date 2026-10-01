@@ -59,7 +59,7 @@ import parkrun_core
 # Configuration
 # --------------------------------------------------------------------------- #
 DB_PATH = Path.home() / "Documents" / "duckdb" / "my_database.duckdb"
-SCHEMA = "parkrun"
+SCHEMA = parkrun_core.SCHEMA
 DATA_DIR = Path(__file__).parent / "data"
 
 # Read-only, parkrun-ONLY DuckDB the hosted app serves (see CLAUDE.md). Tables

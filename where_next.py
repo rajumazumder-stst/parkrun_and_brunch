@@ -6,11 +6,13 @@ with only its own filters:
 
 - **Head-to-heads** — tab 5's pies (the same functions draw both), filtered by
   classification, year and season.
-- **Planner** — every regular (5k) parkrun, with a square per athlete marking
-  who has run it, and on top of that the planner's matches ("parkruns not
-  done"): numbered for the top ranks, a plain badge for the rest. Filtered by
-  country, who has run it, which head-to-heads have happened there and — when
-  the database holds `travel_times` — driving time and distance from each home.
+- **Planner** (the default) — every regular (5k) parkrun in three layers:
+  the top recommendations (numbered), parkruns at least one of them has run
+  (a lamp per athlete in a dark housing) and parkruns none of them has run (a
+  black circle). The map opens on the recommendations alone. Filtered — in a
+  "⚙️ Filters" popover — by country, who has run it, which head-to-heads have
+  happened there and, when the database holds `travel_times`, driving time
+  and distance from each home; ranked by total driving time or distance.
 
 `travel_times` exists only in a local DB (parkrun_travel.py). The hosted app
 gets every filter but the driving ones, and a note saying why.
@@ -18,7 +20,7 @@ gets every filter but the driving ones, and a note saying why.
 The planner draws ~2,400 parkruns. Built as one folium Marker each, that is
 several MB of generated script, so the markers are built in the browser
 instead (`JsMarkers`): one compact list of points, and each distinct icon
-defined once — there are only eight done-patterns per marker style.
+defined once — eight done-patterns, plus one per recommendation number.
 """
 
 from __future__ import annotations
@@ -47,16 +49,15 @@ DONE_CHOICES = ["Any", "Done", "Not done"]
 H2H_CHOICES = ["Any", "Happened", "Never"]
 
 # Square markers, drawn like the calendar cells (parkrun_calendar: rounded
-# squares, the same empty grey). `squares_svg` can draw a row or a column,
-# bare or "lit" in a dark housing like traffic lights; the planner uses
-# DONE_STYLE, chosen on 30 Sep 2026 from the four. A parkrun nobody has run
-# is a black circle instead — there is no lamp worth drawing. A top
-# recommendation's number goes inside the housing, to the left of the lamps
-# (chosen 30 Sep 2026 over a badge above it and a tag beside it).
-DONE_STYLE = "Row, lit"
+# squares): a row of lamps in a dark housing, like traffic lights, one per
+# athlete and lit in their colour where they have run it. Chosen on 30 Sep
+# 2026 over a bare row and a column, bare or lit; those were then removed. A
+# parkrun nobody has run is a black circle instead — there is no lamp worth
+# drawing. A top recommendation's number goes inside the housing, to the left
+# of the lamps (chosen 30 Sep 2026 over a badge above it and a tag beside it).
 SQ, SQ_GAP, SQ_PAD, SQ_RX = 8, 2, 2, 1.5
-EMPTY = "#ebedf0"          # parkrun_calendar.EMPTY_LIGHT
-EMPTY_EDGE = "#aeb4bb"     # so an empty square still shows against the map
+LAMPS_W = 3 * SQ + 2 * SQ_GAP + 2 * SQ_PAD    # the housing, unnumbered
+LAMPS_H = SQ + 2 * SQ_PAD
 HOUSING = "#262a2e"
 UNLIT = "#50565c"
 
@@ -85,7 +86,6 @@ MAP_CSS = """
 .pr-layers-close { text-align: right; font: 600 12px/1 sans-serif; color: #444;
   padding: 2px 2px 8px; cursor: pointer; user-select: none; }
 """
-KM_PER_MILE = 1.609344
 
 
 # --------------------------------------------------------------------------- #
@@ -205,9 +205,18 @@ def in_bounds(df: pd.DataFrame, bounds) -> pd.Series:
     return df["latitude"].between(s, n) & df["longitude"].between(w, e)
 
 
-def _within(series: pd.Series, rng) -> pd.Series:
-    lo, hi = rng
-    return series.between(lo, hi)
+def h2h_index(hc: pd.DataFrame) -> dict:
+    """event_id → [(classification, n)], most head-to-heads first — what the
+    hover text lists (h2h_counts' rows, regrouped)."""
+    out: dict = {}
+    for r in hc.sort_values(["event_id", "n"], ascending=[True, False]).itertuples():
+        out.setdefault(r.event_id, []).append((r.classification, int(r.n)))
+    return out
+
+
+def _unit(units: str) -> tuple[str, float]:
+    """The short label and metres per unit for the planner's "miles" | "km"."""
+    return ("mi", 1609.344) if units == "miles" else ("km", 1000.0)
 
 
 def plan_candidates(events: pd.DataFrame, done: pd.DataFrame,
@@ -261,7 +270,7 @@ def plan_candidates(events: pd.DataFrame, done: pd.DataFrame,
     if travel is None or travel.empty:
         return c.sort_values("short_name").reset_index(drop=True)
 
-    per = 1609.344 if units == "miles" else 1000.0
+    _, per = _unit(units)
     w = travel.pivot_table(index="event_id", columns="athlete_name",
                            values=["duration_s", "distance_m"], aggfunc="first")
     for name in ATHLETES:
@@ -271,10 +280,10 @@ def plan_candidates(events: pd.DataFrame, done: pd.DataFrame,
 
     for name, rng in (minutes_range or {}).items():
         if rng is not None and f"min_{name}" in c:
-            c = c[_within(c[f"min_{name}"], rng)]
+            c = c[c[f"min_{name}"].between(*rng)]
     for name, rng in (distance_range or {}).items():
         if rng is not None and f"dist_{name}" in c:
-            c = c[_within(c[f"dist_{name}"], rng)]
+            c = c[c[f"dist_{name}"].between(*rng)]
 
     names = [n for n in (rank_by or []) if f"min_{n}" in c]
     if names:
@@ -305,15 +314,13 @@ def _pie_svg(wins: dict, diameter: int) -> str:
     total = sum(c for _, c in items)
     if not items or total == 0:
         return ""
-    head = (f'<svg width="{diameter}" height="{diameter}" '
-            f'viewBox="0 0 {diameter} {diameter}" '
-            f'style="{_SHADOW}">')
     if len(items) == 1:  # a full circle (one 360° arc won't render)
         name = items[0][0]
-        return (head + f'<circle cx="{r}" cy="{r}" r="{r - 1}" '
-                f'fill="{ATHLETE_COLORS.get(name, "#888888")}" '
-                f'stroke="white" stroke-width="1"/></svg>')
-    parts, a0 = [head], 0.0
+        return _svg(diameter, diameter, [
+            f'<circle cx="{r}" cy="{r}" r="{r - 1}" '
+            f'fill="{ATHLETE_COLORS.get(name, "#888888")}" '
+            f'stroke="white" stroke-width="1"/>'])
+    parts, a0 = [], 0.0
     for name, c in items:
         a1 = a0 + (c / total) * 2 * math.pi
         x0, y0 = r + r * math.sin(a0), r - r * math.cos(a0)
@@ -326,44 +333,7 @@ def _pie_svg(wins: dict, diameter: int) -> str:
             f'stroke="white" stroke-width="1"/>'
         )
         a0 = a1
-    parts.append("</svg>")
-    return "".join(parts)
-
-
-def square_size(style: str) -> tuple[int, int]:
-    """(width, height) of a square marker in that style."""
-    long_side = 3 * SQ + 2 * SQ_GAP
-    w, h = (long_side, SQ) if style.startswith("Row") else (SQ, long_side)
-    if style.endswith("lit"):
-        w, h = w + 2 * SQ_PAD, h + 2 * SQ_PAD
-    return w, h
-
-
-def _squares_body(done: dict, style: str, dx: float = 0, dy: float = 0,
-                  extra_w: float = 0) -> list:
-    """The housing (lit styles) and the squares, offset by (dx, dy). `extra_w`
-    widens the housing on the left, with the squares moved over to make room
-    — the space "In the housing" writes the rank into."""
-    lit = style.endswith("lit")
-    row = style.startswith("Row")
-    w, h = square_size(style)
-    off = SQ_PAD if lit else 0
-    parts = []
-    if lit:
-        parts.append(f'<rect x="{dx}" y="{dy}" width="{w + extra_w}" height="{h}" '
-                     f'rx="3" fill="{HOUSING}"/>')
-    for i, name in enumerate(ATHLETES):
-        step = i * (SQ + SQ_GAP)
-        x, y = (off + step, off) if row else (off, off + step)
-        x, y = x + dx + extra_w, y + dy
-        if done.get(name):
-            fill, edge = ATHLETE_COLORS[name], "white" if not lit else "none"
-        else:
-            fill, edge = (UNLIT, "none") if lit else (EMPTY, EMPTY_EDGE)
-        stroke = "" if edge == "none" else f' stroke="{edge}" stroke-width=".8"'
-        parts.append(f'<rect class="sq" data-athlete="{name}" x="{x}" y="{y}" '
-                     f'width="{SQ}" height="{SQ}" rx="{SQ_RX}" fill="{fill}"{stroke}/>')
-    return parts
+    return _svg(diameter, diameter, parts)
 
 
 def _svg(w, h, body: list) -> str:
@@ -371,33 +341,38 @@ def _svg(w, h, body: list) -> str:
             f'style="{_SHADOW}">' + "".join(body) + "</svg>")
 
 
-def _num(x, y, rank: int, fill: str = "white", size: int = 10) -> str:
+def _num(x, y, rank: int, size: int = 10) -> str:
     return (f'<text class="rank" x="{x}" y="{y}" dy=".35em" text-anchor="middle" '
-            f'fill="{fill}" style="font:700 {size}px sans-serif">{rank}</text>')
+            f'fill="white" style="font:700 {size}px sans-serif">{rank}</text>')
 
 
-def squares_svg(done: dict, style: str) -> str:
-    """One rounded square per athlete in ATHLETES order — left to right in a
-    row, top to bottom in a column. Their colour where they have run it;
-    otherwise the calendar's empty grey, or an unlit lamp in a "lit" style."""
-    w, h = square_size(style)
-    return _svg(w, h, _squares_body(done, style))
+def _lamps(done: dict, extra_w: float = 0) -> list:
+    """The housing and one lamp per athlete, in ATHLETES order left to right:
+    lit in their colour where they have run it, unlit otherwise. `extra_w`
+    widens the housing on the left, with the lamps moved over to make room —
+    the space a top recommendation's number is written into."""
+    parts = [f'<rect x="0" y="0" width="{LAMPS_W + extra_w}" height="{LAMPS_H}" '
+             f'rx="3" fill="{HOUSING}"/>']
+    for i, name in enumerate(ATHLETES):
+        x = SQ_PAD + i * (SQ + SQ_GAP) + extra_w
+        fill = ATHLETE_COLORS[name] if done.get(name) else UNLIT
+        parts.append(f'<rect class="sq" data-athlete="{name}" x="{x}" y="{SQ_PAD}" '
+                     f'width="{SQ}" height="{SQ}" rx="{SQ_RX}" fill="{fill}"/>')
+    return parts
 
 
 # Each marker builder returns (svg, width, height, anchor_x, anchor_y), the
 # anchor being the point on the icon that sits on the parkrun's location.
 def done_marker(done: dict, rank: int | None = None) -> tuple:
-    """A parkrun at least one of them has run: DONE_STYLE lamps, and for a top
+    """A parkrun at least one of them has run: the lamps, and for a top
     recommendation its number in the housing, left of the lamps. The anchor
     stays on the lamps, so a number never moves the parkrun."""
-    hw, hh = square_size(DONE_STYLE)
-    if rank is None:
-        return squares_svg(done, DONE_STYLE), hw, hh, hw / 2, hh / 2
-    nw = 11 if rank < 10 else 15
-    w, h = hw + nw, hh
-    body = _squares_body(done, DONE_STYLE, extra_w=nw)
-    body.append(_num(SQ_PAD + (nw - 1) / 2, h / 2, rank, size=9))
-    return _svg(w, h, body), w, h, nw + hw / 2, h / 2
+    nw = 0 if rank is None else 11 if rank < 10 else 15
+    w, h = LAMPS_W + nw, LAMPS_H
+    body = _lamps(done, extra_w=nw)
+    if rank is not None:
+        body.append(_num(SQ_PAD + (nw - 1) / 2, h / 2, rank, size=9))
+    return _svg(w, h, body), w, h, nw + LAMPS_W / 2, h / 2
 
 
 def open_marker(rank: int | None = None) -> tuple:
@@ -735,9 +710,8 @@ class InViewCounter(MacroElement):
 # --------------------------------------------------------------------------- #
 # Tooltips
 # --------------------------------------------------------------------------- #
-def _dot(name: str, on: bool = True) -> str:
-    col = ATHLETE_COLORS[name] if on else EMPTY_EDGE
-    return f"<span style='color:{col}'>■</span>"
+def _dot(name: str) -> str:
+    return f"<span style='color:{ATHLETE_COLORS[name]}'>■</span>"
 
 
 def _fmt_min(m) -> str:
@@ -781,10 +755,15 @@ def _title(row, extra: str = "") -> str:
             f"{extra}</span>")
 
 
-def _base_tip(row, dt, h2h_by_event) -> str:
-    lines = [_title(row)] + _runs_lines(row.event_id, dt)
-    h = _h2h_line(row.event_id, h2h_by_event)
+def _tip(lines: list, eid, h2h_by_event: dict) -> str:
+    """The lines, then the head-to-head line where there is one."""
+    h = _h2h_line(eid, h2h_by_event)
     return "<br>".join(lines + ([h] if h else []))
+
+
+def _base_tip(row, dt, h2h_by_event) -> str:
+    return _tip([_title(row)] + _runs_lines(row.event_id, dt),
+                row.event_id, h2h_by_event)
 
 
 # A runner left out of the ranking is shown, but grey and italic, tagged "not
@@ -804,7 +783,7 @@ def _candidate_tip(rank: int, row, units: str, h2h_by_event: dict,
     A runner not in `rank_by` had no say in this rank, so their drive is
     grey, italic and tagged "not ranked". Both totals are given,
     the one ranked on in bold, each naming whose journeys it sums."""
-    unit = "mi" if units == "miles" else "km"
+    unit, _ = _unit(units)
     rank_by = list(rank_by or [])
     lines = [_title(row, f" · recommendation #{rank}")]
     lines += _runs_lines(row.event_id, dt)
@@ -814,12 +793,10 @@ def _candidate_tip(rank: int, row, units: str, h2h_by_event: dict,
         d = getattr(row, f"dist_{name}", None)
         if m is None or pd.isna(m):
             continue
-        text = f"{_dot(name)} {name} {_fmt_min(m)}, {d:.1f} {unit}"
+        text = f"{name} {_fmt_min(m)}, {d:.1f} {unit}"
         if rank_by and name not in rank_by:
-            text = (f"<span style='{GREY_STYLE}'>{name} {_fmt_min(m)}, "
-                    f"{d:.1f} {unit} · {NOT_RANKED}</span>")
-            text = f"{_dot(name)} {text}"
-        drives.append(text)
+            text = f"<span style='{GREY_STYLE}'>{text} · {NOT_RANKED}</span>"
+        drives.append(f"{_dot(name)} {text}")
     if drives:
         lines.append("<span style='opacity:.65'>Driving from home</span>")
         lines += drives
@@ -829,8 +806,7 @@ def _candidate_tip(rank: int, row, units: str, h2h_by_event: dict,
         t = f"Total driving time ({who}): {_fmt_min(tot_m)}"
         dd = f"Total distance ({who}): {row.total_dist:.1f} {unit}"
         lines += ([f"<b>{t}</b>", dd] if metric == "time" else [f"<b>{dd}</b>", t])
-    h = _h2h_line(row.event_id, h2h_by_event)
-    return "<br>".join(lines + ([h] if h else []))
+    return _tip(lines, row.event_id, h2h_by_event)
 
 
 # --------------------------------------------------------------------------- #
@@ -894,8 +870,9 @@ def build_planner_map(*, parkruns: pd.DataFrame, dt: pd.DataFrame,
             matched = set(candidates["event_id"])
     ran = set(dt.index[dt[ATHLETES].sum(axis=1) > 0]) if not dt.empty else set()
 
-    layers = {LAYER_DONE: ({}, [], []), LAYER_NOT_DONE: ({}, [], []),
-              LAYER_TOP: ({}, [], []), LAYER_MATCH: ({}, [], [])}
+    # Per layer: (icons by key, JsMarkers points, the counter's points).
+    layers = {name: ({}, [], []) for name in
+              (LAYER_DONE, LAYER_NOT_DONE, LAYER_TOP, LAYER_MATCH)}
     for row in parkruns.itertuples(index=False):
         eid = row.event_id
         rank, crow = ranked.get(eid, (None, None))
@@ -903,23 +880,19 @@ def build_planner_map(*, parkruns: pd.DataFrame, dt: pd.DataFrame,
         tip = (_candidate_tip(rank, crow, units, h2h_by_event, dt, rank_by,
                               metric) if rank
                else _base_tip(row, dt, h2h_by_event))
-        if eid in ran:
+        is_done = eid in ran
+        if is_done:
             r = dt.loc[eid]
             flags = {n: bool(r[n] > 0) for n in ATHLETES}
             key = "".join("1" if flags[n] else "0" for n in ATHLETES)
             key += f"#{top}" if top else ""
-            layer = (LAYER_TOP if top else LAYER_MATCH if eid in matched
-                     else LAYER_DONE)
-            icons, points, pts = layers[layer]
-            if key not in icons:
-                icons[key] = done_marker(flags, top)
         else:
             key = f"#{top}" if top else "dot"
-            layer = (LAYER_TOP if top else LAYER_MATCH if eid in matched
-                     else LAYER_NOT_DONE)
-            icons, points, pts = layers[layer]
-            if key not in icons:
-                icons[key] = open_marker(top)
+        layer = (LAYER_TOP if top else LAYER_MATCH if eid in matched
+                 else LAYER_DONE if is_done else LAYER_NOT_DONE)
+        icons, points, pts = layers[layer]
+        if key not in icons:
+            icons[key] = done_marker(flags, top) if is_done else open_marker(top)
         points.append([round(float(row.latitude), 5), round(float(row.longitude), 5),
                        key, tip, 1000 if top else 0])
         pts.append((eid, row.latitude, row.longitude))
@@ -947,47 +920,7 @@ def build_planner_map(*, parkruns: pd.DataFrame, dt: pd.DataFrame,
     return fmap, counted
 
 
-# The phone's jump-to-map pill. It is rendered just above the map, and
-# `position: sticky; bottom` holds it at the foot of the screen for as long as
-# the map is still below — through the whole filter panel — then lets it
-# settle into place once the map is reached. CSS only, so no rerun; hidden
-# above the 640px breakpoint, where the filters sit beside each other and the
-# map is a short scroll away. Rendered only when a map is, which is what makes
-# it "only if the map is visible".
-JUMP_ANCHOR = "t7-map"
-JUMP_CSS = """<style>
-[data-testid="stElementContainer"]:has(.pr-jump) {
-  position: sticky; bottom: 12px; z-index: 999; pointer-events: none;
-}
-/* Streamlit gives a markdown block a -1rem bottom margin (to cancel its
-   paragraphs' own), which left the sticky box 16px shorter than the pill —
-   so the pill hung past the foot of the screen. */
-[data-testid="stElementContainer"]:has(.pr-jump) [data-testid="stMarkdownContainer"] {
-  margin: 0 !important;
-}
-.pr-jump {
-  pointer-events: auto; display: block; width: max-content; margin-left: auto;
-  padding: 7px 14px;
-  border-radius: 999px; background: #262a2e; color: white !important;
-  text-decoration: none !important; font-weight: 600; font-size: .9rem;
-  box-shadow: 0 2px 6px rgba(0,0,0,.35);
-}
-@media (min-width: 641px) {
-  [data-testid="stElementContainer"]:has(.pr-jump) { display: none; }
-}
-</style>"""
-
-
-def _jump_to_map() -> None:
-    st.markdown(JUMP_CSS + f'<a class="pr-jump" href="#{JUMP_ANCHOR}">'
-                f'🗺️ Map ↓</a>', unsafe_allow_html=True)
-
-
-def _show_map(fmap, counted: dict, key: str, what: str, *,
-              jump: bool = True) -> None:
-    if jump:
-        _jump_to_map()
-    st.markdown(f'<div id="{JUMP_ANCHOR}"></div>', unsafe_allow_html=True)
+def _show_map(fmap, counted: dict, key: str, what: str) -> None:
     shown = getattr(fmap, "pr_shown", None)
     pts = pd.DataFrame(
         [(e, la, lo) for name, layer in counted.items()
@@ -1117,7 +1050,7 @@ def _results_table(c: pd.DataFrame, units: str, rank_by=None):
     """The matches as a table: a DataFrame, or a Styler when distances need
     formatting or runners outside the ranking are greyed and italic.
     Distances to 0.1."""
-    unit = "mi" if units == "miles" else "km"
+    unit, _ = _unit(units)
     c = c.reset_index(drop=True)   # country-filtered upstream: realign rows
     rank_by = list(rank_by or [])
     ranked = "total_min" in c
@@ -1145,15 +1078,15 @@ def _results_table(c: pd.DataFrame, units: str, rank_by=None):
     fmt = {col: "{:.1f}" for col in out.columns
            if col.startswith(tuple(f"{n} {unit}" for n in ATHLETES))
            or col == f"Total {unit}"}
-    if not greyed:
-        return out.style.format(fmt, na_rep="—") if fmt else out
-    return (out.style.format(fmt, na_rep="—")
-            .map(lambda _: GREY_STYLE, subset=greyed))
+    if not (fmt or greyed):
+        return out
+    sty = out.style.format(fmt, na_rep="—")
+    return sty.map(lambda _: GREY_STYLE, subset=greyed) if greyed else sty
 
 
 def _legend_html(ranked_by_drive: bool) -> str:
     order = " · ".join(f"{_dot(n)} {n}" for n in ATHLETES)
-    lamps = squares_svg({ATHLETES[0]: True, ATHLETES[2]: True}, DONE_STYLE)
+    lamps = done_marker({ATHLETES[0]: True, ATHLETES[2]: True})[0]
     ranked = done_marker({ATHLETES[0]: True, ATHLETES[2]: True}, 3)[0]
     last = (f"{ranked}&nbsp;{open_marker(3)[0]}&nbsp; the top {CANDIDATE_PINS} "
             f"recommendations for the filters below, numbered. Hover any "
@@ -1178,9 +1111,7 @@ def render_h2h_view(version, mh: pd.DataFrame | None) -> None:
     if mh is None:
         st.info("Pick a head-to-head classification above to show the map.")
         return
-    events = load_events_geo(version)
-    venues = h2h_venues(mh, events[["event_id", "short_name", "latitude",
-                                    "longitude"]])
+    venues = h2h_venues(mh, load_events_geo(version))
     if not venues:
         st.info("No head-to-heads match those filters.")
         return
@@ -1241,8 +1172,7 @@ def _planner_filters(*, counts, hc, travel, has_travel, base) -> dict:
 
     minutes_range, distance_range = {}, {}
     if has_travel:
-        per = 1609.344 if units == "miles" else 1000.0
-        unit = "mi" if units == "miles" else "km"
+        unit, per = _unit(units)
         for title, metric_key in (("Driving time (min)", "min"),
                                   (f"Driving distance ({unit})", "dist")):
             st.markdown(f"**{title}**")
@@ -1280,9 +1210,6 @@ def render_planner(version, h2h: pd.DataFrame) -> None:
     done = load_done(version)
     dt = done_table(done)
     hc = h2h_counts(h2h)
-    h2h_by_event: dict = {}
-    for r in hc.sort_values(["event_id", "n"], ascending=[True, False]).itertuples():
-        h2h_by_event.setdefault(r.event_id, []).append((r.classification, int(r.n)))
 
     parkruns = regular_parkruns(events, done)
     counts = parkruns["country_name"].value_counts()
@@ -1323,11 +1250,9 @@ def render_planner(version, h2h: pd.DataFrame) -> None:
 
     fmap, counted = build_planner_map(
         parkruns=filter_countries(parkruns, f["countries"]), dt=dt,
-        candidates=cands if filtered else None, h2h_by_event=h2h_by_event,
+        candidates=cands if filtered else None, h2h_by_event=h2h_index(hc),
         units=units, rank_by=rank_by, metric=f["metric"])
-    # No jump pill: the filters are behind a button, so the map is already
-    # near the top of the tab.
-    _show_map(fmap, counted, "t7_map_plan", "parkruns", jump=False)
+    _show_map(fmap, counted, "t7_map_plan", "parkruns")
 
     if not filtered:
         st.caption("Set a filter to pick out possible next parkruns.")

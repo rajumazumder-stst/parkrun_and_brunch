@@ -46,9 +46,8 @@ from typing import Callable
 import pandas as pd
 import requests
 
-from parkrun_core import UK_COUNTRY_CODE, is_mainland
+from parkrun_core import SCHEMA, UK_COUNTRY_CODE, is_mainland
 
-SCHEMA = "parkrun"
 CONFIG_DIR = Path.home() / ".config" / "parkrun"
 HOMES_FILE = Path(os.environ.get("PARKRUN_HOMES", CONFIG_DIR / "homes.csv"))
 ORS_KEY_FILE = CONFIG_DIR / "ors_key"

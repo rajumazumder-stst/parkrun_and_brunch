@@ -22,31 +22,31 @@ APP_MODULES = ["parkrun_app.py", "parkrun_ui.py", "estimator_tab.py",
                "label_impact.py", "where_next.py", "parkrun_calendar.py", "app.py"]
 
 
-def test_every_plotly_chart_goes_through_show_chart():
-    """A chart rendered with st.plotly_chart directly would skip the zoom lock
-    and trap a phone's scroll again (docs/STYLE.md § Charts)."""
+def _calls_outside_ui(attr: str) -> list:
+    """file:line of every `….<attr>(…)` call in the app modules bar
+    parkrun_ui.py, which holds the one sanctioned wrapper."""
     offenders = []
     for mod in APP_MODULES:
         if mod == "parkrun_ui.py":
             continue
         for node in ast.walk(ast.parse((REPO / mod).read_text())):
             if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-                    and node.func.attr == "plotly_chart"):
+                    and node.func.attr == attr):
                 offenders.append(f"{mod}:{node.lineno}")
+    return offenders
+
+
+def test_every_plotly_chart_goes_through_show_chart():
+    """A chart rendered with st.plotly_chart directly would skip the zoom lock
+    and trap a phone's scroll again (docs/STYLE.md § Charts)."""
+    offenders = _calls_outside_ui("plotly_chart")
     assert not offenders, f"use parkrun_ui.show_chart: {offenders}"
 
 
 def test_every_popover_has_a_close_button():
     """Every popover goes through parkrun_ui.closable_popover, so each gets the
     phone's Close button (docs/STYLE.md § Phones)."""
-    offenders = []
-    for mod in APP_MODULES:
-        if mod == "parkrun_ui.py":
-            continue
-        for node in ast.walk(ast.parse((REPO / mod).read_text())):
-            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-                    and node.func.attr == "popover"):
-                offenders.append(f"{mod}:{node.lineno}")
+    offenders = _calls_outside_ui("popover")
     assert not offenders, f"use parkrun_ui.closable_popover: {offenders}"
 
 
@@ -72,13 +72,19 @@ def test_an_empty_note_still_takes_its_line():
     assert "&nbsp;" in ui.stat_note("")
 
 
-@pytest.mark.skipif(not parkrun_core.SNAPSHOT.exists(), reason="no snapshot")
-def test_app_runs_and_year_filters_take_several_years(monkeypatch):
+def _run_app(monkeypatch):
+    """The main app, run once against the committed snapshot."""
     from streamlit.testing.v1 import AppTest
 
     monkeypatch.setenv("PARKRUN_DB", str(parkrun_core.SNAPSHOT))
     at = AppTest.from_file(str(REPO / "parkrun_app.py"), default_timeout=180)
     at.run()
+    return at
+
+
+@pytest.mark.skipif(not parkrun_core.SNAPSHOT.exists(), reason="no snapshot")
+def test_app_runs_and_year_filters_take_several_years(monkeypatch):
+    at = _run_app(monkeypatch)
     assert not at.exception
     assert len(at.tabs) == 7
 
@@ -127,11 +133,7 @@ def test_years_desc_is_newest_first_and_keeps_type():
 def test_filters_survive_being_off_screen(monkeypatch):
     """Review finding: Streamlit drops an undrawn widget's state, so hiding
     tab 3's picker or flipping tab 7's view used to reset the filters."""
-    from streamlit.testing.v1 import AppTest
-
-    monkeypatch.setenv("PARKRUN_DB", str(parkrun_core.SNAPSHOT))
-    at = AppTest.from_file(str(REPO / "parkrun_app.py"), default_timeout=180)
-    at.run()
+    at = _run_app(monkeypatch)
 
     # Every year filter lists newest first (tab 7's sits in its
     # head-to-head view, so show that view first).

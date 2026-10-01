@@ -144,9 +144,10 @@ PARKRUN_PIPELINE_DB=data/parkrun_dev.duckdb \
   The tests pin the awkward neighbours (Lymington, Dunoon, Crinan, Skye).
 * **The planner's markers are built in the browser** (`JsMarkers`). ~2,400
   folium Markers would be several MB of generated script. Instead, one compact
-  point list is sent and each distinct icon is defined once (eight done-patterns
-  per style). Tooltip strings are built in Python and inlined through `_js`,
-  which escapes `</` so a parkrun name cannot close the script tag.
+  point list is sent and each distinct icon is defined once (eight done-patterns,
+  plus one per recommendation number). Tooltip strings are built in Python,
+  with every name HTML-escaped, and inlined through `_js`, which writes every
+  `<` as `\u003c` so no parkrun name can end or confuse the script block.
 * A **seeded** dev DB has no travel rows, because seeding copies the snapshot.
   Re-run `travel` after re-seeding.
 
@@ -277,7 +278,7 @@ history if some future need proves otherwise.
 ## Tests
 
 ```bash
-pytest                 # from the repo root — 167 cases, ~65s
+pytest                 # from the repo root — 165 cases, ~65s
 pytest -q tests/test_buggy_estimator.py
 pytest -q tests/test_calendar.py       # fast: no model fitting
 pytest -q tests/test_where_next.py     # fast: planner, markers, mainland, travel

@@ -27,16 +27,16 @@ where they differ from the original brief, **the spec wins**.
 - ✅ Analytics layer — `v_overlap`, `v_head_to_head`, `v_saturday_targets` views
   and the `current_targets` table, built and wired into refresh (see Analytics
   layer below).
-- ✅ Streamlit front end — `parkrun_app.py`, **6 tabs** (overlap/Venn · head-to-head
+- ✅ Streamlit front end — `parkrun_app.py`, **7 tabs** (overlap/Venn · head-to-head
   summary · head-to-head detail · form target-time by Saturday · head-to-head
-  map · what the model guessed). Deployable: `parkrun_ui.py` resolves the DB via `PARKRUN_DB` env var > Streamlit
+  map · what the model guessed · where they meet (new)). Deployable: `parkrun_ui.py` resolves the DB via `PARKRUN_DB` env var > Streamlit
   secret > a bundled read-only snapshot (`data/parkrun_snapshot.duckdb`), so it
   can be hosted (e.g. Streamlit Community Cloud) from the repo alone.
   `requirements.txt` pins the runtime deps.
 - ✅ Deployed to Streamlit Community Cloud (serves the bundled read-only
   snapshot; auto-redeploys on push to the deployed branch). Two routes, from one
   app — `app.py` is a router, `st.navigation(..., position="hidden")`:
-  - <https://parkrun-and-brunch.streamlit.app/> — the six tabs
+  - <https://parkrun-and-brunch.streamlit.app/> — the seven tabs
     (`parkrun_app.py`)
   - <https://parkrun-and-brunch.streamlit.app/buggy-handicap> — the buggy
     labels: what the buggy costs · what labelling changed (`handicap_page.py`).
@@ -79,7 +79,7 @@ where they differ from the original brief, **the spec wins**.
   behind each athlete's handicap, on the main app's own domain, so it is
   shareable rather than a screenshot of `localhost:8502`. `app.py` is now a
   router: `st.navigation([...], position="hidden")` over `parkrun_app.py` (the
-  six tabs, at `/`) and `handicap_page.py`. Hidden navigation is the point —
+  tabs, at `/`) and `handicap_page.py`. Hidden navigation is the point —
   a `pages/` directory gives the same URLs but forces a nav list into the
   sidebar, putting a statistical argument about two named people in front of
   every visitor who came for parkrun results. The page is **unlisted, not
@@ -166,8 +166,10 @@ where they differ from the original brief, **the spec wins**.
   which is why the two directions are reported separately and never pooled.
   A merged-into-`run_modes` design was worked through and rejected; the reasons
   are in § Data model.
-- 🧪 **Tab 7 — where they meet, and where next** (30 Sep 2026, on `dev`, in
-  trial beside tab 5). `where_next.py`: a toggle between two views of one
+- 🧪 **Tab 7 — where they meet, and where next** (built 30 Sep 2026, live
+  1 Oct 2026, in trial beside tab 5 until it replaces it — `TODO.md`). The
+  hosted app has no `travel_times`, so it shows the planner without driving
+  times: matches in A–Z order, in an unnumbered layer. `where_next.py`: a toggle between two views of one
   Folium map, each with only its own filters; **Planner** is the default.
   **Head-to-heads**: tab 5's pies,
   with classification / year / season. **Planner**: every regular parkrun
@@ -763,7 +765,7 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | `static/logo-512.png` | `page_icon` source: the browser-tab favicon |
 | `static/apple-touch-icon.png` | 180×180 for the iOS "Add to Home Screen" icon, served at `/app/static/` |
 | `.streamlit/config.toml` | `enableStaticServing = true` so `static/` is reachable at `/app/static/` |
-| `tests/` | pytest suite, run from the repo root. **pytest is dev-only, deliberately not in `requirements.txt`** (same convention as `openpyxl` and `cairosvg`). 167 cases; only `test_ui.py`'s one app smoke run reads a database (the committed snapshot, read-only). `test_where_next.py` (92: planner, head-to-head filter, range ends, square markers, mainland boxes, travel top-ups with a fake HTTP session, and the privacy contracts that `travel_times` never ships and holds no origin), `test_ui.py` (8: no `st.plotly_chart` outside `show_chart`, no `st.popover` outside `closable_popover`, the stat-slot order, newest-first years, the smoke run, and that filters survive being off screen), plus: `buggy_estimator` (51 — four of them cross-module contracts, that `TARGET_WINDOW_DAYS`, the label vocabulary and the cohort each have exactly one definition in `parkrun_core.py`; six covering `score_runs`, and one that reads the pipeline's source to assert nothing UPDATEs `run_modes` but the vocabulary rename) and the calendar week scheme (16, including a parity check that the Python rule and `WEEK_SQL` agree, run against an in-memory DuckDB) |
+| `tests/` | pytest suite, run from the repo root. **pytest is dev-only, deliberately not in `requirements.txt`** (same convention as `openpyxl` and `cairosvg`). 165 cases; only `test_ui.py`'s one app smoke run reads a database (the committed snapshot, read-only). `test_where_next.py` (90: planner, head-to-head filter, range ends, the lamp and circle markers, mainland boxes, travel top-ups with a fake HTTP session, and the privacy contracts that `travel_times` never ships and holds no origin), `test_ui.py` (8: no `st.plotly_chart` outside `show_chart`, no `st.popover` outside `closable_popover`, the stat-slot order, newest-first years, the smoke run, and that filters survive being off screen), plus: `buggy_estimator` (51 — four of them cross-module contracts, that `TARGET_WINDOW_DAYS`, the label vocabulary and the cohort each have exactly one definition in `parkrun_core.py`; six covering `score_runs`, and one that reads the pipeline's source to assert nothing UPDATEs `run_modes` but the vocabulary rename) and the calendar week scheme (16, including a parity check that the Python rule and `WEEK_SQL` agree, run against an in-memory DuckDB) |
 | `docs/DEV.md` | Local dev workflow (incl. `PARKRUN_LABEL_AUDIT=1` for the label-impact app). Also **§ Deferred refactors** — streamlining that has been identified and costed but not done, each with value/risk/size, so the analysis is not redone every time the code looks tidyable. **Read it before starting a cleanup**; two items in it were considered and deliberately rejected. Also **§ Open decisions** — unsettled data-safety questions (the pipeline's default write target, whether the dev DB still needs a `parkrun` schema, a shrink gate on the committed artefacts), each with the options and what they cost |
 | `docs/DATA.md` | The buggy labels: what each `source` means, how the training set grows, how to correct a label by hand |
 | `docs/MODEL.md` | The estimator as built: the four features and why each survived, the fitted coefficients, every constant, class balancing and recency, the walk-forward numbers, and the features that were removed on evidence. **The fitted numbers move every refresh** — the reasoning is what is durable |
@@ -816,7 +818,7 @@ hand-emitted SVG (the calendars) with one hand-written Streamlit component
 
 ## Visualisations
 
-**Built (local Streamlit, `parkrun_app.py`, 6 tabs)** — plus the buggy-labels
+**Built (`parkrun_app.py`, 7 tabs)** — plus the buggy-labels
 page at `/buggy-handicap` (`handicap_page.py`, 2 tabs: *What the buggy costs* ·
 *What labelling changed*) and its dev twin `label_impact.py` on its own port,
 both layout over the shared `buggy_handicap.py` / `method_impact.py`
@@ -979,15 +981,16 @@ unreadable — and no other column layout in the app is touched.
 **Phone type sizing hangs off the whole block** (`st-key-pb-block`), not off the
 scope rows: the latest-run strip sits outside those rows, so scoping the sizes
 there left it at desktop size while the scopes shrank, and the four slots
-disagreed. One selector covers all four — `PB_PHONE_BIG` / `PB_PHONE_SMALL`,
+disagreed. One selector covers all four — `STAT_PHONE_BIG` / `STAT_PHONE_SMALL`,
 sized so three times fit across 393px with the glyph — and a slot added later
 inherits it rather than having to be remembered. The rule and bottom spacer
 tighten at that breakpoint too, since they were spaced for desktop type. Every line is fixed-height — the venue block is
 pinned to `PB_VENUE_LINES` (2) lines and clamps a longer name with an ellipsis,
 keeping the full name in the `title` tooltip — so times, venues and dates sit on
 the same levels across all three boxes and the boxes match in height. Scope
-label and venue/date share one type size (`PB_SMALL`); the time is larger
-(`PB_BIG`) with tabular numerals. The block leads the tab because it motivates
+label and venue/date share one type size (`STAT_SMALL`); the time is larger
+(`STAT_BIG`) with tabular numerals, both from the shared stat-slot helpers in
+`parkrun_ui.py`. The block leads the tab because it motivates
 the head-to-head: their bests sit minutes apart, so ranking a shared parkrun by
 finish time would be meaningless — the explainer says so directly.
 
