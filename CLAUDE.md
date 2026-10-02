@@ -231,13 +231,12 @@ where they differ from the original brief, **the spec wins**.
   zoom on every plotly chart (`show_chart`), and rebuilt tab 6's tiles as
   **stat slots** (label above value, the PB-box anatomy). All of it is recorded
   in `docs/STYLE.md`.
-- 🧪 **Tab 5 changes of 2 Oct 2026 — on `dev`, not yet live.** The fitted opening view,
-  opening defaults, explicit Clear, layer tree, crossings, HTML table and
-  phone range rows above are built and tested on `dev`; the Europe routes
-  are only in the dev DB (`data/parkrun_dev.duckdb`). They reach the hosted
-  app when `dev` is merged to `main`: the next refresh (which runs from
-  `main`) then routes the ~470 new parkruns per athlete into the source of
-  truth and ships them in the snapshot.
+- ✅ **Tab 5 changes of 2 Oct 2026 — live.** The fitted opening view,
+  opening defaults, explicit Clear, layer tree, crossings, HTML table, flags
+  and phone range rows above were merged to `main` on 2 Oct 2026, and a
+  manual refresh the same night routed the new parkruns into the source of
+  truth (475 per athlete, one unreachable — Inis Meáin; `travel_times`
+  2,517 → 3,942 rows) and shipped them in the snapshot.
 - 📕 **Fake dev labels — removed** (5 Sep 2026). `scripts/dev_fake_labels.py`
   fabricated plausible buggy labels so the buggy-mode UI had something to render
   before the real ones existed, a quarter of them `estimated` so the old
