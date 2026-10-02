@@ -17,7 +17,7 @@ Usage:
     python parkrun_pipeline.py seed [FILE] # fill an EMPTY DB from a snapshot
     python parkrun_pipeline.py motherduck  # push parkrun-only data to MotherDuck
     python parkrun_pipeline.py travel [--athlete ID] [--force]
-                                           # drive times, homes -> mainland GB (Mac only)
+                                           # drive times, homes -> every road-reachable parkrun (Mac only)
 
 bootstrap and refresh rebuild the deploy snapshot (data/parkrun_snapshot.duckdb)
 automatically; `snapshot` rebuilds just that file from the current DB.
@@ -77,7 +77,7 @@ SNAPSHOT_TABLES = (
     "results",
     "run_modes",
     # Driving times from each athlete's NEIGHBOURHOOD centroid (never a home
-    # address) to every mainland-GB parkrun. Shipped since 1 Oct 2026, when
+    # address) to every road-reachable parkrun. Shipped since 1 Oct 2026, when
     # the homes became centroids: the times can locate a neighbourhood, which
     # is what was agreed to show. The table holds no origin coordinates.
     "travel_times",
@@ -1923,8 +1923,8 @@ def main() -> None:
             # than inside a Saturday cron. Idempotent either way.
             build_model_estimates(con, backfill="--backfill" in sys.argv)
         elif cmd == "travel":
-            # Drive times from each neighbourhood centroid to every
-            # mainland-GB parkrun, for the tab 5 planner. The refresh does
+            # Drive times from each neighbourhood centroid to every parkrun
+            # reachable by road (parkrun_core.routable), for the tab 5 planner. The refresh does
             # this itself (apply_travel_times); this is for a forced re-route
             # when someone moves. Incremental unless --force.
             args = sys.argv[2:]

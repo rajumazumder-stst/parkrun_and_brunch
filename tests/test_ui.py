@@ -43,6 +43,36 @@ def test_every_plotly_chart_goes_through_show_chart():
     assert not offenders, f"use parkrun_ui.show_chart: {offenders}"
 
 
+def test_no_count_is_written_without_its_thousands_comma():
+    """A count interpolated as `{len(x)}` skips fmt_n's comma — 2394, not
+    2,394 (docs/STYLE.md § Numbers). Counts are what grow past 999 here."""
+    offenders = []
+    for mod in APP_MODULES:
+        for node in ast.walk(ast.parse((REPO / mod).read_text())):
+            if (isinstance(node, ast.FormattedValue)
+                    and isinstance(node.value, ast.Call)
+                    and isinstance(node.value.func, ast.Name)
+                    and node.value.func.id == "len"):
+                offenders.append(f"{mod}:{node.lineno}")
+    assert not offenders, f"wrap the count in parkrun_ui.fmt_n: {offenders}"
+
+
+def test_fmt_n_puts_a_comma_in_thousands():
+    assert ui.fmt_n(2394) == "2,394" and ui.fmt_n(999) == "999"
+    assert ui.fmt_n(1312.46, 1) == "1,312.5" and ui.fmt_n(12.0, 1) == "12.0"
+    assert ui.fmt_n(None) == "—" and ui.fmt_n(float("nan")) == "—"
+
+
+def test_every_country_in_the_lookup_has_a_flag():
+    import csv
+    with open(REPO / "data" / "country_lookup.csv") as f:
+        names = [r["country_name"] for r in csv.DictReader(f)]
+    missing = [n for n in names if n != "Unknown" and ui.flag(n) == ui.NO_FLAG]
+    assert not missing, f"add to parkrun_ui.COUNTRY_ISO: {missing}"
+    assert ui.flag("United Kingdom") == "🇬🇧" and ui.flag("Ireland") == "🇮🇪"
+    assert ui.flag("Unknown") == ui.NO_FLAG
+
+
 def test_every_popover_has_a_close_button():
     """Every popover goes through parkrun_ui.closable_popover, so each gets the
     phone's Close button (docs/STYLE.md § Phones)."""
@@ -108,20 +138,68 @@ def test_app_runs_and_year_filters_take_several_years(monkeypatch):
     assert not at.exception
     keys = {w.key for w in at.selectbox} | {w.key for w in at.multiselect}
     assert "t5_class" not in keys and "t5_year" not in keys
+
+    # The planner opens on parkruns nobody has run, ranked by George's and
+    # Duncan's drives (when the snapshot carries drive times).
+    for name in ("George", "Raju", "Duncan"):
+        assert at.session_state[f"t5_done_{name}"] == "Not done"
+    has_travel = "t5_rank_by" in {w.key for w in at.multiselect}
+    if has_travel:
+        assert at.multiselect(key="t5_rank_by").value == ["George", "Duncan"]
+        # Each range row sits in the container RANGE_ROW_CSS keeps on one
+        # line on a phone, and that CSS is on the page.
+        import where_next
+        found = _find_block(at, "rng-t5_min_George")
+        assert found is not None and "t5_min_George_rng" in _keys_under(found)
+        assert any(where_next.RANGE_ROW_CSS in m.value for m in at.markdown)
+
     at.multiselect(key="t5_countries").set_value(["United Kingdom"]).run()
-    at.session_state["t5_done_Raju"] = "Not done"
+    at.session_state["t5_exclude"] = [1]           # Bushy Park (event ids)
+    at.session_state["t5_done_Raju"] = "Done"
     at.session_state["t5_h2h_George vs Raju"] = "Happened"
+    if has_travel:
+        at.session_state["t5_units"] = "km"
+        at.session_state["t5_rank_metric"] = "Driving distance"
+        at.multiselect(key="t5_rank_by").set_value(["Raju"])
     at.run()
     assert not at.exception
 
-    # Clear all filters: every planner filter back to its default, settings
-    # (the view) untouched.
+    # Clear all filters: the neutral setting, not the opening one — units
+    # and rank metric included, the view untouched.
     at.button(key="t5_clear").click().run()
     assert not at.exception
     assert at.multiselect(key="t5_countries").value == []
-    assert at.session_state["t5_done_Raju"] == "Any"
+    assert at.multiselect(key="t5_exclude").value == []
+    for name in ("George", "Raju", "Duncan"):
+        assert at.session_state[f"t5_done_{name}"] == "Any"
     assert at.session_state["t5_h2h_George vs Raju"] == "Any"
+    if has_travel:
+        assert at.session_state["t5_units"] == "miles"
+        assert at.session_state["t5_rank_metric"] == "Driving time"
+        assert at.multiselect(key="t5_rank_by").value == ["George", "Raju", "Duncan"]
     assert at.session_state["t5_view"] == "Planner"
+
+
+def _find_block(at, key_suffix):
+    """The block element whose id ends in `key_suffix` (a container key)."""
+    stack = [at._tree]
+    while stack:
+        node = stack.pop()
+        pid = getattr(getattr(node, "proto", None), "id", "") or ""
+        if pid.endswith(key_suffix):
+            return node
+        stack.extend(getattr(node, "children", {}).values())
+    return None
+
+
+def _keys_under(node) -> set:
+    out, stack = set(), [node]
+    while stack:
+        n = stack.pop()
+        if getattr(n, "key", None):
+            out.add(n.key)
+        stack.extend(getattr(n, "children", {}).values())
+    return out
 
 
 def test_years_desc_is_newest_first_and_keeps_type():
@@ -146,14 +224,14 @@ def test_filters_survive_being_off_screen(monkeypatch):
     # Tab 5: set a planner filter, go to the head-to-head view and back.
     at.session_state["t5_view"] = "Planner"
     at.run()
-    at.session_state["t5_done_Raju"] = "Not done"
+    at.session_state["t5_done_Raju"] = "Done"     # not the default
     at.run()
     at.session_state["t5_view"] = "Head-to-heads"
     at.run()
     at.session_state["t5_view"] = "Planner"
     at.run()
     assert not at.exception
-    assert at.session_state["t5_done_Raju"] == "Not done"
+    assert at.session_state["t5_done_Raju"] == "Done"
 
     # Tab 3: choose a year, hide the picker, run again.
     year = at.multiselect(key="t3_year").options[-1]

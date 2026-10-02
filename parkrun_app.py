@@ -57,6 +57,7 @@ from parkrun_ui import (  # shared with label_impact.py — see that module
     STAT_SMALL,
     UK_TZ,
     data_version,
+    fmt_n,
     fmt_time,
     POPOVER_CLOSE_CSS,
     closable_popover,
@@ -68,7 +69,8 @@ from parkrun_ui import (  # shared with label_impact.py — see that module
     stat_phone_css,
     stat_value,
 )
-from where_next import render_h2h_view, render_planner, view_toggle
+from where_next import (RANGE_ROW_CSS, render_h2h_view, render_planner,
+                        view_toggle)
 
 # Logo built by scripts/build_logo.py (three runners in ATHLETE_COLORS on a
 # fried egg). Resolved off __file__, not the CWD, so it survives being launched
@@ -446,7 +448,7 @@ def _render_window_runs(runs: pd.DataFrame, athlete_name: str) -> None:
     )
     if has_modes:
         counts = " · ".join(
-            f"{len(sub)} {BUGGY_GLYPH if m == 'buggy' else REGULAR_LABEL}"
+            f"{fmt_n(len(sub))} {BUGGY_GLYPH if m == 'buggy' else REGULAR_LABEL}"
             for m, sub in groups if not sub.empty
         )
         st.caption(
@@ -928,7 +930,8 @@ with st.sidebar:
         st.cache_data.clear()
         st.rerun()
 
-st.markdown(SECTION_CSS + POPOVER_CLOSE_CSS, unsafe_allow_html=True)
+st.markdown(SECTION_CSS + POPOVER_CLOSE_CSS + RANGE_ROW_CSS,
+            unsafe_allow_html=True)
 
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
     ["🏃 parkrun & brunch", "⚔️ Head-to-head summary", "🔎 Head-to-head detail",
@@ -1080,6 +1083,8 @@ with tab1:
                 category_orders={"athlete": athlete_order, "category": cat_order},
                 title="Each runner's parkrun company", text="count",
             )
+            fig2.update_traces(texttemplate="%{text:,}")
+            fig2.update_xaxes(tickformat=",d")
             fig2.update_layout(
                 xaxis_title="parkruns", yaxis_title=None, legend_title=None,
                 margin=dict(t=50, b=0, l=0, r=0),
@@ -1206,11 +1211,11 @@ with tab2:
                             unsafe_allow_html=True,
                         )
                         total = len(target_runs[target_runs["athlete_name"] == name])
-                        with closable_popover(f"{total} runs in window",
+                        with closable_popover(f"{fmt_n(total)} runs in window",
                                               key=f"t2_runs_{name}",
                                               width="stretch"):
                             st.markdown(
-                                f"**{name} — {total} runs in the 91-day window**"
+                                f"**{name} — {fmt_n(total)} runs in the 91-day window**"
                             )
                             _render_window_runs(target_runs, name)
                     else:
@@ -1269,6 +1274,8 @@ with tab2:
                 category_orders={"Place": places, "Athlete": list(board.index)},
                 text="count",
             )
+            fig3.update_traces(texttemplate="%{text:,}")
+            fig3.update_yaxes(tickformat=",d")
             fig3.update_layout(xaxis_title=None, yaxis_title="head-to-heads",
                                legend_title=None, margin=dict(t=10, b=0, l=0, r=0))
             show_chart(fig3)
@@ -1291,7 +1298,7 @@ with tab2:
                 shown = board.astype(str)
                 for c in places:
                     shown[c] = [
-                        f"{t} ({b} {BUGGY_GLYPH})" if b else str(t)
+                        f"{fmt_n(t)} ({fmt_n(b)} {BUGGY_GLYPH})" if b else fmt_n(t)
                         for t, b in zip(board[c], bug[c])
                     ]
             st.dataframe(shown, width="stretch")
@@ -1345,7 +1352,7 @@ with tab2:
                 if fig4.data:
                     fig4.update_yaxes(
                         dtick=_nice_dtick(int(trend["cum_firsts"].max())),
-                        rangemode="tozero", tickformat="d", title="cumulative 1sts",
+                        rangemode="tozero", tickformat=",d", title="cumulative 1sts",
                     )
                     fig4.update_layout(legend_title=None, hovermode="closest",
                                        margin=dict(t=10, b=0, l=0, r=0))
@@ -1427,7 +1434,7 @@ with tab3:
             c1.info(
                 f"Showing the week of "
                 f"**{focus_row['occ_keys'][0][0]:%-d %b %Y}** — "
-                f"{len(wk)} head-to-head{'s' if len(wk) != 1 else ''}. "
+                f"{fmt_n(len(wk))} head-to-head{'s' if len(wk) != 1 else ''}. "
                 "Tap that square again to go back to all weeks."
             )
             if c2.button("Show all weeks", key="t3_unfocus"):
@@ -1457,7 +1464,7 @@ with tab3:
         # what an unset or filtered-away selection falls back to.
         idx = next((i for i, k in enumerate(keys) if labels[k] == sel), 0)
         if show_pick:
-            choice = st.selectbox(f"Head-to-head ({len(labels)} found)", keys,
+            choice = st.selectbox(f"Head-to-head ({fmt_n(len(labels))} found)", keys,
                                   index=idx)
             # The dropdown comes before the calendar, so its value drives the
             # highlight in the same run — no rerun, and the box cannot lag.

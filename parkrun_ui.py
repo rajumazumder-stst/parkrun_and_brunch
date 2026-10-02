@@ -118,6 +118,41 @@ def data_version() -> str:
     return f"{r['scraped']}|{r['labelled']}|{r['n_labels']}"
 
 
+# Flags for country names (data/country_lookup.csv). By name, not parkrun's
+# numeric country_code, because the name is what every frame the UI holds
+# carries. Built from the ISO 3166 code as regional-indicator letters, so the
+# table is 21 two-letter codes rather than 21 emoji to get right by eye. A
+# country added to the lookup without a row here shows the white flag —
+# tests/test_ui.py fails first.
+COUNTRY_ISO = {
+    "Australia": "AU", "Austria": "AT", "Canada": "CA", "Denmark": "DK",
+    "Finland": "FI", "Germany": "DE", "Ireland": "IE", "Italy": "IT",
+    "Japan": "JP", "Lithuania": "LT", "Malaysia": "MY", "Netherlands": "NL",
+    "New Zealand": "NZ", "Norway": "NO", "Poland": "PL", "Singapore": "SG",
+    "South Africa": "ZA", "Sweden": "SE", "United Kingdom": "GB",
+    "United States": "US",
+}
+NO_FLAG = "🏳️"
+
+
+def flag(country_name) -> str:
+    """The country's flag emoji; the white flag for Unknown or an unmapped one."""
+    iso = COUNTRY_ISO.get(str(country_name))
+    if not iso:
+        return NO_FLAG
+    return "".join(chr(0x1F1E6 + ord(ch) - ord("A")) for ch in iso)
+
+
+def fmt_n(x, dp: int = 0) -> str:
+    """A count or measure for display, with a comma for thousands — "2,394",
+    "1,312.5" (docs/STYLE.md § Numbers). Every number the app writes into
+    text goes through here, so the rule cannot be applied in one place and
+    forgotten in the next. A missing value is a dash, as in fmt_time."""
+    if x is None or pd.isna(x):
+        return "—"
+    return f"{x:,.{dp}f}"
+
+
 def fmt_time(sec) -> str:
     if pd.isna(sec):
         return "—"

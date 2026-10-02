@@ -41,6 +41,7 @@ from parkrun_ui import (
     MEDAL,
     _read_sql,
     _surface_color,
+    fmt_n,
     fmt_time,
     mode_suffix,
 )
@@ -649,8 +650,8 @@ def _total_tspans(n: int, by_athlete: dict, label_fill: str) -> str:
     have a count — a zero would put the glyph on every row and turn the buggy
     into a standing column instead of the exception it is.
     """
-    parts = [f'<tspan fill="{label_fill}">{n}</tspan>']
-    inner = [f'<tspan fill="{ATHLETE_COLORS[a]}">{by_athlete[a]}{BUGGY_GLYPH}</tspan>'
+    parts = [f'<tspan fill="{label_fill}">{fmt_n(n)}</tspan>']
+    inner = [f'<tspan fill="{ATHLETE_COLORS[a]}">{fmt_n(by_athlete[a])}{BUGGY_GLYPH}</tspan>'
              for a in ATHLETES if by_athlete.get(a)]
     if inner:
         # Hair spaces: the emoji's advance is wider than the metric the digits
@@ -670,7 +671,8 @@ def _total_label(n: int, bug: int) -> str:
     """
     # Hair space before the bracket: the emoji's advance width is wider than
     # the metric the surrounding digits are set in, so it collides with the ")".
-    return f"{n} ({bug}{BUGGY_GLYPH}\u2009)" if bug else str(n)
+    return (f"{fmt_n(n)} ({fmt_n(bug)}{BUGGY_GLYPH}\u2009)" if bug
+            else fmt_n(n))
 
 
 # --------------------------------------------------------------------------- #
@@ -690,7 +692,7 @@ def render_headline(runs: pd.DataFrame, weeks: pd.DataFrame,
             st.markdown(
                 f"<div style='border-left:4px solid {ATHLETE_COLORS[name]};"
                 f"padding:2px 0 2px 10px'>"
-                f"<div style='font-size:1.35rem;font-weight:600'>{n} parkruns</div>"
+                f"<div style='font-size:1.35rem;font-weight:600'>{fmt_n(n)} parkruns</div>"
                 f"<div style='opacity:.75'>{name}</div>"
                 f"</div>",
                 unsafe_allow_html=True,
@@ -1293,13 +1295,13 @@ def render_h2h_calendar(h2h_weeks: pd.DataFrame, years: list[int],
             (("George", "Raju", "Duncan"), "Duncan vs George vs Raju"),
         ):
             n = int(counts.get(cls, 0))
-            lx = _legend_item(body, lx, y, g, t, f"{cls} ({n})", names=names)
+            lx = _legend_item(body, lx, y, g, t, f"{cls} ({fmt_n(n)})", names=names)
     else:
         # Swatch, pairing, count, in the order the app names them.
         palette = (H2H_DISTINCT if scheme == "Distinct palette" else H2H_COLORS)
         for cls, colour in palette.items():
             n = int(counts.get(cls, 0))
-            lx = _legend_item(body, lx, y, g, t, f"{cls} ({n})", swatch=colour)
+            lx = _legend_item(body, lx, y, g, t, f"{cls} ({fmt_n(n)})", swatch=colour)
     y += g.pitch
 
     return _svg(g.label_w + 53 * g.pitch + tot_w, y, "".join(body)), y

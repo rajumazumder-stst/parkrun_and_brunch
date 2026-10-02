@@ -26,7 +26,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from scipy import stats as sps
 
-from parkrun_ui import BUGGY_GLYPH, _read_sql, fmt_time, show_chart
+from parkrun_ui import BUGGY_GLYPH, _read_sql, fmt_n, fmt_time, show_chart
 
 # One pair for both athletes: the series here is the MODE, not the runner, so
 # the same two colours must mean the same two things on every chart it draws.
@@ -206,7 +206,7 @@ def render_handicap(version: str) -> None:
 
     bridged = load_bridged(version)
     st.caption(
-        f"The bridge currently decides **{len(bridged)}** head-to-head "
+        f"The bridge currently decides **{fmt_n(len(bridged))}** head-to-head "
         f"target(s). A handicap with no bridged contest changes nothing today."
         if len(bridged) else
         "No head-to-head currently uses a bridged target, so the handicaps "
@@ -240,9 +240,9 @@ def render_handicap(version: str) -> None:
         st.divider()
         st.subheader(name)
         st.caption(
-            f"{first:%Y-%m-%d} → {last:%Y-%m-%d} · {(last - first).days} days · "
-            f"{len(keep)} runs"
-            + (f" · {len(dropped)} extreme run(s) set aside" if len(dropped) else "")
+            f"{first:%Y-%m-%d} → {last:%Y-%m-%d} · {fmt_n((last - first).days)} days · "
+            f"{fmt_n(len(keep))} runs"
+            + (f" · {fmt_n(len(dropped))} extreme run(s) set aside" if len(dropped) else "")
         )
 
         rows = []
@@ -297,7 +297,7 @@ def render_handicap(version: str) -> None:
         if spans_zero or disagree or len(b) < 8:
             why = []
             if len(b) < 8:
-                why.append(f"only {len(b)} buggy run(s)")
+                why.append(f"only {fmt_n(len(b))} buggy run(s)")
             if spans_zero:
                 why.append("the raw interval crosses zero")
             if disagree:
@@ -317,7 +317,9 @@ def render_handicap(version: str) -> None:
             )
             st.caption(
                 f"Estimates span {min(pcts):+.1f}% to {max(pcts):+.1f}%"
-                + (f"; {pick:.2f} is inside all {len(est)} confidence intervals "
+                + (f"; {pick:.2f} is inside all {fmt_n(len(est))} confidence intervals "
                    f"and closest to their mean." if pick else ".")
-                + f" Apply with `method='measured'`, `n_buggy_labels={len(b)}`."
+                # A code argument, not a figure for reading: no comma.
+                + " Apply with `method='measured'`, "
+                + f"`n_buggy_labels={int(len(b))}`."
             )
