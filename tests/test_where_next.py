@@ -71,7 +71,7 @@ ANY = {GEORGE: "Any", RAJU: "Any", DUNCAN: "Any"}
 # --------------------------------------------------------------------------- #
 # Mainland Great Britain
 # --------------------------------------------------------------------------- #
-@pytest.mark.parametrize("name, lat, lon, mainland", [
+MAINLAND_CASES = [pytest.param(*c, id=c[0]) for c in [
     ("Bushy Park", 51.411, -0.336, True),
     ("Lymington Woodside", 50.748, -1.545, True),   # beside the Isle of Wight
     ("Southsea", 50.785, -1.046, True),
@@ -94,7 +94,10 @@ ANY = {GEORGE: "Any", RAJU: "Any", DUNCAN: "Any"}
     ("Portrush", 55.205, -6.649, False),
     ("Gibraltar Botanical Gardens", 36.132, -5.351, False),
     ("Cape Pembroke Lighthouse (Falklands)", -51.683, -57.758, False),
-])
+]]
+
+
+@pytest.mark.parametrize("name, lat, lon, mainland", MAINLAND_CASES)
 def test_is_mainland(name, lat, lon, mainland):
     assert parkrun_core.is_mainland(lat, lon) is mainland, name
 
@@ -104,6 +107,40 @@ def test_is_mainland_rejects_missing_coordinates():
     assert not parkrun_core.is_mainland(float("nan"), -0.1)
 
 
+@pytest.mark.parametrize("name, cc, lat, lon, routable, crossing", [
+    ("Bushy Park", 97, 51.411, -0.336, True, False),
+    ("Belfast Victoria", 97, 54.609, -5.882, True, True),
+    ("Jersey", 97, 49.195, -2.204, True, True),
+    ("Gibraltar Botanical Gardens", 97, 36.132, -5.351, True, True),
+    ("Dublin, Marlay (inside GB_EXTENT)", 64, 53.27, -6.27, True, True),
+    ("Zuiderpark, Den Haag", 74, 52.06, 4.28, True, True),
+    ("Albert Melbourne", 3, -37.84, 144.97, False, True),
+    ("Cape Pembroke Lighthouse (Falklands)", 97, -51.683, -57.758, False, True),
+])
+def test_routable_and_crosses_water(name, cc, lat, lon, routable, crossing):
+    assert parkrun_core.routable(cc, lat, lon) is routable, name
+    assert parkrun_core.crosses_water(cc, lat, lon) is crossing, name
+
+
+def test_routable_rejects_missing_coordinates():
+    assert not parkrun_core.routable(97, None, -0.1)
+    assert not parkrun_core.routable(97, float("nan"), -0.1)
+
+
+def test_travel_routes_every_road_reachable_live_5k():
+    import duckdb
+    con = duckdb.connect()
+    con.execute("CREATE SCHEMA parkrun")
+    ev = events()
+    ev.loc[len(ev)] = (10, "Marlay", 53.27, -6.27, True, 1, 64, "Ireland")
+    con.register("ev", ev)
+    con.execute("CREATE TABLE parkrun.events AS SELECT * FROM ev")
+    got = tr.candidate_events(con)
+    assert list(got.columns) == ["event_id", "latitude", "longitude"]
+    # Mainland, Belfast, Jersey and Dublin; not Melbourne, not defunct, not junior.
+    assert sorted(got["event_id"]) == [1, 2, 3, 4, 5, 6, 10]
+
+
 # --------------------------------------------------------------------------- #
 # plan_candidates
 # --------------------------------------------------------------------------- #
@@ -111,8 +148,15 @@ def ids(df):
     return df["event_id"].tolist()
 
 
-def test_candidates_are_live_5k_mainland_only():
+def test_candidates_are_every_live_5k_with_crossings_flagged():
     c = wn.plan_candidates(events(), done(), None, done_filter=ANY)
+    assert sorted(ids(c)) == [1, 2, 3, 4, 5, 6, 7]     # not defunct, not junior
+    assert set(c.loc[c["crossing"], "event_id"]) == {5, 6, 7}
+
+
+def test_sea_crossings_can_be_left_out():
+    c = wn.plan_candidates(events(), done(), None, done_filter=ANY,
+                           include_crossings=False)
     assert sorted(ids(c)) == [1, 2, 3, 4]
 
 
@@ -131,7 +175,7 @@ def test_done_and_not_done_filters_are_anded():
 def test_nobody_has_done_it():
     c = wn.plan_candidates(events(), done(), None,
                            done_filter={n: "Not done" for n in wn.ATHLETES})
-    assert ids(c) == [4]
+    assert sorted(ids(c)) == [4, 5, 6]     # Edinburgh, Belfast, Jersey
 
 
 def test_time_range_per_athlete():
@@ -188,7 +232,7 @@ def test_h2h_filter_happened_and_never():
     no = wn.plan_candidates(events(), done(), None, done_filter=ANY, h2h=hc,
                             h2h_filter={"George vs Raju": "Never",
                                         "Duncan vs George vs Raju": "Never"})
-    assert sorted(ids(no)) == [2, 4]
+    assert sorted(ids(no)) == [2, 4, 5, 6, 7]
 
 
 def test_regular_parkruns_keeps_a_defunct_one_somebody_ran():
@@ -248,10 +292,52 @@ def test_country_filter_empty_means_all():
     assert set(wn.filter_countries(ev, ["Australia"])["event_id"]) == {7}
 
 
-def test_london_bounds_count():
-    ev = events()
-    inside = ev[wn.in_bounds(ev, wn.LONDON_BOUNDS)]
-    assert set(inside["event_id"]) == {1, 2, 3, 8, 9}
+@pytest.mark.parametrize("width", [390, 1200])
+def test_the_opening_view_holds_all_of_mainland_gb(width):
+    (s, w), (n, e) = wn.view_bounds(wn.GB_CENTER, wn.GB_ZOOM, width, wn.MAP_HEIGHT)
+    (gs, gw), (gn, ge) = wn.GB_MAINLAND_BOUNDS
+    assert s < gs and n > gn and w < gw and e > ge
+    # ...and every mainland fixture point sits inside that box.
+    for _, lat, lon, mainland in [p.values for p in MAINLAND_CASES]:
+        if mainland:
+            assert gs <= lat <= gn and gw <= lon <= ge
+    # Not a zoom further out than needed: zoom 6 would not fit a phone.
+    (s6, _), (n6, _) = wn.view_bounds(wn.GB_CENTER, wn.GB_ZOOM + 1, 390,
+                                      wn.MAP_HEIGHT)
+    assert not (s6 < gs and n6 > gn)
+
+
+def test_mainland_ids_leave_out_every_crossing():
+    assert wn.mainland_ids(events()) == {1, 2, 3, 4, 8, 9}
+
+
+def test_the_map_opens_fitted_to_the_opening_markers_on_mainland_gb():
+    ev, d = events(), done()
+    pr = wn.regular_parkruns(ev, d)
+    t = travel()
+    t.loc[len(t)] = (GEORGE, 5, 10 * 60.0, 9_000.0)      # Belfast, very near
+    cands = wn.plan_candidates(ev, d, t, done_filter=ANY, rank_by=[GEORGE])
+    fmap, counted = wn.build_planner_map(parkruns=pr, dt=wn.done_table(d),
+                                         candidates=cands, h2h_by_event={})
+    pts = wn.opening_points(fmap, counted)
+    assert set(pts["event_id"]) == {1, 2, 3, 4, 5}       # the top layer only
+    # Belfast is a recommendation but off the mainland: it does not widen it.
+    (s, w), (n, e) = wn.opening_bounds(pts, wn.mainland_ids(ev))
+    assert (s, n) == (51.41, 55.95) and (w, e) == (-3.20, -0.10)
+
+
+def test_with_no_opening_marker_on_the_mainland_the_map_fits_gb():
+    pts = pd.DataFrame({"event_id": [5], "latitude": [54.61], "longitude": [-5.88]})
+    assert wn.opening_bounds(pts, wn.mainland_ids(events())) == wn.GB_MAINLAND_BOUNDS
+
+
+def test_the_fit_waits_for_the_map_to_have_a_size():
+    fmap = wn._base_map()
+    wn.FitWhenSized([[51.4, -3.2], [55.95, -0.1]]).add_to(fmap)
+    html = fmap.get_root().render()
+    assert "fitBounds([[51.4,-3.2],[55.95,-0.1]]" in html
+    assert "clientWidth) { setTimeout(fit, 200)" in html
+    assert f"maxZoom: {wn.FIT_MAX_ZOOM}" in html
 
 
 # --------------------------------------------------------------------------- #
@@ -311,7 +397,11 @@ def test_open_marker_is_a_black_circle_numbered_when_ranked():
     assert ">4</text>" in ranked and D > d
 
 
-def test_planner_map_splits_done_from_never_done():
+def _layer(counted, name):
+    return {e for e, *_ in counted.get(name, [])}
+
+
+def test_planner_map_layers_overlap_by_what_each_parkrun_is():
     ev = events()
     dt = wn.done_table(done())
     pr = wn.regular_parkruns(ev, done())
@@ -320,32 +410,41 @@ def test_planner_map_splits_done_from_never_done():
     fmap, counted = wn.build_planner_map(parkruns=pr, dt=dt, candidates=cands,
                                          h2h_by_event={})
     assert "pr-inview" in fmap.get_root().render()
-    top = {e for e, *_ in counted[wn.LAYER_TOP]}
-    done_ids = {e for e, *_ in counted[wn.LAYER_DONE]}
-    never = {e for e, *_ in counted[wn.LAYER_NOT_DONE]}
+    top = _layer(counted, wn.LAYER_TOP)
+    never = _layer(counted, wn.LAYER_NOT_DONE)
+    by = {n: _layer(counted, wn.layer_done_by(n)) for n in wn.ATHLETES}
     assert top == set(cands["event_id"])     # 4 matches, all in the top 25
-    assert done_ids == {7}                   # run by someone, not a match
-    assert never == set(pr["event_id"]) - top - done_ids
-    assert sum(len(v) for v in counted.values()) == len(pr)
+    # Each athlete's layer is exactly what they have run...
+    for n in wn.ATHLETES:
+        assert by[n] == set(dt.index[dt[n] > 0]) & set(pr["event_id"]), n
+    done_any = set().union(*by.values())
+    # ...and done / not done partition the parkruns, the top layer on top.
+    assert done_any | never == set(pr["event_id"]) and not done_any & never
+    assert top & never and top & done_any    # a recommendation is both
 
 
-def test_planner_map_draws_each_parkrun_once():
+def test_planner_map_draws_each_parkrun_in_its_kind_once_per_athlete():
     pr = wn.regular_parkruns(events(), done())
     fmap, counted = wn.build_planner_map(parkruns=pr, dt=wn.done_table(done()),
                                          candidates=None, h2h_by_event={})
-    assert sum(len(v) for v in counted.values()) == len(pr)
     assert wn.LAYER_TOP not in counted           # nothing to recommend yet
+    for name, pts in counted.items():
+        assert len(pts) == len({e for e, *_ in pts}), name
 
 
-def test_maps_carry_the_phone_sheet_and_a_closable_layer_box():
+def test_maps_carry_the_phone_sheet_and_a_closable_layer_tree():
     pr = wn.regular_parkruns(events(), done())
     fmap, _ = wn.build_planner_map(parkruns=pr, dt=wn.done_table(done()),
                                    candidates=None, h2h_by_event={})
     html = fmap.get_root().render()
     assert "map-sheet" in html and "window.prSheet" in html
     assert ".collapse()" in html and "pr-layers-close" in html
-    # One background map, added outside the layer box: no base-layer radio.
-    assert re.search(r"base_layers\s*:\s*\{\s*\}", html)
+    # A tree, open on a wide map, with the done layers under one parent.
+    assert "L.control.layers.tree(" in html and '"collapsed": false' in html
+    assert re.search(r"var tree_layer_control_\w+ = L\.control\.layers\.tree", html)
+    assert '"selectAllCheckbox": true' in html
+    # One background map, outside the layer box: no base tree.
+    assert re.search(r"L\.control\.layers\.tree\(\s*null", html)
 
 
 def test_the_sheet_uses_the_calendar_theme_colours():
@@ -358,8 +457,11 @@ def test_the_sheet_uses_the_calendar_theme_colours():
 def test_h2h_view_map_uses_browser_markers_and_counts_venues():
     venues = [(1, 51.41, -0.34, 20, wn._pie_svg({GEORGE: 2}, 20), "<b>Bushy</b>")]
     fmap, counted = wn.build_h2h_view_map(venues)
-    assert "window.prSheet" in fmap.get_root().render()
+    html = fmap.get_root().render()
+    assert "window.prSheet" in html
     assert counted[wn.LAYER_H2H] == [(1, 51.41, -0.34)]
+    # No layer box: the pies are the only layer, so it could only hide them.
+    assert "L.control.layers" not in html
 
 
 def test_planner_is_the_default_view():
@@ -407,17 +509,78 @@ def test_results_table_greys_runners_outside_the_ranking():
     c = wn.plan_candidates(events(), done(), travel(), done_filter=ANY,
                            rank_by=[RAJU])
     t = wn._results_table(c, "km", [RAJU])
-    cols = list(t.data.columns)
-    assert "George time (not ranked)" in cols and "Raju time" in cols
-    html = t.to_html()
-    assert "font-style: italic" in html and wn.GREY in html
+    assert "George time (not ranked)" in t.columns and "Raju time" in t.columns
+    assert set(t.greyed) == {"George time (not ranked)", "George km (not ranked)",
+                             "Duncan time (not ranked)", "Duncan km (not ranked)"}
+    html = wn.results_table_html(t)
+    # Grey AND italic, as on the map — what st.dataframe could not draw.
+    assert html.count(wn.GREY_STYLE) == 4 * (len(c) + 1)     # cells + headers
+    assert "italic" in wn.GREY_STYLE
+
+
+@pytest.mark.parametrize("metric, first", [("time", "Total time (ranked)"),
+                                           ("distance", "Total km (ranked)")])
+def test_results_table_leads_with_the_total_it_ranked_on_in_bold(metric, first):
+    c = wn.plan_candidates(events(), done(), travel(), done_filter=ANY,
+                           rank_by=wn.ATHLETES, units="km", rank_metric=metric)
+    t = wn._results_table(c, "km", wn.ATHLETES, metric)
+    assert t.columns[:4] == ["#", "parkrun", "Country", first]
+    assert t.bold == [first]
+    assert t.greyed == []
+    html = wn.results_table_html(t)
+    assert "font-weight:700" in html
+
+
+def test_results_table_sorts_numbers_as_numbers():
+    c = wn.plan_candidates(events(), done(), travel(), done_filter=ANY,
+                           rank_by=wn.ATHLETES)
+    html = wn.results_table_html(wn._results_table(c, "km", wn.ATHLETES))
+    assert 'data-num="1"' in html and "localeCompare" in html
+    assert wn._sort_key(float("nan")) == "" and wn._sort_key(7) == "7.0"
+
+
+def test_results_table_has_a_flag_column_named_in_its_tooltip():
+    c = wn.plan_candidates(events(), done(), None, done_filter=ANY)
+    t = wn._results_table(c, "km")
+    assert t.columns[:2] == ["parkrun", "Country"]
+    flags = dict(zip(c["short_name"], t.text("Country")))
+    assert flags["Bushy Park"] == "🇬🇧" and flags["Albert Melbourne"] == "🇦🇺"
+    html = wn.results_table_html(t)
+    assert 'title="Australia">🇦🇺</td>' in html
+
+
+def test_big_numbers_get_a_thousands_comma_in_the_table_and_hover():
+    t = travel()
+    t.loc[t.event_id == 4, "distance_m"] = 1_500_000.0       # Edinburgh, 1,500 km
+    c = wn.plan_candidates(events(), done(), t, done_filter=ANY,
+                           rank_by=wn.ATHLETES, units="km")
+    tbl = wn._results_table(c, "km", wn.ATHLETES)
+    assert "1,500.0" in tbl.text("George km")
+    assert "4,500.0" in tbl.text("Total km")      # ranked on time: km is second
+    row = next(c[c["event_id"] == 4].itertuples(index=False))
+    tip = wn._candidate_tip(4, row, "km", {}, wn.done_table(done()), wn.ATHLETES)
+    assert "1,500.0 km" in tip and "4,500.0 km" in tip
+
+
+def test_the_corner_counter_writes_thousands_commas():
+    pr = wn.regular_parkruns(events(), done())
+    fmap, _ = wn.build_planner_map(parkruns=pr, dt=wn.done_table(done()),
+                                   candidates=None, h2h_by_event={})
+    assert "toLocaleString('en-GB')" in fmap.get_root().render()
+
+
+def test_results_table_escapes_names():
+    c = wn.plan_candidates(events(), done(), None, done_filter=ANY)
+    c.loc[0, "short_name"] = "<b>x</b> & y"
+    html = wn.results_table_html(wn._results_table(c, "km"))
+    assert "<b>x" not in html and "&lt;b&gt;x&lt;/b&gt; &amp; y" in html
 
 
 def test_results_table_distances_keep_one_decimal():
     c = wn.plan_candidates(events(), done(), travel(), done_filter=ANY,
                            rank_by=wn.ATHLETES)
     t = wn._results_table(c, "miles", wn.ATHLETES)
-    assert "12.4" in t.to_html()            # 20 km to Bushy for George = 12.43 mi
+    assert "12.4" in t.text("George mi")    # 20 km to Bushy for George = 12.43 mi
 
 
 def test_the_map_opens_on_the_recommendations_alone():
@@ -427,10 +590,10 @@ def test_the_map_opens_on_the_recommendations_alone():
                                rank_by=wn.ATHLETES)
     fmap, counted = wn.build_planner_map(parkruns=pr, dt=wn.done_table(d),
                                          candidates=cands, h2h_by_event={})
-    assert fmap.pr_shown == {wn.LAYER_TOP: True, wn.LAYER_DONE: False,
-                             wn.LAYER_NOT_DONE: False}
-    # The corner counter starts from the same switches.
-    assert '"parkruns done (min 1 person)":false' in fmap.get_root().render()
+    assert fmap.pr_shown == {wn.LAYER_TOP: True, wn.LAYER_NOT_DONE: False,
+                             **{wn.layer_done_by(n): False for n in wn.ATHLETES}}
+    # The corner counter reads what is on the map, not a copy of the switches.
+    assert "map.hasLayer(groups[name])" in fmap.get_root().render()
 
 
 def test_the_map_shows_the_matches_alone_when_nothing_is_ranked():
@@ -440,7 +603,7 @@ def test_the_map_shows_the_matches_alone_when_nothing_is_ranked():
                                    dt=wn.done_table(d), candidates=cands,
                                    h2h_by_event={})
     assert fmap.pr_shown[wn.LAYER_MATCH] is True
-    assert not fmap.pr_shown[wn.LAYER_DONE] and not fmap.pr_shown[wn.LAYER_NOT_DONE]
+    assert not any(v for k, v in fmap.pr_shown.items() if k != wn.LAYER_MATCH)
 
 
 def test_with_nothing_picked_out_every_layer_shows():
@@ -449,6 +612,35 @@ def test_with_nothing_picked_out_every_layer_shows():
                                    dt=wn.done_table(d), candidates=None,
                                    h2h_by_event={})
     assert all(fmap.pr_shown.values())
+
+
+def test_track_top_rounds_up_and_opens_past_the_cap():
+    assert wn.track_top(455.0, wn.TIME_CAP_MIN) == (460, False)
+    assert wn.track_top(2100.0, wn.TIME_CAP_MIN) == (720, True)   # Finland
+    top, open_top = wn.track_top(1938.0, wn.DIST_CAP["mi"], float)
+    assert (top, open_top) == (800.0, True) and isinstance(top, float)
+
+
+def test_an_open_ended_range_still_keeps_the_far_parkruns():
+    c = wn.plan_candidates(events(), done(), travel(), done_filter=ANY,
+                           minutes_range={GEORGE: (30, float("inf"))})
+    assert 4 in ids(c)                       # Edinburgh, 460 min
+
+
+def test_crossings_are_marked_in_the_hover_and_the_table():
+    t = travel()
+    t.loc[len(t)] = (GEORGE, 5, 400 * 60.0, 600_000.0)       # Belfast, by ferry
+    c = wn.plan_candidates(events(), done(), t, done_filter=ANY,
+                           rank_by=[GEORGE])
+    row = next(c[c["event_id"] == 5].itertuples(index=False))
+    tip = wn._candidate_tip(5, row, "km", {}, wn.done_table(done()), [GEORGE])
+    assert wn.CROSSING in tip and "check-in" in tip
+    names = wn._results_table(c, "km", [GEORGE]).text("parkrun")
+    assert f"Belfast Victoria {wn.CROSSING}" in names
+    assert "Bushy Park" in names                       # mainland: no mark
+    bushy = next(c[c["event_id"] == 1].itertuples(index=False))
+    assert wn.CROSSING not in wn._candidate_tip(
+        1, bushy, "km", {}, wn.done_table(done()), [GEORGE])
 
 
 def test_reseed_range_keeps_floats_for_distance():
@@ -745,9 +937,8 @@ def test_results_table_rows_line_up_after_a_country_filter():
                            rank_by=wn.ATHLETES)
     c = c[c["event_id"] != c["event_id"].iloc[0]]          # a gap in the index
     t = wn._results_table(c, "km")
-    t = getattr(t, "data", t)                         # a Styler or a frame
-    assert list(t["parkrun"]) == list(c["short_name"])
-    assert t["Run by"].notna().all() and list(t["#"]) == list(range(1, len(c) + 1))
+    assert t.text("parkrun") == list(c["short_name"])
+    assert all(t.text("Run by")) and t.text("#") == [str(i) for i in range(1, len(c) + 1)]
 
 
 def test_plan_candidates_survives_an_empty_database():

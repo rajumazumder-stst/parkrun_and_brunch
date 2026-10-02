@@ -142,11 +142,16 @@ PARKRUN_PIPELINE_DB=data/parkrun_dev.duckdb \
 * **A running app notices a `travel` run by itself.** `load_travel` is keyed on
   `travel_version()` (row count and latest `routed_at`), not on `data_version`,
   which only watches results and labels.
-* **Mainland** means `parkrun_core.is_mainland`, a set of named boxes. ORS's
-  matrix endpoint cannot avoid ferries, and the OSRM demo server tried first
+* **What is routed** is `parkrun_core.routable`: mainland GB plus a Europe
+  box (since 2 Oct 2026, adopted from `adhoc/drive_distances`). ORS's matrix
+  endpoint cannot avoid ferries, and the OSRM demo server tried first
   rejected `exclude=ferry` ("Exclude flag combination is not supported"). Both
-  fold a ferry into the time without saying so. Country 97 also contains the Falklands, St Helena, Cayman and Gibraltar.
-  The tests pin the awkward neighbours (Lymington, Dunoon, Crinan, Skye).
+  fold a ferry into the time without saying so — so rather than excluding
+  crossings, the app flags them: `parkrun_core.crosses_water` is anything but
+  a UK parkrun that `is_mainland` (named boxes). Country 97 also contains the
+  Falklands, St Helena, Cayman and Gibraltar, and `is_mainland` alone says
+  yes to Dublin, which is why the country test comes first. The tests pin
+  the awkward neighbours (Lymington, Dunoon, Crinan, Skye).
 * **The planner's markers are built in the browser** (`JsMarkers`). ~2,400
   folium Markers would be several MB of generated script. Instead, one compact
   point list is sent and each distinct icon is defined once (eight done-patterns,
@@ -283,10 +288,10 @@ history if some future need proves otherwise.
 ## Tests
 
 ```bash
-pytest                 # from the repo root — 168 cases, ~65s
+python -m pytest       # from the repo root — 197 cases, ~65s (bare `pytest` misses the repo on sys.path)
 pytest -q tests/test_buggy_estimator.py
 pytest -q tests/test_calendar.py       # fast: no model fitting
-pytest -q tests/test_where_next.py     # fast: planner, markers, mainland, travel
+pytest -q tests/test_where_next.py     # fast: planner, markers, routable/crossings, travel
 pytest -q tests/test_ui.py             # zoom lock, stat slots, one app smoke run
 ```
 

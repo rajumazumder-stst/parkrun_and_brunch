@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>parkrun Drive Distances</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" integrity="sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw==" crossorigin="anonymous">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" integrity="sha512-puJW3E/qXDqYp9IfhAI54BJEaWIfloJ7JWs7OeD5i6ruC9JZL1gERT1wjtwXFlh7CjE7ZJ+/vcRZRkIYIb6p4g==" crossorigin="anonymous"></script>
+<style>
+:root {
+  --bg: #fafaf7; --surface: #ffffff; --text: #1d1d1b; --muted: #6b6b66;
+  --border: #e3e2dc; --row-hover: #f2f1ec; --accent: #2b6cb0; --none: #b9b9b2;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161615; --surface: #1f1f1d; --text: #ecebe6; --muted: #a09f98;
+    --border: #34332f; --row-hover: #2a2a27; --accent: #7fb3e6; --none: #5c5c57;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #161615; --surface: #1f1f1d; --text: #ecebe6; --muted: #a09f98;
+  --border: #34332f; --row-hover: #2a2a27; --accent: #7fb3e6; --none: #5c5c57;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+main { max-width: 1200px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { font-size: 1.6rem; margin: 0 0 4px; letter-spacing: -0.01em; }
+.sub { color: var(--muted); margin: 0 0 20px; max-width: 70ch; }
+.controls {
+  display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: end;
+  margin-bottom: 14px;
+}
+.controls label { display: flex; flex-direction: column; gap: 3px; font-size: 0.8rem; color: var(--muted); }
+.controls input[type=search], .controls select {
+  font: inherit; color: var(--text); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; min-width: 0;
+}
+.controls input[type=search] { width: 220px; max-width: 100%; }
+.controls .check { flex-direction: row; align-items: center; gap: 6px; color: var(--text); font-size: 0.9rem; padding-bottom: 7px; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.seg button {
+  font: inherit; font-size: 0.9rem; border: 0; background: var(--surface); color: var(--text);
+  padding: 6px 12px; cursor: pointer;
+}
+.seg button[aria-pressed=true] { background: var(--text); color: var(--bg); }
+#map { height: 440px; border-radius: 8px; border: 1px solid var(--border); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 8px 0 22px; font-size: 0.82rem; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.legend i { width: 11px; height: 11px; border-radius: 50%; display: inline-block; box-shadow: 0 0 0 1px var(--muted); }
+.count { font-size: 0.85rem; color: var(--muted); margin: 0 0 6px; }
+.tablewrap {
+  max-height: 70vh; overflow: auto; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--surface);
+}
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { padding: 6px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--border); }
+th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+thead th { position: sticky; background: var(--surface); z-index: 1; font-size: 0.8rem; }
+thead tr:first-child th { top: 0; }
+thead tr:nth-child(2) th { top: 29px; cursor: pointer; user-select: none; color: var(--muted); font-weight: 600; }
+thead tr:nth-child(2) th:hover { color: var(--text); }
+th.group { text-align: center; border-bottom: 3px solid; }
+th[aria-sort=ascending]::after { content: " ▲"; }
+th[aria-sort=descending]::after { content: " ▼"; }
+td.name { max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
+td.name a { color: var(--text); text-decoration: none; }
+td.name a:hover { color: var(--accent); text-decoration: underline; }
+td.c { color: var(--muted); }
+td.na { color: var(--none); }
+td.tot { font-weight: 600; }
+td:first-child, th:first-child { position: sticky; left: 0; background: var(--surface); }
+thead th:first-child { z-index: 2; }
+tbody tr:hover td:first-child { background: var(--row-hover); }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--row-hover); }
+.ferry { margin-left: 5px; font-size: 0.85em; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+.leaflet-popup-content { font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+.pop b { font-size: 14px; }
+.pop table { margin-top: 4px; width: auto; }
+.pop td { padding: 1px 6px 1px 0; border: 0; text-align: left; }
+.foot { color: var(--muted); font-size: 0.8rem; margin-top: 18px; max-width: 75ch; }
+@media (max-width: 640px) {
+  h1 { font-size: 1.3rem; }
+  #map { height: 300px; }
+  .controls input[type=search] { width: 100%; }
+  .controls label:first-child { flex: 1 1 100%; }
+}
+</style>
+</head>
+<body>
+<main>
+  <h1>Drive to every parkrun</h1>
+  <p class="sub" id="sub"></p>
+
+  <div class="controls">
+    <label>Search parkrun
+      <input type="search" id="q" placeholder="e.g. Bushy">
+    </label>
+    <label>Country
+      <select id="country"></select>
+    </label>
+    <label>Colour map by
+      <select id="colourBy"></select>
+    </label>
+    <label>Units
+      <span class="seg" id="units">
+        <button type="button" data-u="mi" aria-pressed="true">miles</button>
+        <button type="button" data-u="km" aria-pressed="false">km</button>
+      </span>
+    </label>
+    <label>Sea crossings
+      <select id="cross">
+        <option value="">Include</option>
+        <option value="hide">Leave out</option>
+        <option value="only">Only these</option>
+      </select>
+    </label>
+    <label class="check"><input type="checkbox" id="routedOnly"> Only parkruns with drive times</label>
+  </div>
+
+  <div id="map" role="region" aria-label="Map of parkruns coloured by drive time"></div>
+  <div class="legend" id="legend"></div>
+
+  <p class="count" id="count"></p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr id="h1"></tr><tr id="h2"></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+
+  <p class="foot">
+    Drive times are free-flow car routes from OpenRouteService, from each
+    athlete's neighbourhood centroid, with no traffic. ⛴ marks a parkrun that
+    can only be reached by Channel Tunnel or ferry. The router times the
+    crossing at sailing speed and does not say which one it chose. It leaves
+    out check-in (30 minutes or more for the tunnel, 45 to 90 for a ferry),
+    waiting for a departure, and overnight sailings, so those times are too
+    short. Parkruns with no road route (outside Europe, or islands with no car
+    ferry) are listed with blanks. Click a row to find it on the map, or a
+    column heading to sort.
+  </p>
+</main>
+
+<script>
+const META = /*__META__*/null;
+const EVENTS = /*__EVENTS__*/[];
+const A = META.athletes;
+const CROSS_NOTE = "Includes the Channel Tunnel or a ferry, timed at crossing speed only: no check-in or waiting, so the real journey is longer";
+// Band edges in minutes, for one athlete (x3 when colouring by the total).
+// Chosen from the spread of drive times so that no band is near-empty: the
+// first five split the under-2h drives, the rest the long tail that the
+// tunnel and ferry routes add (up to ~35h).
+const BANDS = [20, 40, 60, 90, 120, 180, 240, 360, 600, 900];
+// Inferno, pale to dark: lightness falls at every step (OKLab L 0.95 -> 0.22),
+// so the order reads without relying on hue. One-hue blue was ruled out
+// because it vanishes against the sea, and 11 steps of one hue blur together.
+const BAND_COLORS = ["#f3f68a", "#f8cf3a", "#fca50a", "#f67e14", "#e55c30", "#cb4149",
+                     "#ab2f5e", "#8a226a", "#67166e", "#440a68", "#1e0c45"];
+const NONE = () => getComputedStyle(document.documentElement).getPropertyValue("--none").trim();
+
+let units = "mi";
+let sortKey = "total_t", sortDir = 1;
+
+// Derived per-event totals: only when every athlete has a route.
+for (const e of EVENTS) {
+  const all = e.t.every(v => v !== null);
+  e.tt = all ? e.t.reduce((a, b) => a + b, 0) : null;
+  e.td = all ? e.d.reduce((a, b) => a + b, 0) : null;
+}
+
+const fmtTime = s => {
+  if (s === null) return "–";
+  const m = Math.round(s / 60), h = Math.floor(m / 60);
+  return h ? `${h}h ${String(m % 60).padStart(2, "0")}m` : `${m}m`;
+};
+const fmtDist = m => m === null ? "–"
+  : (m / (units === "mi" ? 1609.344 : 1000)).toLocaleString("en-GB", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// --- header text --------------------------------------------------------
+document.getElementById("sub").textContent =
+  `Driving time and distance for ${A.map(a => a.name).join(", ").replace(/, ([^,]*)$/, " and $1")} ` +
+  `to all ${META.n_events.toLocaleString()} live parkruns. ` +
+  `${META.n_routed.toLocaleString()} can be reached by road, ${META.n_cross.toLocaleString()} of them ` +
+  `only by Channel Tunnel or ferry (marked ⛴). Mainland GB routed ${META.routed_at}.`;
+
+// --- controls -----------------------------------------------------------
+const countries = [...new Set(EVENTS.map(e => e.c))].sort();
+const countrySel = document.getElementById("country");
+countrySel.innerHTML = `<option value="">All countries</option>` +
+  countries.map(c => `<option>${esc(c)}</option>`).join("");
+
+const colourSel = document.getElementById("colourBy");
+colourSel.innerHTML = A.map((a, i) => `<option value="${i}">${esc(a.name)}</option>`).join("") +
+  `<option value="total">Total of all three</option>`;
+
+document.getElementById("units").addEventListener("click", ev => {
+  const b = ev.target.closest("button"); if (!b) return;
+  units = b.dataset.u;
+  for (const x of ev.currentTarget.children) x.setAttribute("aria-pressed", x === b);
+  renderHeader(); render();
+});
+for (const id of ["q", "country", "cross", "routedOnly"]) document.getElementById(id).addEventListener("input", render);
+colourSel.addEventListener("input", () => { recolour(); renderLegend(); });
+
+// --- table header -------------------------------------------------------
+function renderHeader() {
+  const u = units;
+  document.getElementById("h1").innerHTML =
+    `<th colspan="2"></th>` +
+    A.map(a => `<th class="group" colspan="2" style="border-color:${a.color}">${esc(a.name)}</th>`).join("") +
+    `<th class="group" colspan="2" style="border-color:var(--text)">Total</th>`;
+  const cols = [["name", "parkrun"], ["country", "Country"]];
+  A.forEach((a, i) => cols.push([`t${i}`, "Time"], [`d${i}`, u]));
+  cols.push(["total_t", "Time"], ["total_d", u]);
+  const h2 = document.getElementById("h2");
+  h2.innerHTML = cols.map(([k, l]) =>
+    `<th data-k="${k}"${k === sortKey ? ` aria-sort="${sortDir > 0 ? "ascending" : "descending"}"` : ""}>${l}</th>`).join("");
+}
+document.getElementById("h2").addEventListener("click", ev => {
+  const th = ev.target.closest("th"); if (!th) return;
+  const k = th.dataset.k;
+  sortDir = k === sortKey ? -sortDir : 1;
+  sortKey = k;
+  renderHeader(); render();
+});
+
+function sortVal(e, k) {
+  if (k === "name") return e.n.toLowerCase();
+  if (k === "country") return e.c + "\u0000" + e.n.toLowerCase();
+  if (k === "total_t") return e.tt;
+  if (k === "total_d") return e.td;
+  const i = +k.slice(1);
+  return k[0] === "t" ? e.t[i] : e.d[i];
+}
+
+// --- map ----------------------------------------------------------------
+const map = L.map("map", { preferCanvas: true, scrollWheelZoom: false }).setView([52.8, -2.0], 6);
+map.on("click", () => map.scrollWheelZoom.enable());
+// Esri is the default because OSM's own tile servers require a Referer,
+// which a page opened as a file (or in an editor preview) cannot send: they
+// answer with a grey "Access blocked" tile. Esri needs neither a Referer nor
+// a key (CARTO, tried first, now watermarks every tile "API KEY REQUIRED").
+// OSM is kept for when the page is served over http (scripts/serve.sh).
+const OSM_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+const BASES = {
+  "Esri Street Map": L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", {
+    maxZoom: 19, attribution: "Tiles &copy; Esri &mdash; Source: Esri, HERE, Garmin, USGS, NGA, EPA, USDA, NPS",
+  }),
+  "OpenStreetMap": L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19, attribution: OSM_ATTR,
+  }),
+};
+const wanted = new URLSearchParams(location.search).get("tiles") === "osm" ? "OpenStreetMap" : "Esri Street Map";
+BASES[wanted].addTo(map);
+L.control.layers(BASES, null, { position: "topright" }).addTo(map);
+
+function colourValue(e) {
+  const v = colourSel.value;
+  return v === "total" ? e.tt : e.t[+v];
+}
+function bandColour(s) {
+  if (s === null) return NONE();
+  const scale = colourSel.value === "total" ? A.length : 1;
+  const min = s / 60 / scale;
+  let i = BANDS.findIndex(b => min < b);
+  return BAND_COLORS[i === -1 ? BANDS.length : i];
+}
+function popupHtml(e) {
+  const rows = A.map((a, i) =>
+    `<tr><td><span class="dot" style="background:${a.color}"></span>${esc(a.name)}</td>` +
+    `<td>${fmtTime(e.t[i])}</td><td>${fmtDist(e.d[i])} ${e.d[i] === null ? "" : units}</td></tr>`).join("");
+  const link = e.u ? `<a href="${esc(e.u)}" target="_blank" rel="noopener">${esc(e.n)}</a>` : esc(e.n);
+  const body = e.t.some(v => v !== null) ? `<table>${rows}</table>`
+    : `<div>No road route${e.x ? " (no car ferry)" : ""}</div>`;
+  const note = e.x && e.t.some(v => v !== null) ? `<div style="color:#777;margin-top:4px">⛴ ${CROSS_NOTE}</div>` : "";
+  return `<div class="pop"><b>${link}</b><div style="color:#777">${esc(e.c)}</div>${body}${note}</div>`;
+}
+for (const e of EVENTS) {
+  e.m = L.circleMarker([e.lat, e.lon], { radius: 5, weight: 1, color: "#333", fillOpacity: 0.85 })
+    .bindPopup(() => popupHtml(e));
+}
+const layer = L.layerGroup().addTo(map);
+
+function recolour() {
+  for (const e of EVENTS) e.m.setStyle({ fillColor: bandColour(colourValue(e)) });
+}
+function renderLegend() {
+  const scale = colourSel.value === "total" ? A.length : 1;
+  const lab = b => {
+    const m = b * scale;
+    if (m < 60) return `${m}m`;
+    const h = Math.floor(m / 60), r = m % 60;
+    return r === 0 ? `${h}h` : r === 30 ? `${h}½h` : `${h}h ${r}m`;
+  };
+  const labels = [`under ${lab(BANDS[0])}`,
+    ...BANDS.slice(1).map((b, i) => `${lab(BANDS[i])}–${lab(b)}`),
+    `${lab(BANDS[BANDS.length - 1])}+`, "no drive time"];
+  const cols = [...BAND_COLORS, NONE()];
+  const who = colourSel.value === "total" ? "total for all three" : A[+colourSel.value].name;
+  document.getElementById("legend").innerHTML =
+    `<span>Drive time (${esc(who)}):</span>` +
+    labels.map((l, i) => `<span><i style="background:${cols[i]}"></i>${l}</span>`).join("");
+}
+
+// --- filter + render ----------------------------------------------------
+let shown = [];
+function render() {
+  const q = document.getElementById("q").value.trim().toLowerCase();
+  const c = countrySel.value;
+  const routedOnly = document.getElementById("routedOnly").checked;
+  const cross = document.getElementById("cross").value;
+  shown = EVENTS.filter(e =>
+    (!q || e.n.toLowerCase().includes(q)) &&
+    (!c || e.c === c) &&
+    (!routedOnly || e.t.some(v => v !== null)) &&
+    (!cross || (cross === "only") === !!e.x));
+
+  shown.sort((a, b) => {
+    const x = sortVal(a, sortKey), y = sortVal(b, sortKey);
+    if (x === null && y === null) return a.n.localeCompare(b.n);
+    if (x === null) return 1;            // blanks always last
+    if (y === null) return -1;
+    return (x < y ? -1 : x > y ? 1 : 0) * sortDir || a.n.localeCompare(b.n);
+  });
+
+  const cell = (v, f) => v === null ? `<td class="na">–</td>` : `<td>${f(v)}</td>`;
+  document.getElementById("rows").innerHTML = shown.map((e, idx) =>
+    `<tr data-i="${idx}"><td class="name" title="${esc(e.n)}">` +
+    (e.u ? `<a href="${esc(e.u)}" target="_blank" rel="noopener">${esc(e.n)}</a>` : esc(e.n)) +
+    (e.x ? `<span class="ferry" title="${CROSS_NOTE}">⛴</span>` : "") +
+    `</td><td class="c">${esc(e.c)}</td>` +
+    A.map((_, i) => cell(e.t[i], fmtTime) + cell(e.d[i], fmtDist)).join("") +
+    cell(e.tt, fmtTime).replace("<td>", `<td class="tot">`) + cell(e.td, fmtDist) +
+    `</tr>`).join("");
+
+  const total = EVENTS.length;
+  document.getElementById("count").textContent =
+    `Showing ${shown.length.toLocaleString()} of ${total.toLocaleString()} parkruns`;
+
+  layer.clearLayers();
+  for (const e of shown) layer.addLayer(e.m);
+}
+document.getElementById("rows").addEventListener("click", ev => {
+  if (ev.target.closest("a")) return;
+  const tr = ev.target.closest("tr"); if (!tr) return;
+  const e = shown[+tr.dataset.i];
+  map.flyTo([e.lat, e.lon], Math.max(map.getZoom(), 11), { duration: 0.6 });
+  e.m.openPopup();
+  document.getElementById("map").scrollIntoView({ behavior: "smooth", block: "center" });
+});
+
+renderHeader();
+recolour();
+renderLegend();
+render();
+</script>
+</body>
+</html>

@@ -28,6 +28,7 @@ from parkrun_ui import (
     REGULAR_LABEL,
     _read_sql,
     _surface_color,
+    fmt_n,
     show_chart,
     years_desc,
     stat_label,
@@ -244,7 +245,7 @@ def filter_row(df: pd.DataFrame) -> dict:
 def _phrase(chosen, noun) -> str | None:
     if not chosen:
         return None
-    return " and ".join(chosen) if len(chosen) <= 2 else f"{len(chosen)} {noun}"
+    return " and ".join(chosen) if len(chosen) <= 2 else f"{fmt_n(len(chosen))} {noun}"
 
 
 # --------------------------------------------------------------------------- #
@@ -271,14 +272,14 @@ def _tiles(pop: pd.DataFrame, name: str) -> None:
 
     overall, bug_pct, reg_pct = fig(scored), fig(bug), fig(reg)
     cells = [
-        ("calls in scope", f"{len(pop)}", "", False, False),
+        ("calls in scope", fmt_n(len(pop)), "", False, False),
         ("right overall", "—" if overall is None else f"{overall}%",
-         f"of {len(scored)}", False, len(scored) < THIN_N),
+         f"of {fmt_n(len(scored))}", False, len(scored) < THIN_N),
         (f"{BUGGY_GLYPH} buggy calls right",
-         "—" if bug_pct is None else f"{bug_pct}%", f"of {len(bug)}",
+         "—" if bug_pct is None else f"{bug_pct}%", f"of {fmt_n(len(bug))}",
          bug_pct is not None and bug_pct < 50, len(bug) < THIN_N),
         (f"{REGULAR_LABEL} calls right",
-         "—" if reg_pct is None else f"{reg_pct}%", f"of {len(reg)}",
+         "—" if reg_pct is None else f"{reg_pct}%", f"of {fmt_n(len(reg))}",
          reg_pct is not None and reg_pct < 50, len(reg) < THIN_N),
     ]
     key = f"t6-tiles-{name}"
@@ -400,7 +401,7 @@ def _athlete(df: pd.DataFrame, sel: dict, name: str) -> pd.DataFrame:
         st.markdown(
             f"<div style='font-size:12px;letter-spacing:.05em;text-transform:"
             f"uppercase;opacity:.6;margin-bottom:.5rem'>Reliability — {bits} · "
-            f"{len(pop)} call{'s' if len(pop) != 1 else ''}"
+            f"{fmt_n(len(pop))} call{'s' if len(pop) != 1 else ''}"
             f"<span style='text-transform:none;letter-spacing:0;color:#b07000'>"
             f"{note}</span></div>",
             unsafe_allow_html=True,
@@ -414,8 +415,8 @@ def _athlete(df: pd.DataFrame, sel: dict, name: str) -> pd.DataFrame:
         if (rows["status"] == "scored").any():
             show_chart(_strip_fig(rows, name), key=f"t6_strip_{name}")
         st.markdown(
-            f"**Calls** {len(rows)}"
-            + (f" of {len(pop)}" if len(rows) < len(pop) else "")
+            f"**Calls** {fmt_n(len(rows))}"
+            + (f" of {fmt_n(len(pop))}" if len(rows) < len(pop) else "")
         )
         # Styler rather than emoji: ✅/❌ would sit heavier than the 🛒 already
         # in the row, and this is the house pattern for coloured cells
@@ -489,8 +490,8 @@ possibly who won that day.
                         _phrase(sel["outcome"], "outcomes"),
                         _phrase(sel["review"], "review states")) if b]
     st.caption(
-        f"{len(shown)} call{'s' if len(shown) != 1 else ''} shown · {wrong} wrong"
-        f" · {never} never checked"
+        f"{fmt_n(len(shown))} call{'s' if len(shown) != 1 else ''} shown · "
+        f"{fmt_n(wrong)} wrong · {fmt_n(never)} never checked"
         + (f"  —  filtered to {', '.join(bits)}" if bits else "")
     )
 

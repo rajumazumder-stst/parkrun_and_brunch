@@ -122,6 +122,41 @@ def is_mainland(lat, lon) -> bool:
     return not any(b.holds(lat, lon) for b in NON_MAINLAND)
 
 
+# Beyond mainland GB, drive times reach every parkrun joined to it by road
+# plus the Channel Tunnel or a car ferry: Northern Ireland, the islands,
+# Ireland and continental Europe (2 Oct 2026, adopted from
+# adhoc/drive_distances). EUROPE is roughly that: it keeps Gibraltar (36.1N)
+# and leaves out the UK's overseas parkruns (Falklands, St Helena, Cayman) and
+# every other continent, which have no road route. A destination inside it
+# with no car ferry (Inis Meáin) simply comes back unreachable.
+EUROPE = Box("Europe", 34.0, 72.0, -11.0, 35.0)
+
+
+def routable(country_code, lat, lon) -> bool:
+    """True for a parkrun the travel step routes: mainland GB, or anywhere in
+    EUROPE (reached across water)."""
+    try:
+        lat, lon = float(lat), float(lon)
+    except (TypeError, ValueError):
+        return False
+    if math.isnan(lat) or math.isnan(lon):
+        return False
+    return (country_code == UK_COUNTRY_CODE and is_mainland(lat, lon)) \
+        or EUROPE.holds(lat, lon)
+
+
+def crosses_water(country_code, lat, lon) -> bool:
+    """True when a drive from mainland GB to this parkrun needs the Channel
+    Tunnel or a ferry — so its routed time is too short: the router times a
+    crossing at sailing speed, with no check-in and no wait for a departure.
+
+    The country test comes first and is load-bearing: `is_mainland` is a box
+    test meaningful only for UK events, and eastern Ireland (Dublin, -6.3) is
+    inside GB_EXTENT and outside every NON_MAINLAND box. This holds while
+    every home is on mainland GB."""
+    return not (country_code == UK_COUNTRY_CODE and is_mainland(lat, lon))
+
+
 def resolve_db(db: str | None = None) -> str:
     """The database to read, in the order every entry point uses.
 

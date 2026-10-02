@@ -15,6 +15,7 @@ dev database.
 |---|---|---|
 | [`alphabet_challenge/`](alphabet_challenge/) | Where should you live to complete the parkrun alphabet (A–Z minus X) with the least travel? | Answered 27 Jul 2026 |
 | [`furthest_pairs/`](furthest_pairs/) | Which two parkruns are furthest apart? (top 10 pairs) | Answered 7 Aug 2026 |
+| [`drive_distances/`](drive_distances/) | How far is each athlete's drive to every parkrun, including by tunnel or ferry? (HTML table + map) | Built 1 Oct 2026 |
 
 ## Layout convention
 

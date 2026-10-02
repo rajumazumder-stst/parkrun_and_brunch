@@ -56,6 +56,35 @@ Rules:
   `STAT_PHONE_SMALL`. Size the block so the slots fit at 393px: three PB
   scopes, or four tab 6 tiles.
 
+## Numbers
+
+- **A comma for thousands, everywhere a number is shown**: 2,394 parkruns,
+  1,312.5 km (2 Oct 2026). Every count or measure written into text goes
+  through `parkrun_ui.fmt_n(x, dp)`, so the rule lives in one place; a
+  missing value is a dash. Counts that are small today get it too — they
+  grow with every refresh, and the rule is "would use one", not "uses one
+  now". `tests/test_ui.py` fails on any `{len(...)}` written into an
+  f-string without it.
+- Charts: a count axis is `tickformat=",d"` and bar labels
+  `texttemplate="%{text:,}"`. A count column in `st.dataframe` is
+  `NumberColumn(format="localized")`. Browser-side counts (the map's corner
+  counter) use `toLocaleString('en-GB')`.
+- **Exceptions**: a number you type into — a `number_input` or a slider's
+  value — keeps Streamlit's printf format, which has no thousands flag, and
+  a comma in an editable box gets in the way of typing anyway. Times are
+  `fmt_time` / `_fmt_min`, never comma'd. A value quoted as code
+  (`n_buggy_labels=31`) is code, not a figure.
+
+## Flags
+
+- **A country is shown by its flag** where a table has no room for the name
+  (tab 5's results table: the flag alone, the name in the cell's tooltip and
+  as its sort key), and **flag then name** in a filter
+  (`🇬🇧 United Kingdom (n)`, n with its comma). `parkrun_ui.flag(name)` builds it from
+  `COUNTRY_ISO`; a country missing there shows 🏳️ and fails
+  `test_every_country_in_the_lookup_has_a_flag`. Windows draws flag emoji as
+  two letters (GB), which still reads.
+
 ## Charts
 
 - **Every plotly chart goes through `parkrun_ui.show_chart`.** Never call
@@ -94,12 +123,35 @@ Rules:
   (`where_next.range_filter`): the boxes for exact values, the slider for a
   quick sweep. Callbacks keep all three in step, and a low and high that cross
   are swapped. The full range means "no limit", so nothing is dropped for
-  sitting exactly at the end of the track.
+  sitting exactly at the end of the track. A track whose data runs far past
+  any useful setting (a 35 h drive to Finland) is **capped**, and its top then
+  means "this or more" — said in a caption above the rows, since a printf
+  format cannot write "720+".
+- **On a phone a range stays on one line**: box · slider · box. Each row sits
+  in an `st-key-rng-*` container and `where_next.RANGE_ROW_CSS` (emitted once,
+  beside `SECTION_CSS`) opts it out of Streamlit's column stacking, with
+  fixed-width boxes and the slider taking the rest. Keep the boxes' font at
+  16px — smaller makes iOS zoom the page when a box is tapped.
 
-- **A panel of several filters gets a "Clear all filters" button** that
-  deletes the filters' session keys, so every widget comes back at its
-  default (`where_next.clear_planner_filters`). It resets filters only.
-  Settings such as units or the view toggle are left alone.
+- **A panel of several filters gets a "Clear all filters" button.** It sets
+  the panel to a **neutral** state, written out as values
+  (`where_next.planner_cleared`), not by deleting keys — the opening
+  defaults are a recommendation (tab 5 opens on George and Duncan's
+  never-run parkruns), and Clear is not a way back to a recommendation. Since
+  2 Oct 2026 it resets units and the rank metric too (a Clear that left km
+  on read as broken); only the view toggle is left alone. Keys whose widget
+  re-seeds itself well (head-to-head rows, ranges) are deleted instead.
+
+## Tables
+
+- **A table that has to style a column uses an HTML table**
+  (`where_next.results_table_html`, drawn by `st.html` in the page, not an
+  iframe), with sorting, column resizing and a scrolling box with the header
+  pinned. `st.dataframe` reads only colour, background and weight from a
+  Styler and never styles a header, so a runner left out of a ranking could
+  not be grey *and italic* as on the map. Escape every cell.
+- **Lead with what decided the order**: the ranking total comes straight
+  after the name, bold, headed "(ranked)"; the other total follows plain.
 
 ## Hover text
 

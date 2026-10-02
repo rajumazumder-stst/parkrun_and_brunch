@@ -1,5 +1,6 @@
 """Driving time and distance from each athlete's neighbourhood to every
-mainland-GB parkrun — the data behind the tab 5 planner.
+parkrun reachable by road from Great Britain — the data behind the tab 5
+planner.
 
 Run by every refresh (`parkrun_pipeline.apply_travel_times`), on the Mac only;
 by hand to force a re-route when someone moves:
@@ -28,8 +29,13 @@ min (10%) faster — optimistic for London, where nearly all of these trips are
 — and its server is a demo with no uptime promise. `provider` stays a column,
 and part of the key, so a future switch is a new value, not a migration.
 
-Neither router can tell us what "mainland" means (see `parkrun_core.NON_MAINLAND`),
-so only events `parkrun_core.is_mainland` admits are routed at all.
+What is routed is `parkrun_core.routable`: mainland GB, plus everything in
+`parkrun_core.EUROPE` — Northern Ireland, the islands, Ireland and the
+continent, reached by Channel Tunnel or ferry (since 2 Oct 2026; mainland GB
+only before). ORS's matrix endpoint folds a crossing into the time without
+saying so, so a crossing is not recorded here: it is derived where it is
+shown (`parkrun_core.crosses_water`). A destination with no road route comes
+back `null` and is stored `reachable = FALSE`, once.
 
 Imports `requests`; never imported by the app.
 """
@@ -48,7 +54,7 @@ from typing import Callable
 import pandas as pd
 import requests
 
-from parkrun_core import SCHEMA, UK_COUNTRY_CODE, is_mainland
+from parkrun_core import SCHEMA, routable
 
 CONFIG_DIR = Path.home() / ".config" / "parkrun"
 HOMES_FILE = Path(os.environ.get("PARKRUN_HOMES", CONFIG_DIR / "homes.csv"))
@@ -123,20 +129,21 @@ def haversine_m(lat1, lon1, lat2, lon2) -> float:
 
 
 def candidate_events(con) -> pd.DataFrame:
-    """Live 5k events on mainland GB, with their current coordinates."""
+    """Live 5k events reachable by road from GB (`routable`), with their
+    current coordinates."""
     ev = con.execute(
         f"""
-        SELECT event_id, latitude, longitude
+        SELECT event_id, latitude, longitude, country_code
         FROM {SCHEMA}.events
-        WHERE seriesid = 1 AND live AND country_code = {UK_COUNTRY_CODE}
+        WHERE seriesid = 1 AND live
           AND latitude IS NOT NULL AND longitude IS NOT NULL
         ORDER BY event_id
         """
     ).fetchdf()
-    keep = pd.Series([is_mainland(la, lo) for la, lo in
-                      zip(ev["latitude"], ev["longitude"])],
+    keep = pd.Series([routable(cc, la, lo) for cc, la, lo in
+                      zip(ev["country_code"], ev["latitude"], ev["longitude"])],
                      index=ev.index, dtype=bool)
-    return ev[keep].reset_index(drop=True)
+    return ev[keep].drop(columns="country_code").reset_index(drop=True)
 
 
 def pairs_to_route(candidates: pd.DataFrame, existing: pd.DataFrame,
@@ -268,7 +275,7 @@ def update_travel_times(con, athletes=None, force: bool = False,
         f"SELECT athlete_id, event_id, provider, dest_lat, dest_lon "
         f"FROM {SCHEMA}.travel_times"
     ).fetchdf()
-    log(f"travel: {len(cand)} mainland GB events, {len(ids)} home(s)")
+    log(f"travel: {len(cand)} routable events, {len(ids)} home(s)")
 
     written = 0
     todo = pairs_to_route(cand, existing, ids, PROVIDER, force)

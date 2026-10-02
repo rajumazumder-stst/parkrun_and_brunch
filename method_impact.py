@@ -24,6 +24,7 @@ from parkrun_ui import (
     _h2h_headline,
     _read_sql,
     _victory_fig,
+    fmt_n,
     _winning_margin,
     show_chart,
 )
@@ -152,7 +153,7 @@ def render_impact(version: str) -> None:
 
     counts = cmp["Verdict"].value_counts()
     st.markdown(
-        f"**{int(counts.get('Unchanged', 0))} of {len(cmp)}** head-to-heads "
+        f"**{fmt_n(counts.get('Unchanged', 0))} of {fmt_n(len(cmp))}** head-to-heads "
         f"unchanged."
     )
     ORDER = ["Winner changed", "Places changed", "Roster changed", "Margin only",
@@ -173,7 +174,9 @@ def render_impact(version: str) -> None:
         )
 
     with st.expander("Labels in this database"):
-        st.dataframe(load_label_counts(version), hide_index=True, width="stretch")
+        st.dataframe(load_label_counts(version), hide_index=True, width="stretch",
+                     column_config={"Runs": st.column_config.NumberColumn(
+                         format="localized")})
 
     VERDICT_COLOR = {
         "Winner changed": "#b3261e", "Places changed": "#a15c00",
@@ -193,7 +196,7 @@ def render_impact(version: str) -> None:
     c_changed, c_bridged = st.columns(2)
     only_changed = c_changed.checkbox("Only the ones that changed", value=False)
     only_bridged = c_bridged.checkbox(
-        f"Only the ones that used the handicap bridge ({n_bridged})",
+        f"Only the ones that used the handicap bridge ({fmt_n(n_bridged)})",
         value=False, disabled=n_bridged == 0,
         help="A participant with no runs of that mode in the 91-day window, whose "
              "target was borrowed from the other mode and scaled by their handicap.",
