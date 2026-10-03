@@ -167,6 +167,23 @@ When a change is ready: commit on `dev`, merge to `main`, and (if the change
 touched the data model/views) regenerate `data/parkrun_snapshot.duckdb` via
 `python parkrun_pipeline.py snapshot` so the deployable snapshot matches.
 
+## The streaks bench
+
+`streaks_proto.py` on **port 8504**, dev-only, imported by nothing:
+
+```bash
+PARKRUN_DB=data/parkrun_dev.duckdb streamlit run streaks_proto.py --server.port 8504
+```
+
+Four ways to draw the win/loss streaks — scorecards, diverging bars, a
+timeline, a heatmap — one per tab plus an "All four" tab, every one fed by the
+same `streaks.win_streaks()` that tab 2 uses, so they can differ only in how
+they draw. The "Stress-test long names" switch swaps in long athlete names to
+show what wraps; `?embed=true&embed_options=light_theme` shows light mode.
+The **heatmap** was chosen (3 Oct 2026) and is what tab 2 ships. The bench
+stays while that choice might be revisited; delete it after — the app does not
+import it.
+
 ## The calendar bench
 
 `calendar_proto.py` on **port 8503**, dev-only, imported by nothing:
