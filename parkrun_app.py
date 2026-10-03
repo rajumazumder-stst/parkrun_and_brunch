@@ -38,6 +38,7 @@ from matplotlib_venn import venn3
 
 import parkrun_calendar as cal
 from estimator_tab import render_estimates
+from h2h_streaks import render_streak_heatmap
 from parkrun_core import TARGET_WINDOW_DAYS
 from parkrun_ui import (  # shared with label_impact.py — see that module
     ATHLETE_COLORS,
@@ -1303,8 +1304,30 @@ with tab2:
                     ]
             st.dataframe(shown, width="stretch")
 
-            # ----- cumulative 1st-place finishes over the selected period ----- #
             st.divider()
+    if section("Win/loss streaks", "t2_streaks"):
+        st.caption(
+            "Each runner's current run of wins or losses, and their best ever "
+            "winning run. One row per runner; one column per company — any "
+            "head-to-head, each one-on-one, and the three-way. A cell gives "
+            "the current streak and the date it began, then the longest "
+            "winning streak in the same company and the months it spanned. "
+            "Green is a winning streak, red a losing one; the deeper the "
+            "colour, the longer the streak, measured against the longest in "
+            "the grid. **LIVE** means the current streak is that runner's "
+            "record, so it runs to now. A win is 1st place; 2nd or 3rd is a "
+            "loss, and a dead heat for 1st is a win for both. Counted over "
+            "every head-to-head — the classification and year/season choices "
+            "above do not apply. A hatched cell is a runner against themselves."
+        )
+        pb_order = list(
+            personal_bests[personal_bests["scope"] == "All time"]
+            .sort_values("time_seconds")["athlete_name"]
+        )
+        render_streak_heatmap(h2h, pb_order)
+
+    # ----- cumulative 1st-place finishes over the selected period ----- #
+    st.divider()
     if section("Cumulative 1st-place finishes", "t2_trend"):
             if pick == "All":
                 st.info(
