@@ -14,6 +14,7 @@ Usage:
     python parkrun_pipeline.py refresh     # normal run (auto-bootstraps if empty)
     python parkrun_pipeline.py status      # row counts
     python parkrun_pipeline.py snapshot    # rebuild the deploy snapshot only
+    python parkrun_pipeline.py countries   # reload data/event_countries.csv
     python parkrun_pipeline.py seed [FILE] # fill an EMPTY DB from a snapshot
     python parkrun_pipeline.py motherduck  # push parkrun-only data to MotherDuck
     python parkrun_pipeline.py travel [--athlete ID] [--force]
@@ -72,6 +73,7 @@ SNAPSHOT_TABLES = (
     "country_lookup",
     "course_difficulty",
     "current_targets",
+    "event_countries",
     "events",
     "model_estimates",
     "results",
@@ -325,6 +327,21 @@ def ensure_schema(con: duckdb.DuckDBPyConnection) -> None:
             speed_rank   INTEGER,   -- 1 .. 835, 1 = fastest (reference only)
             source       VARCHAR,
             fetched_at   TIMESTAMPTZ
+        );
+        """
+    )
+    # The child country of each event in a country that has them — England,
+    # Wales, Jersey ... under United Kingdom; Namibia, Eswatini and South
+    # Africa itself under South Africa — for the flags tab 5 shows. parkrun
+    # files those parkruns under its .org.uk / .co.za sites, so events.json
+    # cannot say. Own table, not a column on `events`, for the
+    # course_difficulty reason above. No row means the child is the parent.
+    con.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS {SCHEMA}.event_countries (
+            event_id      INTEGER PRIMARY KEY,
+            child_country VARCHAR NOT NULL,
+            placed_by     VARCHAR NOT NULL  -- the CSV's own, or 'nearest-parkrun'
         );
         """
     )
@@ -1465,6 +1482,73 @@ def export_results_snapshot(con: duckdb.DuckDBPyConnection) -> None:
     log(f"  exported snapshot -> {out}")
 
 
+def apply_event_countries(con: duckdb.DuckDBPyConnection) -> None:
+    """Load data/event_countries.csv into parkrun.event_countries, then place
+    every event the CSV does not cover yet in the child country of the
+    nearest parkrun it does, within the same parent country.
+
+    The CSV was placed once by point-in-polygon against Natural Earth 1:10m
+    map units (`placed_by`: boundary, nearest-boundary for a pin just
+    offshore, manual for a hand override). A parkrun that opens after that
+    gets the nearest-parkrun guess on every refresh until it has a CSV row —
+    right everywhere but within a few km of a border, so each guess is logged
+    by name for checking. Rebuilt from scratch each time, so a CSV correction
+    replaces its guess. No network, idempotent, never fatal.
+    """
+    src = DATA_DIR / "event_countries.csv"
+    if not src.exists():
+        log(f"  event countries: {src.name} absent — skipped")
+        return
+    try:
+        con.execute("BEGIN;")
+        con.execute(f"DELETE FROM {SCHEMA}.event_countries;")
+        con.execute(
+            f"""
+            INSERT INTO {SCHEMA}.event_countries (event_id, child_country, placed_by)
+            SELECT c.event_id, c.child_country, c.placed_by
+            FROM read_csv('{src}', header=true,
+                          columns={{'event_id': 'INTEGER', 'child_country': 'VARCHAR',
+                                    'placed_by': 'VARCHAR'}}) c
+            JOIN {SCHEMA}.events e USING (event_id);
+            """
+        )
+        # Distance on a flat projection (longitude scaled by cos latitude):
+        # only the ranking matters, and the neighbours are tens of km apart.
+        guessed = con.execute(
+            f"""
+            INSERT INTO {SCHEMA}.event_countries (event_id, child_country, placed_by)
+            SELECT n.event_id,
+                   arg_min(sc.child_country,
+                           pow(n.latitude - s.latitude, 2)
+                           + pow((n.longitude - s.longitude)
+                                 * cos(radians(n.latitude)), 2)),
+                   'nearest-parkrun'
+            FROM {SCHEMA}.events n
+            JOIN {SCHEMA}.events s
+              ON s.country_code = n.country_code AND s.event_id <> n.event_id
+            JOIN {SCHEMA}.event_countries sc ON sc.event_id = s.event_id
+            WHERE n.event_id NOT IN (SELECT event_id FROM {SCHEMA}.event_countries)
+              AND n.latitude IS NOT NULL AND s.latitude IS NOT NULL
+            GROUP BY n.event_id
+            RETURNING event_id, child_country;
+            """
+        ).fetchall()
+        con.execute("COMMIT;")
+    except Exception as e:  # noqa: BLE001 — flags are cosmetic; never block
+        con.execute("ROLLBACK;")
+        log(f"  WARN: event countries failed ({type(e).__name__}: {e}) — unchanged")
+        return
+    n = con.execute(f"SELECT count(*) FROM {SCHEMA}.event_countries").fetchone()[0]
+    log(f"  event countries: {n} placed, {len(guessed)} by nearest parkrun")
+    if guessed:
+        names = dict(con.execute(
+            f"SELECT event_id, short_name FROM {SCHEMA}.events "
+            f"WHERE event_id IN ({','.join(str(e) for e, _ in guessed)})").fetchall())
+        for eid, child in sorted(guessed):
+            log(f"    {names.get(eid, eid)} ({eid}) -> {child}: add a row to "
+                f"{src.name} once checked")
+
+
 def apply_course_difficulty(con: duckdb.DuckDBPyConnection) -> None:
     """Load the cached course-difficulty CSV into parkrun.course_difficulty.
 
@@ -1845,6 +1929,7 @@ def _finalize(con: duckdb.DuckDBPyConnection) -> None:
     """
     apply_travel_times(con)
     apply_course_difficulty(con)
+    apply_event_countries(con)
     apply_rule_labels(con)
     apply_model_labels(con)
     build_model_estimates(con)
@@ -1917,6 +2002,10 @@ def main() -> None:
             seed_from_snapshot(
                 con, Path(sys.argv[2]) if len(sys.argv) > 2 else SNAPSHOT_PATH
             )
+        elif cmd == "countries":
+            # The refresh does this itself; this is for a CSV edit between
+            # refreshes. Rebuild the snapshot afterwards to ship it.
+            apply_event_countries(con)
         elif cmd == "estimates":
             # The one-off backfill. The refresh does this itself, so this
             # exists to make the ~33s land while someone is watching rather

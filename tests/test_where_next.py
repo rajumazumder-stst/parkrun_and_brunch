@@ -292,6 +292,77 @@ def test_country_filter_empty_means_all():
     assert set(wn.filter_countries(ev, ["Australia"])["event_id"]) == {7}
 
 
+def _with_children():
+    ev = events()
+    child = {4: "Scotland", 5: "Northern Ireland", 6: "Jersey"}
+    ev["child_country"] = [child.get(e, "England" if c == 97 else n)
+                           for e, c, n in zip(ev["event_id"], ev["country_code"],
+                                              ev["country_name"])]
+    za = pd.DataFrame([(10, "Windhoek", -22.56, 17.08, True, 1, 85, "South Africa", "Namibia"),
+                       (11, "Delta", -26.15, 28.0, True, 1, 85, "South Africa", "South Africa")],
+                      columns=ev.columns)
+    return pd.concat([ev, za], ignore_index=True)
+
+
+def test_country_options_nest_children_under_their_parent():
+    opts = wn.country_options(_with_children())
+    keys = list(opts)
+    assert keys[:1] == ["Australia"]                   # no children of its own
+    assert keys.index("South Africa") < keys.index("South Africa › Namibia")
+    assert "South Africa › South Africa" in opts       # the parent's own child
+    assert keys.index("United Kingdom") < keys.index("United Kingdom › England")
+    assert "Australia › Australia" not in opts
+    assert opts["United Kingdom"] == "🇬🇧 United Kingdom (8)"
+    assert opts["United Kingdom › Northern Ireland"] == "\u2003Northern Ireland (1)"
+    assert opts["United Kingdom › Scotland"].endswith("Scotland (1)")
+
+
+def test_country_filter_parent_takes_in_its_children():
+    ev = _with_children()
+    ids = lambda sel: set(wn.filter_countries(ev, sel)["event_id"])
+    assert ids(["South Africa"]) == {10, 11}
+    assert ids(["South Africa › South Africa"]) == {11}
+    assert ids(["United Kingdom › Scotland", "Australia"]) == {4, 7}
+    assert ids(["United Kingdom", "United Kingdom › Jersey"]) == ids(["United Kingdom"])
+
+
+def test_results_table_draws_the_child_countrys_flag():
+    ev = _with_children()
+    c = wn.plan_candidates(ev, done(), None, done_filter=ANY)
+    t = wn._results_table(c, "miles")
+    html = wn.results_table_html(t)
+    by_name = dict(zip(c["short_name"], t.text("Country")))   # ⛴ aside
+    assert by_name["Belfast Victoria"].startswith("<img")       # Ulster Banner
+    assert by_name["Windhoek"] == "🇳🇦" and by_name["Albert Melbourne"] == "🇦🇺"
+    assert 'title="Northern Ireland"' in html and "&lt;img" not in html
+
+
+def test_tip_names_the_child_country():
+    ev = _with_children().set_index("event_id")
+    row = pd.Series({"event_id": 4, "short_name": "Edinburgh",
+                     "country_name": "United Kingdom",
+                     "child_country": ev.loc[4, "child_country"]})
+    assert "Scotland" in wn._title(row) and "United Kingdom" not in wn._title(row)
+
+
+def test_new_parkruns_take_the_nearest_mapped_parkruns_child(tmp_path, monkeypatch):
+    con = _empty_db()
+    parkrun_pipeline.ensure_schema(con)
+    con.execute("""INSERT INTO parkrun.events (event_id, short_name, country_code,
+                   latitude, longitude, seriesid) VALUES
+        (1, 'Bute Park', 97, 51.49, -3.19, 1), (2, 'Bushy Park', 97, 51.41, -0.34, 1),
+        (3, 'New Cardiff', 97, 51.47, -3.17, 1), (4, 'New Sydney', 3, -33.8, 151.2, 1)""")
+    (tmp_path / "event_countries.csv").write_text(
+        "event_id,child_country,placed_by\n1,Wales,boundary\n2,England,boundary\n")
+    monkeypatch.setattr(parkrun_pipeline, "DATA_DIR", tmp_path)
+    for _ in range(2):                                  # idempotent
+        parkrun_pipeline.apply_event_countries(con)
+    rows = dict(con.execute("SELECT event_id, child_country || '/' || placed_by "
+                            "FROM parkrun.event_countries").fetchall())
+    assert rows == {1: "Wales/boundary", 2: "England/boundary",
+                    3: "Wales/nearest-parkrun"}       # Sydney: no children
+
+
 @pytest.mark.parametrize("width", [390, 1200])
 def test_the_opening_view_holds_all_of_mainland_gb(width):
     (s, w), (n, e) = wn.view_bounds(wn.GB_CENTER, wn.GB_ZOOM, width, wn.MAP_HEIGHT)

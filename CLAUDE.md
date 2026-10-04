@@ -206,7 +206,9 @@ where they differ from the original brief, **the spec wins**.
   ranking is shown grey and italic, tagged "not ranked", on the map and in
   the table. The table leads with the total it ranked on, bold and headed
   "(ranked)", then a **Country** column showing only the flag (the name is
-  its tooltip); the country filter puts the flag before each name. It is an
+  its tooltip) — the **child country's** flag (`event_countries`; Northern
+  Ireland's is the Ulster Banner, drawn as SVG); the country filter puts the
+  flag before each name, each parent followed by its children. It is an
   HTML table (`st.html`, sortable, resizable, scrolling) because
   `st.dataframe` cannot draw italic or style a header. The filters sit behind a **"⚙️ Filters" button** (a popover
   that belongs to tab 5, unlike the sidebar every tab shares). The map
@@ -237,6 +239,14 @@ where they differ from the original brief, **the spec wins**.
   manual refresh the same night routed the new parkruns into the source of
   truth (475 per athlete, one unreachable — Inis Meáin; `travel_times`
   2,517 → 3,942 rows) and shipped them in the snapshot.
+- 🧪 **Child-country flags — on `dev`** (4 Oct 2026). Tab 5 flags a parkrun
+  by where it is, not by the site parkrun files it under: 🏴󠁧󠁢󠁥󠁮󠁧󠁿 / 🏴󠁧󠁢󠁳󠁣󠁴󠁿 / 🏴󠁧󠁢󠁷󠁬󠁳󠁿,
+  the Ulster Banner for Northern Ireland (drawn — there is no emoji), the
+  Crown Dependencies and overseas territories their own, and 🇳🇦 / 🇸🇿 for the
+  parkruns parkrun files under South Africa. The country filter becomes
+  parent then children. Data: `event_countries` (§ Data model). The
+  committed snapshot does not carry that table until the first refresh after
+  merging, and the app shows parent flags until then.
 - 📕 **Fake dev labels — removed** (5 Sep 2026). `scripts/dev_fake_labels.py`
   fabricated plausible buggy labels so the buggy-mode UI had something to render
   before the real ones existed, a quarter of them `estimated` so the old
@@ -544,6 +554,32 @@ time without saying so, so it is derived where it is shown
 `is_mainland` alone says yes to Dublin). That holds while every home is on
 mainland GB.
 
+### `event_countries`
+Where each parkrun actually is, inside the country parkrun files it under:
+the **child country**, for tab 5's flags and its two-level country filter.
+United Kingdom's children are England, Scotland, Wales, Northern Ireland,
+Isle of Man, Guernsey, Jersey, St Helena, Gibraltar, Falkland Islands and
+Cayman Islands; South Africa's are South Africa, Namibia and Eswatini. Every
+other country has none — no row means the child is the parent.
+
+| Column | Notes |
+|---|---|
+| event_id | PK |
+| child_country | e.g. `Wales`, `Namibia` |
+| placed_by | `boundary` \| `nearest-boundary` \| `manual` (from the CSV) \| `nearest-parkrun` |
+
+Seeded from `data/event_countries.csv` (1,665 rows, 5k and junior), placed
+once on 4 Oct 2026 by point-in-polygon against Natural Earth 1:10m map units
+— `nearest-boundary` for a beach pin just offshore, `manual` for Kambaku Golf
+Club, which the 1:10m border puts 180 m into Mozambique. `apply_event_countries`
+rebuilds the table every refresh (and `python parkrun_pipeline.py countries`):
+the CSV, then every event it does not cover yet in a country with children
+takes the child of the **nearest parkrun** it does cover, logged by name so a
+new parkrun near a border can be checked and given a CSV row. Own table, not
+a column on `events`, for the `course_difficulty` reason below. Shipped in
+the deploy snapshot; the app falls back to child = parent on a database
+without it.
+
 ### `course_difficulty`
 External per-course difficulty score, used as a covariate by the buggy
 estimator. Deliberately **its own table, not a column on `events`** —
@@ -725,7 +761,7 @@ Saturday" (a skipped gate doesn't advance it).
 
 After Path B, the refresh runs `apply_travel_times()` (routes any routable
 parkrun missing a drive time, or one that has moved — most weeks nothing;
-never fatal), then `apply_rule_labels()` (labels any unlabelled run whose answer follows from a rule rather than a judgement — Raju has never pushed a buggy; write-once, so a correction always outranks it), then `apply_model_labels()` (the estimator, on George's and Duncan's unlabelled runs — **forward-only**: a run behind an athlete's label frontier is logged for hand review, never back-filled, because rewriting a head-to-head settled months ago would show up nowhere. `PARKRUN_ESTIMATOR=off` disables it, and an ImportError only warns — the refresh is the delivery path for the whole app and must not die for a missing optional dependency), then `build_model_estimates()` (records what the estimator makes of every in-scope run it has not scored yet — **write-once**, so the call survives a later hand correction instead of being erased by it; ~0.32s per run, so at most a second a week once backfilled), then `update_current_targets()` (snapshots today's
+never fatal), then `apply_course_difficulty()` and `apply_event_countries()` (both from cached CSVs, no network), then `apply_rule_labels()` (labels any unlabelled run whose answer follows from a rule rather than a judgement — Raju has never pushed a buggy; write-once, so a correction always outranks it), then `apply_model_labels()` (the estimator, on George's and Duncan's unlabelled runs — **forward-only**: a run behind an athlete's label frontier is logged for hand review, never back-filled, because rewriting a head-to-head settled months ago would show up nowhere. `PARKRUN_ESTIMATOR=off` disables it, and an ImportError only warns — the refresh is the delivery path for the whole app and must not die for a missing optional dependency), then `build_model_estimates()` (records what the estimator makes of every in-scope run it has not scored yet — **write-once**, so the call survives a later hand correction instead of being erased by it; ~0.32s per run, so at most a second a week once backfilled), then `update_current_targets()` (snapshots today's
 current-form targets), exports the results snapshot CSV and rebuilds
 `data/parkrun_snapshot.duckdb`; `scripts/parkrun_refresh.sh` then commits and
 pushes both — that push is what deploys the new data. The analytics views
@@ -752,6 +788,7 @@ are (re)created on every connection via `ensure_views()`.
 | `data/parkrun_results.csv` (versioned snapshots) | `data/events.json` (transient download) |
 | `data/parkrun_run_modes.csv` (label audit trail) | |
 | `data/course_difficulty.csv` (cached scores + aliases) | |
+| `data/event_countries.csv` (child country per event) | |
 | `data/country_lookup.csv` | |
 | `data/athletes_lookup.csv` | |
 | `data/parkrun_snapshot.duckdb` (read-only, deploy snapshot) | |
@@ -815,7 +852,7 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | `static/logo-512.png` | `page_icon` source: the browser-tab favicon |
 | `static/apple-touch-icon.png` | 180×180 for the iOS "Add to Home Screen" icon, served at `/app/static/` |
 | `.streamlit/config.toml` | `enableStaticServing = true` so `static/` is reachable at `/app/static/` |
-| `tests/` | pytest suite, run from the repo root. **pytest is dev-only, deliberately not in `requirements.txt`** (same convention as `openpyxl` and `cairosvg`). 238 cases; only `test_ui.py`'s app smoke runs read a database (the committed snapshot, read-only). `test_where_next.py` (119: planner, head-to-head filter, range ends and caps, the lamp and circle markers, the overlapping layer tree, the GB opening view, the results table, mainland boxes, `routable` / `crosses_water`, travel top-ups with a fake HTTP session, and the privacy contracts that `travel_times` ships with no origin column and that a failed travel step logs no coordinates), `test_ui.py` (11: no `st.plotly_chart` outside `show_chart`, no `st.popover` outside `closable_popover`, no count written without its thousands comma (`fmt_n`), a flag for every country in the lookup, the stat-slot order, newest-first years, the smoke run — which also checks tab 5's opening defaults, Clear and the phone range rows — and that filters survive being off screen), plus: `buggy_estimator` (51 — four of them cross-module contracts, that `TARGET_WINDOW_DAYS`, the label vocabulary and the cohort each have exactly one definition in `parkrun_core.py`; six covering `score_runs`, and one that reads the pipeline's source to assert nothing UPDATEs `run_modes` but the vocabulary rename) the win/loss streaks (20: a three-way 2nd is a loss, a dead heat a win for both, "Any" pooling in date order, best-ever ties to the latest, a single result, all wins, `live`, UK dates, the heatmap columns and `best_period`'s "–now"), and the calendar week scheme (16, including a parity check that the Python rule and `WEEK_SQL` agree, run against an in-memory DuckDB) |
+| `tests/` | pytest suite, run from the repo root. **pytest is dev-only, deliberately not in `requirements.txt`** (same convention as `openpyxl` and `cairosvg`). 244 cases; only `test_ui.py`'s app smoke runs read a database (the committed snapshot, read-only). `test_where_next.py` (124: planner, the two-level country filter and child-country flags, the nearest-parkrun placement, head-to-head filter, range ends and caps, the lamp and circle markers, the overlapping layer tree, the GB opening view, the results table, mainland boxes, `routable` / `crosses_water`, travel top-ups with a fake HTTP session, and the privacy contracts that `travel_times` ships with no origin column and that a failed travel step logs no coordinates), `test_ui.py` (12: no `st.plotly_chart` outside `show_chart`, no `st.popover` outside `closable_popover`, no count written without its thousands comma (`fmt_n`), a flag for every country in the lookup and every child country, the stat-slot order, newest-first years, the smoke run — which also checks tab 5's opening defaults, Clear and the phone range rows — and that filters survive being off screen), plus: `buggy_estimator` (51 — four of them cross-module contracts, that `TARGET_WINDOW_DAYS`, the label vocabulary and the cohort each have exactly one definition in `parkrun_core.py`; six covering `score_runs`, and one that reads the pipeline's source to assert nothing UPDATEs `run_modes` but the vocabulary rename) the win/loss streaks (20: a three-way 2nd is a loss, a dead heat a win for both, "Any" pooling in date order, best-ever ties to the latest, a single result, all wins, `live`, UK dates, the heatmap columns and `best_period`'s "–now"), and the calendar week scheme (16, including a parity check that the Python rule and `WEEK_SQL` agree, run against an in-memory DuckDB) |
 | `docs/DEV.md` | Local dev workflow (incl. `PARKRUN_LABEL_AUDIT=1` for the label-impact app). Also **§ Deferred refactors** — streamlining that has been identified and costed but not done, each with value/risk/size, so the analysis is not redone every time the code looks tidyable. **Read it before starting a cleanup**; two items in it were considered and deliberately rejected. Also **§ Open decisions** — unsettled data-safety questions (the pipeline's default write target, whether the dev DB still needs a `parkrun` schema, a shrink gate on the committed artefacts), each with the options and what they cost |
 | `docs/DATA.md` | The buggy labels: what each `source` means, how the training set grows, how to correct a label by hand |
 | `docs/MODEL.md` | The estimator as built: the four features and why each survived, the fitted coefficients, every constant, class balancing and recency, the walk-forward numbers, and the features that were removed on evidence. **The fitted numbers move every refresh** — the reasoning is what is durable |
@@ -828,6 +865,7 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | `data/parkrun_results.csv` | Results snapshot exported by the pipeline (keyed on event_id) |
 | `data/parkrun_run_modes.csv` | Buggy labels exported by the pipeline — the audit trail for labels, most of them now written by the estimator. **Write-only: one writer, no readers** |
 | `data/course_difficulty.csv` | Cached course-difficulty scores + hand-maintained `alias_of` column |
+| `data/event_countries.csv` | Child country per event (England, Namibia ...) for tab 5's flags; hand-maintained after the 4 Oct 2026 placement — add a row when the refresh logs a nearest-parkrun guess |
 | `data/parkrun_snapshot.duckdb` | Read-only, parkrun-only DuckDB the deployed app serves |
 | `adhoc/` | One-off investigations using the parkrun data but **outside the app** — see `adhoc/README.md` |
 

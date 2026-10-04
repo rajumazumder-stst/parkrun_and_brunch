@@ -84,6 +84,17 @@ Rules:
   `COUNTRY_ISO`; a country missing there shows 🏳️ and fails
   `test_every_country_in_the_lookup_has_a_flag`. Windows draws flag emoji as
   two letters (GB), which still reads.
+- **The flag is the child country's** (`event_countries`): 🏴󠁧󠁢󠁷󠁬󠁳󠁿 for a Welsh
+  parkrun, 🇳🇦 for Windhoek, not the 🇬🇧 / 🇿🇦 of the site parkrun files them
+  under. England, Scotland and Wales are emoji tag sequences
+  (`SUBDIVISION_FLAG`), which Windows draws as a plain black flag. Northern
+  Ireland has no emoji: it gets the **Ulster Banner**, drawn as SVG
+  (`ULSTER_BANNER_SVG`, chosen 4 Oct 2026), so it appears only where HTML is
+  drawn (`flag_html`) — in plain text, a multiselect option, the name stands
+  alone. A child missing a flag fails `test_every_child_country_has_a_flag`.
+- **The country filter is two levels**: each parent, then its children
+  indented under it (an em space — `country_options`). A parent takes in all
+  its children; a parent whose every child is itself (Australia) has none.
 
 ## Charts
 

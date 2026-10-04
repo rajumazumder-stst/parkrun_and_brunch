@@ -73,6 +73,21 @@ def test_every_country_in_the_lookup_has_a_flag():
     assert ui.flag("Unknown") == ui.NO_FLAG
 
 
+def test_every_child_country_has_a_flag():
+    """Each child in data/event_countries.csv has an emoji or a drawn flag."""
+    import csv
+    with open(REPO / "data" / "event_countries.csv") as f:
+        names = {r["child_country"] for r in csv.DictReader(f)}
+    missing = [n for n in names if ui.flag(n) == ui.NO_FLAG]
+    assert not missing, f"add to parkrun_ui.COUNTRY_ISO: {missing}"
+    assert ui.flag("England") == "\U0001F3F4\U000E0067\U000E0062\U000E0065\U000E006E\U000E0067\U000E007F"
+    assert ui.flag("Namibia") == "🇳🇦" and ui.flag("Eswatini") == "🇸🇿"
+    # Northern Ireland: the drawn Ulster Banner in HTML, nothing in plain text.
+    assert ui.flag("Northern Ireland") == ""
+    assert ui.flag_html("Northern Ireland").startswith('<img src="data:image/svg+xml;base64,')
+    assert ui.flag_html("Wales") == ui.flag("Wales")
+
+
 def test_every_popover_has_a_close_button():
     """Every popover goes through parkrun_ui.closable_popover, so each gets the
     phone's Close button (docs/STYLE.md § Phones)."""

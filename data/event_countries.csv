@@ -1,0 +1,1666 @@
+event_id,child_country,placed_by
+1,England,boundary
+2,England,boundary
+3,England,boundary
+4,England,boundary
+5,England,boundary
+6,England,boundary
+8,England,boundary
+9,Wales,boundary
+10,England,boundary
+11,England,boundary
+12,Scotland,boundary
+14,England,boundary
+15,England,boundary
+18,England,boundary
+19,England,boundary
+20,England,boundary
+21,England,boundary
+22,England,boundary
+23,England,boundary
+24,England,boundary
+26,Scotland,nearest-boundary
+27,England,boundary
+28,England,boundary
+29,England,boundary
+30,England,boundary
+31,England,boundary
+32,England,boundary
+34,England,boundary
+35,England,boundary
+37,England,boundary
+38,England,boundary
+39,England,boundary
+40,Scotland,boundary
+41,Scotland,boundary
+42,England,boundary
+43,Wales,boundary
+44,England,boundary
+45,England,boundary
+46,England,boundary
+47,Scotland,boundary
+48,England,boundary
+49,England,boundary
+50,England,boundary
+51,England,boundary
+53,England,boundary
+54,England,boundary
+55,England,boundary
+56,England,boundary
+57,England,boundary
+58,England,boundary
+59,England,boundary
+60,England,boundary
+61,England,boundary
+62,England,boundary
+63,Northern Ireland,boundary
+64,England,boundary
+65,England,boundary
+67,England,boundary
+68,England,boundary
+69,England,boundary
+70,England,boundary
+71,England,boundary
+72,England,boundary
+73,England,boundary
+75,England,boundary
+76,England,boundary
+77,England,boundary
+78,England,boundary
+79,England,boundary
+80,Northern Ireland,boundary
+81,England,boundary
+82,England,boundary
+83,England,boundary
+84,Wales,boundary
+86,England,boundary
+87,England,boundary
+89,England,boundary
+90,England,boundary
+91,England,nearest-boundary
+92,Scotland,boundary
+93,England,boundary
+94,England,boundary
+95,England,boundary
+96,England,boundary
+97,England,boundary
+98,England,boundary
+99,England,boundary
+100,England,boundary
+101,England,boundary
+102,England,boundary
+103,England,boundary
+104,England,boundary
+105,England,boundary
+106,England,boundary
+107,England,boundary
+108,England,boundary
+109,England,boundary
+111,England,boundary
+112,England,boundary
+113,England,boundary
+114,England,boundary
+116,England,boundary
+117,England,boundary
+118,England,boundary
+119,England,boundary
+120,Wales,boundary
+121,England,boundary
+122,England,boundary
+123,England,boundary
+124,England,boundary
+125,England,boundary
+126,England,boundary
+127,England,boundary
+128,England,boundary
+129,England,boundary
+131,England,boundary
+132,England,boundary
+133,England,boundary
+134,England,boundary
+135,England,boundary
+136,Wales,boundary
+137,England,boundary
+138,England,boundary
+140,England,boundary
+141,England,boundary
+142,England,boundary
+143,England,boundary
+144,England,boundary
+145,England,boundary
+147,England,boundary
+148,England,boundary
+149,England,boundary
+150,England,boundary
+151,England,boundary
+153,England,boundary
+154,England,boundary
+155,England,boundary
+156,England,boundary
+158,Scotland,boundary
+159,Scotland,boundary
+160,Scotland,boundary
+161,England,boundary
+163,England,boundary
+164,England,boundary
+165,Northern Ireland,boundary
+167,England,boundary
+170,England,boundary
+171,England,boundary
+172,England,boundary
+174,England,boundary
+175,England,boundary
+176,England,boundary
+177,Scotland,boundary
+179,England,boundary
+180,England,boundary
+181,England,boundary
+182,England,boundary
+183,England,boundary
+184,England,boundary
+185,Scotland,nearest-boundary
+186,England,boundary
+187,England,boundary
+188,England,boundary
+189,England,boundary
+190,England,boundary
+191,England,boundary
+192,England,boundary
+194,England,boundary
+198,England,boundary
+199,England,boundary
+200,Scotland,boundary
+201,England,boundary
+203,England,nearest-boundary
+204,England,boundary
+206,Scotland,boundary
+207,England,nearest-boundary
+208,England,boundary
+209,Wales,boundary
+210,England,boundary
+211,Northern Ireland,boundary
+213,England,boundary
+214,Scotland,boundary
+215,England,boundary
+216,Scotland,boundary
+217,England,boundary
+218,England,boundary
+220,England,boundary
+221,England,boundary
+222,England,boundary
+223,England,boundary
+224,England,boundary
+225,Scotland,boundary
+226,England,boundary
+227,England,boundary
+228,Wales,boundary
+229,England,boundary
+230,England,boundary
+231,England,boundary
+232,England,boundary
+233,England,boundary
+234,England,boundary
+236,England,nearest-boundary
+237,Northern Ireland,boundary
+238,England,nearest-boundary
+239,England,boundary
+240,England,boundary
+241,England,boundary
+242,England,boundary
+243,Northern Ireland,boundary
+244,England,boundary
+245,England,boundary
+246,England,boundary
+247,England,boundary
+248,England,boundary
+249,Scotland,boundary
+250,Isle of Man,boundary
+251,England,boundary
+252,England,boundary
+253,England,boundary
+254,England,boundary
+255,England,boundary
+257,England,boundary
+258,England,boundary
+259,Wales,boundary
+261,England,boundary
+262,England,boundary
+263,England,boundary
+264,England,boundary
+265,England,boundary
+266,England,boundary
+268,England,boundary
+271,Scotland,boundary
+272,Scotland,boundary
+273,England,boundary
+274,England,boundary
+275,England,boundary
+276,England,boundary
+277,England,boundary
+278,England,boundary
+279,England,boundary
+280,England,boundary
+281,England,boundary
+282,England,boundary
+283,England,boundary
+284,Scotland,boundary
+285,England,boundary
+286,England,boundary
+288,England,boundary
+290,England,boundary
+291,England,boundary
+293,England,boundary
+294,England,boundary
+295,Northern Ireland,boundary
+296,England,boundary
+297,England,boundary
+299,England,boundary
+300,England,boundary
+301,Wales,boundary
+302,England,boundary
+303,South Africa,boundary
+304,England,boundary
+307,England,boundary
+308,England,boundary
+309,England,boundary
+310,England,boundary
+312,Northern Ireland,boundary
+313,England,boundary
+314,England,boundary
+316,England,boundary
+317,England,boundary
+327,England,boundary
+328,England,boundary
+329,Scotland,boundary
+331,England,boundary
+334,Scotland,boundary
+335,England,nearest-boundary
+336,South Africa,boundary
+338,England,boundary
+340,England,boundary
+341,Scotland,boundary
+342,England,boundary
+343,England,boundary
+344,England,boundary
+347,England,boundary
+348,England,boundary
+351,Scotland,boundary
+352,Northern Ireland,boundary
+353,Northern Ireland,boundary
+355,England,boundary
+356,England,boundary
+357,England,boundary
+358,South Africa,boundary
+359,England,boundary
+360,Scotland,boundary
+361,England,boundary
+362,South Africa,boundary
+363,England,boundary
+366,England,nearest-boundary
+367,England,boundary
+368,England,boundary
+370,England,boundary
+371,Northern Ireland,boundary
+372,England,boundary
+375,Northern Ireland,boundary
+377,England,boundary
+378,England,boundary
+379,Wales,boundary
+381,England,boundary
+382,England,boundary
+383,South Africa,boundary
+384,England,boundary
+385,England,boundary
+386,Northern Ireland,boundary
+387,England,boundary
+389,England,boundary
+390,England,boundary
+391,England,boundary
+392,England,boundary
+394,England,boundary
+398,England,boundary
+403,England,boundary
+405,England,boundary
+406,England,boundary
+407,England,boundary
+408,South Africa,boundary
+410,England,boundary
+411,England,boundary
+413,England,boundary
+414,England,boundary
+415,England,boundary
+416,Scotland,boundary
+421,England,boundary
+422,England,boundary
+423,Wales,boundary
+425,England,boundary
+426,South Africa,boundary
+430,England,boundary
+431,South Africa,boundary
+432,England,boundary
+435,South Africa,nearest-boundary
+436,England,boundary
+437,South Africa,boundary
+440,England,boundary
+441,England,boundary
+442,England,boundary
+443,England,boundary
+444,Scotland,boundary
+445,England,boundary
+448,England,boundary
+449,England,boundary
+450,England,boundary
+451,England,boundary
+453,England,boundary
+454,England,boundary
+457,England,boundary
+459,South Africa,boundary
+460,England,boundary
+461,England,boundary
+462,England,boundary
+464,England,boundary
+465,England,boundary
+466,Wales,boundary
+467,England,boundary
+468,England,boundary
+473,Scotland,boundary
+477,England,boundary
+478,England,boundary
+479,England,boundary
+481,England,boundary
+482,Northern Ireland,boundary
+483,England,boundary
+484,England,boundary
+485,England,boundary
+490,England,boundary
+491,Scotland,nearest-boundary
+507,South Africa,boundary
+510,Wales,boundary
+511,Wales,boundary
+518,England,boundary
+519,England,boundary
+520,England,nearest-boundary
+521,England,boundary
+522,England,boundary
+524,England,nearest-boundary
+525,England,boundary
+527,England,boundary
+530,Wales,boundary
+535,England,boundary
+537,Northern Ireland,boundary
+540,Scotland,boundary
+547,England,boundary
+549,Wales,boundary
+551,England,boundary
+554,South Africa,boundary
+564,England,boundary
+567,England,nearest-boundary
+568,South Africa,boundary
+569,Northern Ireland,boundary
+570,England,boundary
+572,England,boundary
+575,England,boundary
+580,England,nearest-boundary
+581,England,boundary
+582,South Africa,boundary
+584,Northern Ireland,boundary
+585,Northern Ireland,boundary
+594,South Africa,boundary
+595,South Africa,boundary
+596,England,boundary
+613,England,boundary
+620,England,boundary
+621,England,boundary
+628,England,boundary
+631,England,boundary
+632,England,nearest-boundary
+633,England,boundary
+635,England,boundary
+636,England,boundary
+640,Wales,boundary
+641,Scotland,boundary
+646,Northern Ireland,boundary
+647,England,boundary
+654,England,boundary
+655,England,boundary
+656,Scotland,boundary
+658,Northern Ireland,boundary
+659,Northern Ireland,boundary
+660,Scotland,boundary
+674,England,boundary
+678,South Africa,boundary
+679,South Africa,boundary
+680,England,boundary
+681,England,boundary
+682,England,boundary
+683,England,boundary
+696,England,boundary
+697,Wales,boundary
+701,England,boundary
+704,England,boundary
+705,England,boundary
+709,South Africa,boundary
+710,South Africa,boundary
+711,South Africa,boundary
+714,South Africa,boundary
+719,England,boundary
+720,England,boundary
+721,South Africa,boundary
+724,England,boundary
+727,Scotland,boundary
+734,England,boundary
+738,England,boundary
+742,Northern Ireland,boundary
+748,England,boundary
+754,Scotland,boundary
+755,England,boundary
+761,England,boundary
+762,England,boundary
+765,England,boundary
+768,England,boundary
+769,Wales,boundary
+779,England,boundary
+780,Northern Ireland,boundary
+782,England,boundary
+783,England,boundary
+788,England,boundary
+794,South Africa,boundary
+797,England,boundary
+804,South Africa,boundary
+806,South Africa,boundary
+814,England,boundary
+821,England,boundary
+828,England,boundary
+829,Scotland,boundary
+834,England,boundary
+837,England,boundary
+842,South Africa,boundary
+843,England,boundary
+844,England,boundary
+846,England,boundary
+851,England,boundary
+852,England,boundary
+855,England,boundary
+859,England,boundary
+860,Northern Ireland,boundary
+866,England,boundary
+869,England,boundary
+874,England,boundary
+879,England,boundary
+882,England,boundary
+883,England,boundary
+886,Northern Ireland,boundary
+887,England,boundary
+892,England,boundary
+893,Scotland,boundary
+894,South Africa,boundary
+899,England,boundary
+907,Wales,boundary
+911,England,boundary
+918,Scotland,boundary
+921,South Africa,boundary
+924,England,boundary
+925,England,boundary
+926,England,boundary
+931,England,boundary
+932,England,boundary
+947,England,boundary
+948,England,boundary
+950,England,boundary
+951,England,boundary
+952,England,boundary
+953,England,boundary
+954,England,boundary
+955,England,boundary
+956,England,boundary
+957,South Africa,boundary
+961,England,boundary
+962,Northern Ireland,boundary
+964,England,boundary
+965,England,nearest-boundary
+969,South Africa,boundary
+972,South Africa,boundary
+973,England,boundary
+975,England,boundary
+982,South Africa,boundary
+994,South Africa,boundary
+995,South Africa,boundary
+1001,England,boundary
+1002,England,boundary
+1008,South Africa,boundary
+1009,South Africa,boundary
+1017,England,boundary
+1018,England,boundary
+1022,England,nearest-boundary
+1026,England,boundary
+1029,Wales,boundary
+1030,England,boundary
+1031,England,boundary
+1034,England,boundary
+1035,England,boundary
+1036,Scotland,boundary
+1046,England,boundary
+1047,England,boundary
+1051,South Africa,boundary
+1053,England,boundary
+1057,England,boundary
+1059,Wales,boundary
+1067,South Africa,boundary
+1069,South Africa,boundary
+1070,South Africa,boundary
+1071,England,boundary
+1093,Wales,boundary
+1094,England,boundary
+1109,England,boundary
+1110,England,boundary
+1111,England,boundary
+1113,South Africa,boundary
+1118,England,boundary
+1130,England,boundary
+1139,England,boundary
+1143,Northern Ireland,boundary
+1145,Wales,boundary
+1152,England,boundary
+1164,England,boundary
+1165,England,boundary
+1166,England,boundary
+1172,England,boundary
+1173,England,boundary
+1182,England,boundary
+1183,South Africa,boundary
+1191,South Africa,boundary
+1197,England,boundary
+1199,England,boundary
+1200,Wales,boundary
+1201,England,boundary
+1203,England,boundary
+1211,England,boundary
+1216,South Africa,boundary
+1221,Wales,boundary
+1224,England,boundary
+1225,England,boundary
+1235,South Africa,boundary
+1240,England,boundary
+1242,England,boundary
+1243,England,boundary
+1245,England,boundary
+1248,South Africa,boundary
+1249,South Africa,boundary
+1252,England,boundary
+1253,England,boundary
+1254,England,boundary
+1255,England,boundary
+1256,Scotland,boundary
+1259,England,boundary
+1264,England,boundary
+1265,England,boundary
+1266,England,boundary
+1267,England,boundary
+1268,England,nearest-boundary
+1269,England,boundary
+1270,England,boundary
+1271,England,nearest-boundary
+1273,Northern Ireland,boundary
+1274,England,boundary
+1275,England,boundary
+1276,England,boundary
+1277,England,boundary
+1278,England,boundary
+1279,England,boundary
+1280,England,boundary
+1281,England,boundary
+1282,England,boundary
+1286,South Africa,boundary
+1287,England,boundary
+1288,England,boundary
+1289,England,boundary
+1290,England,nearest-boundary
+1291,Wales,boundary
+1296,England,boundary
+1300,England,boundary
+1301,Northern Ireland,boundary
+1303,England,boundary
+1306,England,boundary
+1307,Scotland,boundary
+1308,England,boundary
+1309,Wales,nearest-boundary
+1310,England,boundary
+1311,England,boundary
+1312,Jersey,boundary
+1313,England,boundary
+1314,England,boundary
+1315,Wales,boundary
+1319,South Africa,boundary
+1323,England,boundary
+1324,England,boundary
+1326,England,boundary
+1327,England,boundary
+1329,England,boundary
+1330,England,boundary
+1331,Northern Ireland,boundary
+1332,England,boundary
+1333,Northern Ireland,boundary
+1334,England,boundary
+1335,South Africa,boundary
+1336,England,boundary
+1339,England,boundary
+1345,England,boundary
+1346,England,boundary
+1347,England,boundary
+1348,England,boundary
+1349,Wales,boundary
+1350,England,boundary
+1351,England,boundary
+1352,England,boundary
+1353,England,boundary
+1354,England,boundary
+1359,England,boundary
+1362,Northern Ireland,nearest-boundary
+1366,England,boundary
+1368,England,boundary
+1369,England,boundary
+1370,England,boundary
+1375,England,boundary
+1376,England,boundary
+1378,England,boundary
+1385,England,boundary
+1386,England,boundary
+1387,England,nearest-boundary
+1388,Wales,boundary
+1391,Scotland,boundary
+1395,England,boundary
+1401,England,boundary
+1402,England,boundary
+1403,England,boundary
+1404,England,boundary
+1406,South Africa,boundary
+1407,England,boundary
+1408,England,boundary
+1409,England,boundary
+1411,South Africa,boundary
+1414,Scotland,boundary
+1417,England,boundary
+1418,England,boundary
+1422,England,boundary
+1423,Northern Ireland,boundary
+1426,England,boundary
+1429,England,nearest-boundary
+1432,England,boundary
+1435,South Africa,boundary
+1436,Northern Ireland,boundary
+1437,England,boundary
+1438,England,boundary
+1439,Guernsey,boundary
+1441,England,boundary
+1442,England,boundary
+1445,South Africa,nearest-boundary
+1447,England,boundary
+1452,England,boundary
+1455,Wales,boundary
+1457,England,boundary
+1458,Northern Ireland,boundary
+1459,Wales,boundary
+1461,England,boundary
+1462,Wales,boundary
+1463,South Africa,boundary
+1465,England,boundary
+1469,Scotland,boundary
+1470,England,boundary
+1482,England,boundary
+1486,South Africa,boundary
+1488,England,boundary
+1492,Wales,boundary
+1493,England,boundary
+1494,South Africa,boundary
+1500,Scotland,boundary
+1501,England,boundary
+1509,England,boundary
+1521,South Africa,boundary
+1522,South Africa,boundary
+1532,South Africa,boundary
+1536,South Africa,boundary
+1543,South Africa,boundary
+1546,South Africa,boundary
+1549,South Africa,boundary
+1601,England,boundary
+1602,England,nearest-boundary
+1610,South Africa,boundary
+1616,South Africa,boundary
+1627,England,boundary
+1639,England,boundary
+1640,South Africa,boundary
+1641,South Africa,boundary
+1654,South Africa,boundary
+1655,South Africa,boundary
+1656,Eswatini,boundary
+1657,Namibia,boundary
+1658,South Africa,boundary
+1692,South Africa,boundary
+1695,South Africa,boundary
+1696,South Africa,boundary
+1697,South Africa,boundary
+1698,South Africa,boundary
+1699,South Africa,boundary
+1700,South Africa,boundary
+1701,South Africa,boundary
+1705,England,boundary
+1709,South Africa,boundary
+1711,South Africa,boundary
+1723,South Africa,boundary
+1725,South Africa,boundary
+1747,South Africa,boundary
+1765,England,boundary
+1768,South Africa,boundary
+1769,South Africa,boundary
+1777,England,boundary
+1778,South Africa,boundary
+1779,South Africa,boundary
+1791,England,boundary
+1795,England,boundary
+1796,England,boundary
+1797,Wales,boundary
+1798,England,boundary
+1802,England,nearest-boundary
+1806,South Africa,boundary
+1807,South Africa,boundary
+1808,Namibia,boundary
+1809,South Africa,boundary
+1811,South Africa,boundary
+1826,England,boundary
+1827,England,boundary
+1828,England,boundary
+1832,England,boundary
+1833,England,boundary
+1834,Wales,boundary
+1835,England,boundary
+1839,England,boundary
+1840,England,boundary
+1842,England,boundary
+1844,England,boundary
+1846,England,boundary
+1847,England,boundary
+1849,England,boundary
+1851,England,boundary
+1852,England,boundary
+1853,England,boundary
+1854,England,boundary
+1857,Northern Ireland,boundary
+1858,England,boundary
+1859,Northern Ireland,boundary
+1861,South Africa,boundary
+1862,Scotland,boundary
+1865,South Africa,boundary
+1866,England,boundary
+1868,England,boundary
+1869,England,boundary
+1876,England,boundary
+1880,England,boundary
+1882,England,boundary
+1889,England,boundary
+1891,England,boundary
+1892,Scotland,boundary
+1893,South Africa,boundary
+1896,South Africa,boundary
+1897,South Africa,boundary
+1898,South Africa,boundary
+1902,England,nearest-boundary
+1903,England,boundary
+1904,England,boundary
+1906,England,boundary
+1908,England,boundary
+1916,Scotland,boundary
+1923,Scotland,boundary
+1924,England,boundary
+1927,South Africa,boundary
+1941,South Africa,boundary
+1943,England,boundary
+1945,England,boundary
+1947,England,boundary
+1948,England,boundary
+1949,England,boundary
+1950,England,boundary
+1951,England,boundary
+1958,England,boundary
+1961,England,boundary
+1965,England,boundary
+1966,England,boundary
+1967,Wales,boundary
+1974,England,boundary
+1977,Scotland,boundary
+1981,England,boundary
+1982,Wales,boundary
+1983,England,boundary
+1988,Wales,boundary
+1992,England,boundary
+1997,South Africa,boundary
+1999,South Africa,boundary
+2000,South Africa,nearest-boundary
+2001,South Africa,nearest-boundary
+2002,South Africa,boundary
+2003,South Africa,boundary
+2006,England,boundary
+2007,England,boundary
+2008,England,boundary
+2009,England,boundary
+2011,England,boundary
+2012,Wales,boundary
+2014,England,boundary
+2015,England,boundary
+2021,England,nearest-boundary
+2025,England,boundary
+2026,England,boundary
+2027,Northern Ireland,boundary
+2029,England,boundary
+2031,England,boundary
+2032,England,nearest-boundary
+2036,South Africa,boundary
+2037,South Africa,boundary
+2040,South Africa,boundary
+2042,South Africa,boundary
+2044,South Africa,boundary
+2045,South Africa,boundary
+2047,England,boundary
+2048,Scotland,boundary
+2049,Scotland,boundary
+2050,England,boundary
+2051,England,boundary
+2056,Northern Ireland,boundary
+2057,Wales,boundary
+2058,England,boundary
+2059,England,boundary
+2060,England,boundary
+2063,England,boundary
+2064,England,boundary
+2065,Scotland,boundary
+2067,England,boundary
+2069,Scotland,boundary
+2070,Northern Ireland,boundary
+2072,South Africa,boundary
+2075,England,boundary
+2076,England,boundary
+2077,England,boundary
+2082,Northern Ireland,boundary
+2084,England,boundary
+2085,England,boundary
+2092,England,boundary
+2093,Wales,nearest-boundary
+2095,England,boundary
+2098,England,boundary
+2101,England,boundary
+2106,England,boundary
+2107,England,boundary
+2109,England,boundary
+2111,South Africa,boundary
+2112,South Africa,boundary
+2113,England,boundary
+2117,England,boundary
+2118,England,boundary
+2126,England,boundary
+2127,Northern Ireland,boundary
+2129,England,nearest-boundary
+2131,England,boundary
+2134,South Africa,boundary
+2135,South Africa,boundary
+2136,South Africa,boundary
+2141,South Africa,boundary
+2142,South Africa,boundary
+2143,South Africa,boundary
+2146,Northern Ireland,boundary
+2151,England,boundary
+2154,England,boundary
+2155,England,boundary
+2159,Wales,boundary
+2162,South Africa,boundary
+2164,England,boundary
+2165,England,boundary
+2169,Scotland,boundary
+2173,South Africa,boundary
+2175,England,boundary
+2176,England,boundary
+2179,England,boundary
+2180,England,boundary
+2181,England,boundary
+2182,England,boundary
+2184,England,boundary
+2188,England,boundary
+2189,England,boundary
+2190,England,boundary
+2191,England,boundary
+2192,England,boundary
+2193,England,boundary
+2194,England,boundary
+2196,England,boundary
+2198,England,boundary
+2199,England,boundary
+2202,England,boundary
+2209,Scotland,boundary
+2210,South Africa,boundary
+2211,South Africa,boundary
+2213,England,boundary
+2219,England,boundary
+2226,Scotland,boundary
+2230,England,boundary
+2231,Wales,nearest-boundary
+2232,England,boundary
+2233,England,boundary
+2234,England,boundary
+2235,England,boundary
+2236,South Africa,boundary
+2237,South Africa,boundary
+2238,South Africa,boundary
+2239,South Africa,boundary
+2241,South Africa,boundary
+2244,South Africa,boundary
+2247,England,boundary
+2248,England,boundary
+2249,South Africa,boundary
+2250,England,boundary
+2251,South Africa,boundary
+2252,South Africa,boundary
+2253,England,boundary
+2255,Wales,boundary
+2256,England,boundary
+2257,England,boundary
+2259,England,boundary
+2264,South Africa,boundary
+2267,South Africa,boundary
+2269,England,boundary
+2270,England,boundary
+2271,England,boundary
+2272,Scotland,boundary
+2275,South Africa,boundary
+2278,England,boundary
+2282,England,boundary
+2284,England,boundary
+2292,England,nearest-boundary
+2293,England,boundary
+2296,England,boundary
+2297,Wales,boundary
+2298,England,boundary
+2299,England,boundary
+2302,South Africa,nearest-boundary
+2304,England,boundary
+2305,England,boundary
+2306,England,boundary
+2307,England,boundary
+2308,England,boundary
+2313,England,boundary
+2314,England,boundary
+2320,England,boundary
+2323,England,boundary
+2327,England,boundary
+2328,England,boundary
+2331,England,boundary
+2333,Scotland,boundary
+2350,England,boundary
+2352,England,boundary
+2354,England,boundary
+2357,England,boundary
+2360,Scotland,boundary
+2361,England,boundary
+2362,South Africa,boundary
+2364,England,boundary
+2369,England,boundary
+2370,England,boundary
+2375,England,boundary
+2382,England,boundary
+2383,Northern Ireland,boundary
+2384,England,boundary
+2387,England,boundary
+2391,England,boundary
+2392,England,boundary
+2398,England,boundary
+2402,England,boundary
+2403,England,boundary
+2407,England,boundary
+2408,Northern Ireland,boundary
+2409,England,boundary
+2410,England,boundary
+2411,Jersey,nearest-boundary
+2413,England,boundary
+2414,England,boundary
+2415,Scotland,boundary
+2416,Scotland,boundary
+2418,England,boundary
+2419,England,boundary
+2427,England,boundary
+2429,England,boundary
+2432,England,boundary
+2434,England,boundary
+2435,England,boundary
+2441,Namibia,boundary
+2446,England,boundary
+2447,England,boundary
+2449,Scotland,boundary
+2450,England,boundary
+2451,England,boundary
+2452,England,boundary
+2459,Scotland,boundary
+2460,Wales,boundary
+2461,England,boundary
+2462,Wales,boundary
+2463,England,boundary
+2465,England,boundary
+2466,England,nearest-boundary
+2470,England,boundary
+2472,South Africa,boundary
+2473,England,boundary
+2478,South Africa,boundary
+2479,England,boundary
+2480,England,boundary
+2481,England,boundary
+2483,England,boundary
+2487,England,boundary
+2488,England,boundary
+2489,England,boundary
+2491,England,nearest-boundary
+2492,England,boundary
+2495,South Africa,boundary
+2501,Scotland,boundary
+2502,England,boundary
+2503,South Africa,boundary
+2507,Scotland,boundary
+2509,England,boundary
+2510,Scotland,boundary
+2514,England,boundary
+2515,South Africa,boundary
+2518,South Africa,boundary
+2522,England,boundary
+2523,England,boundary
+2524,Wales,boundary
+2529,Falkland Islands,boundary
+2532,Wales,boundary
+2537,England,boundary
+2538,Scotland,boundary
+2539,England,boundary
+2542,England,boundary
+2543,England,nearest-boundary
+2544,England,boundary
+2547,South Africa,boundary
+2548,England,boundary
+2549,England,boundary
+2551,England,boundary
+2552,England,boundary
+2553,England,boundary
+2555,England,boundary
+2558,Scotland,boundary
+2559,Wales,boundary
+2560,England,boundary
+2569,Wales,nearest-boundary
+2570,England,boundary
+2571,Scotland,boundary
+2572,England,boundary
+2573,England,boundary
+2574,Scotland,nearest-boundary
+2575,Wales,boundary
+2578,England,boundary
+2579,England,boundary
+2581,England,boundary
+2587,Wales,boundary
+2589,England,boundary
+2591,South Africa,boundary
+2595,England,boundary
+2596,Scotland,nearest-boundary
+2597,England,boundary
+2598,England,boundary
+2599,Wales,boundary
+2600,Scotland,boundary
+2601,England,boundary
+2607,England,boundary
+2609,England,boundary
+2610,England,boundary
+2611,England,boundary
+2612,England,boundary
+2613,England,boundary
+2614,England,boundary
+2615,England,boundary
+2618,Scotland,boundary
+2620,England,boundary
+2625,England,nearest-boundary
+2626,England,boundary
+2627,England,boundary
+2635,England,boundary
+2639,Wales,nearest-boundary
+2640,England,boundary
+2641,Northern Ireland,boundary
+2642,England,boundary
+2649,South Africa,boundary
+2662,England,boundary
+2666,England,boundary
+2668,Wales,boundary
+2669,Scotland,boundary
+2671,England,boundary
+2679,South Africa,boundary
+2680,Wales,boundary
+2690,England,boundary
+2691,England,boundary
+2703,England,boundary
+2710,England,boundary
+2714,England,boundary
+2716,England,boundary
+2718,England,boundary
+2724,England,boundary
+2736,England,boundary
+2740,England,boundary
+2741,England,boundary
+2742,England,boundary
+2753,Scotland,boundary
+2756,England,boundary
+2758,England,boundary
+2759,England,boundary
+2760,England,boundary
+2761,England,boundary
+2764,England,boundary
+2765,England,boundary
+2774,England,boundary
+2775,England,boundary
+2777,England,boundary
+2779,England,boundary
+2781,England,boundary
+2784,England,boundary
+2789,South Africa,boundary
+2791,England,boundary
+2798,England,boundary
+2801,England,boundary
+2816,Scotland,boundary
+2819,Northern Ireland,boundary
+2842,South Africa,boundary
+2853,England,boundary
+2854,England,boundary
+2855,England,boundary
+2856,England,boundary
+2871,England,boundary
+2872,England,boundary
+2873,Northern Ireland,boundary
+2877,England,boundary
+2882,England,boundary
+2885,England,boundary
+2886,England,boundary
+2892,England,boundary
+2893,England,boundary
+2894,England,boundary
+2895,England,boundary
+2896,Scotland,boundary
+2899,England,boundary
+2900,England,boundary
+2901,Wales,boundary
+2907,England,boundary
+2910,Wales,boundary
+2919,Scotland,boundary
+2927,England,boundary
+2928,England,boundary
+2929,England,boundary
+2931,England,boundary
+2932,England,boundary
+2933,South Africa,boundary
+2936,England,boundary
+2937,England,boundary
+2940,Scotland,boundary
+2941,Scotland,boundary
+2942,England,boundary
+2944,England,boundary
+2948,South Africa,boundary
+2956,South Africa,boundary
+2959,England,boundary
+2960,England,boundary
+2961,England,boundary
+2962,Scotland,nearest-boundary
+2963,Scotland,boundary
+2964,England,boundary
+2965,England,boundary
+2967,England,boundary
+2968,England,boundary
+2969,England,boundary
+2970,England,boundary
+2971,South Africa,boundary
+2972,South Africa,boundary
+2974,England,boundary
+2975,England,boundary
+2976,South Africa,boundary
+2979,South Africa,boundary
+2991,England,boundary
+2992,England,boundary
+2993,England,boundary
+2994,England,boundary
+2995,England,boundary
+2996,South Africa,boundary
+2997,South Africa,boundary
+2998,England,boundary
+3002,England,boundary
+3007,England,boundary
+3008,England,boundary
+3010,England,nearest-boundary
+3011,South Africa,boundary
+3012,South Africa,boundary
+3013,England,boundary
+3014,Northern Ireland,boundary
+3018,England,boundary
+3019,England,boundary
+3020,Scotland,boundary
+3022,England,boundary
+3023,Northern Ireland,boundary
+3030,England,nearest-boundary
+3031,England,boundary
+3033,England,boundary
+3035,England,boundary
+3041,South Africa,boundary
+3046,England,boundary
+3048,South Africa,boundary
+3049,England,boundary
+3052,Scotland,boundary
+3053,England,boundary
+3055,England,boundary
+3056,England,boundary
+3057,Scotland,boundary
+3058,England,boundary
+3059,England,boundary
+3060,Wales,boundary
+3061,Scotland,boundary
+3062,England,boundary
+3063,England,boundary
+3065,Scotland,nearest-boundary
+3066,England,boundary
+3067,England,boundary
+3068,Wales,boundary
+3069,Wales,boundary
+3071,England,boundary
+3072,England,boundary
+3076,England,boundary
+3078,England,boundary
+3079,England,boundary
+3080,England,boundary
+3081,England,boundary
+3082,Scotland,boundary
+3086,Northern Ireland,boundary
+3091,Eswatini,boundary
+3094,England,boundary
+3095,England,boundary
+3097,Scotland,boundary
+3099,Scotland,boundary
+3100,Scotland,boundary
+3102,England,boundary
+3104,Scotland,boundary
+3107,South Africa,boundary
+3108,South Africa,boundary
+3109,South Africa,boundary
+3110,South Africa,boundary
+3116,South Africa,boundary
+3133,England,boundary
+3139,South Africa,boundary
+3143,England,boundary
+3153,England,boundary
+3154,England,boundary
+3156,England,boundary
+3158,England,boundary
+3159,England,boundary
+3160,Scotland,boundary
+3161,England,boundary
+3163,England,boundary
+3164,Scotland,boundary
+3165,England,boundary
+3167,England,boundary
+3168,South Africa,boundary
+3175,England,boundary
+3176,England,nearest-boundary
+3180,England,boundary
+3182,Scotland,boundary
+3184,England,boundary
+3190,South Africa,boundary
+3191,England,boundary
+3192,South Africa,boundary
+3198,England,boundary
+3204,England,boundary
+3207,South Africa,boundary
+3211,England,boundary
+3218,South Africa,boundary
+3224,South Africa,boundary
+3234,England,boundary
+3237,England,boundary
+3239,England,boundary
+3240,England,boundary
+3247,South Africa,boundary
+3249,England,boundary
+3254,England,boundary
+3255,England,boundary
+3260,England,boundary
+3265,South Africa,nearest-boundary
+3267,England,boundary
+3269,England,boundary
+3272,England,boundary
+3274,South Africa,boundary
+3282,England,boundary
+3284,Scotland,boundary
+3286,England,boundary
+3287,England,boundary
+3288,England,boundary
+3289,England,boundary
+3292,England,boundary
+3293,Scotland,boundary
+3294,Wales,boundary
+3301,England,boundary
+3303,England,boundary
+3306,England,boundary
+3309,South Africa,nearest-boundary
+3310,England,boundary
+3314,Wales,boundary
+3315,England,boundary
+3323,South Africa,boundary
+3324,England,nearest-boundary
+3326,England,boundary
+3327,England,boundary
+3330,South Africa,boundary
+3331,South Africa,boundary
+3332,South Africa,boundary
+3333,South Africa,boundary
+3334,Wales,boundary
+3337,England,boundary
+3339,Scotland,boundary
+3340,Wales,nearest-boundary
+3341,England,boundary
+3343,South Africa,boundary
+3344,South Africa,boundary
+3346,South Africa,boundary
+3347,England,boundary
+3350,England,boundary
+3352,England,boundary
+3353,Scotland,boundary
+3354,England,boundary
+3355,England,boundary
+3359,England,boundary
+3360,England,boundary
+3361,England,boundary
+3362,England,boundary
+3363,England,boundary
+3364,England,boundary
+3371,England,boundary
+3372,England,boundary
+3373,England,boundary
+3374,England,boundary
+3378,England,boundary
+3379,England,boundary
+3381,England,boundary
+3383,Scotland,boundary
+3385,Wales,boundary
+3387,South Africa,boundary
+3389,England,boundary
+3391,South Africa,boundary
+3392,England,boundary
+3393,England,boundary
+3394,England,boundary
+3395,England,boundary
+3399,England,boundary
+3400,South Africa,boundary
+3401,South Africa,boundary
+3403,England,boundary
+3404,England,boundary
+3409,England,boundary
+3410,South Africa,boundary
+3413,England,boundary
+3415,Northern Ireland,boundary
+3416,Northern Ireland,boundary
+3417,Northern Ireland,boundary
+3418,England,boundary
+3422,Northern Ireland,boundary
+3423,England,boundary
+3425,England,boundary
+3429,England,boundary
+3431,England,boundary
+3434,England,boundary
+3435,England,boundary
+3438,South Africa,boundary
+3440,England,boundary
+3441,England,boundary
+3443,Wales,boundary
+3445,Northern Ireland,boundary
+3446,England,boundary
+3448,South Africa,manual
+3456,England,boundary
+3457,Wales,boundary
+3458,Wales,boundary
+3460,England,boundary
+3468,England,boundary
+3472,Wales,boundary
+3473,Scotland,boundary
+3477,Northern Ireland,boundary
+3479,England,boundary
+3480,England,boundary
+3481,England,boundary
+3484,England,boundary
+3486,South Africa,boundary
+3488,South Africa,boundary
+3490,Wales,boundary
+3497,England,boundary
+3498,England,boundary
+3500,England,boundary
+3503,England,boundary
+3504,England,boundary
+3506,England,boundary
+3507,Wales,nearest-boundary
+3509,England,boundary
+3511,England,boundary
+3512,England,boundary
+3514,England,boundary
+3517,Scotland,boundary
+3518,England,boundary
+3519,England,nearest-boundary
+3520,England,boundary
+3521,England,boundary
+3522,England,boundary
+3527,Scotland,boundary
+3533,England,boundary
+3534,Scotland,boundary
+3535,England,boundary
+3536,Wales,boundary
+3542,South Africa,boundary
+3543,South Africa,boundary
+3554,Northern Ireland,boundary
+3557,England,boundary
+3561,England,boundary
+3563,South Africa,boundary
+3564,South Africa,boundary
+3565,England,boundary
+3567,England,boundary
+3568,England,boundary
+3572,England,boundary
+3575,England,boundary
+3580,England,boundary
+3581,England,boundary
+3585,England,boundary
+3586,Scotland,boundary
+3590,England,boundary
+3591,England,boundary
+3592,South Africa,boundary
+3594,South Africa,boundary
+3595,England,boundary
+3597,England,boundary
+3598,England,boundary
+3600,England,boundary
+3601,England,boundary
+3602,England,boundary
+3608,England,boundary
+3609,Wales,boundary
+3610,South Africa,boundary
+3613,England,boundary
+3614,England,boundary
+3618,England,boundary
+3622,Scotland,boundary
+3624,England,boundary
+3628,England,boundary
+3632,England,boundary
+3633,England,boundary
+3635,England,boundary
+3637,England,boundary
+3638,Scotland,nearest-boundary
+3643,England,boundary
+3644,Scotland,boundary
+3650,South Africa,boundary
+3651,England,boundary
+3652,Wales,boundary
+3655,England,boundary
+3656,Northern Ireland,boundary
+3657,Northern Ireland,boundary
+3658,England,boundary
+3659,Northern Ireland,boundary
+3663,England,boundary
+3668,Northern Ireland,boundary
+3669,Scotland,boundary
+3672,England,boundary
+3679,Scotland,boundary
+3680,England,nearest-boundary
+3681,Northern Ireland,boundary
+3683,Wales,boundary
+3686,Scotland,boundary
+3688,England,boundary
+3689,England,boundary
+3691,England,boundary
+3692,England,boundary
+3696,England,boundary
+3701,England,boundary
+3705,England,boundary
+3708,England,boundary
+3709,England,boundary
+3711,South Africa,boundary
+3712,South Africa,boundary
+3715,South Africa,boundary
+3717,Scotland,boundary
+3720,Wales,boundary
+3721,England,boundary
+3726,Scotland,boundary
+3727,England,boundary
+3729,England,boundary
+3733,Northern Ireland,boundary
+3736,Northern Ireland,boundary
+3737,Scotland,boundary
+3739,England,boundary
+3743,England,boundary
+3744,England,boundary
+3751,England,boundary
+3752,Wales,nearest-boundary
+3753,England,boundary
+3754,England,boundary
+3755,England,boundary
+3756,Scotland,nearest-boundary
+3759,South Africa,boundary
+3760,England,boundary
+3761,England,boundary
+3762,England,boundary
+3763,England,boundary
+3764,Scotland,nearest-boundary
+3770,England,boundary
+3777,South Africa,boundary
+3778,South Africa,boundary
+3779,England,boundary
+3784,South Africa,boundary
+3786,England,boundary
+3787,England,boundary
+3790,South Africa,boundary
+3792,Wales,boundary
+3796,England,boundary
+3797,England,boundary
+3800,England,boundary
+3801,England,boundary
+3802,Wales,boundary
+3803,England,boundary
+3804,England,boundary
+3805,England,boundary
+3806,Wales,nearest-boundary
+3807,South Africa,boundary
+3808,South Africa,boundary
+3809,England,boundary
+3812,England,nearest-boundary
+3813,England,boundary
+3814,South Africa,boundary
+3815,Scotland,boundary
+3816,England,boundary
+3817,Scotland,boundary
+3821,Wales,boundary
+3822,England,boundary
+3823,England,boundary
+3824,England,boundary
+3826,England,boundary
+3827,England,boundary
+3828,England,boundary
+3829,England,boundary
+3830,England,boundary
+3835,England,boundary
+3837,Gibraltar,boundary
+3841,England,boundary
+3843,England,boundary
+3844,England,boundary
+3848,England,boundary
+3850,Scotland,boundary
+3851,England,boundary
+3852,South Africa,boundary
+3853,South Africa,boundary
+3858,South Africa,nearest-boundary
+3859,Northern Ireland,boundary
+3860,England,boundary
+3861,England,boundary
+3864,Scotland,boundary
+3865,Wales,boundary
+3868,South Africa,boundary
+3873,England,boundary
+3874,Scotland,boundary
+3875,England,boundary
+3876,England,boundary
+3878,Northern Ireland,boundary
+3883,England,boundary
+3884,England,boundary
+3885,England,nearest-boundary
+3886,England,boundary
+3887,England,boundary
+3888,England,boundary
+3889,Scotland,boundary
+3890,England,boundary
+3892,England,boundary
+3894,England,boundary
+3899,England,boundary
+3900,Northern Ireland,boundary
+3901,England,boundary
+3906,Northern Ireland,boundary
+3907,St Helena,boundary
+3915,England,boundary
+3918,England,boundary
+3921,South Africa,boundary
+3922,England,boundary
+3923,England,boundary
+3925,England,boundary
+3926,Scotland,nearest-boundary
+3927,England,boundary
+3933,England,boundary
+3936,England,boundary
+3937,England,boundary
+3939,England,boundary
+3941,England,boundary
+3942,Wales,boundary
+3943,England,boundary
+3944,South Africa,boundary
+3948,England,boundary
+3949,Scotland,boundary
+3950,Wales,boundary
+3952,England,boundary
+3953,England,boundary
+3954,England,boundary
+3955,Scotland,boundary
+3956,England,boundary
+3961,South Africa,boundary
+3968,Cayman Islands,boundary
+3970,England,boundary
+3972,South Africa,boundary
+3973,England,boundary
+3974,England,boundary
+3975,South Africa,boundary
+3981,England,boundary
+3982,Scotland,boundary
+3983,England,boundary
+3984,England,boundary
+3985,England,boundary
+3987,England,boundary
+3988,England,boundary
+3989,England,boundary
+3990,England,boundary
+3993,England,boundary
+3994,England,boundary
+4002,England,boundary
+4007,South Africa,boundary
+4008,Scotland,boundary
