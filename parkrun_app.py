@@ -1,7 +1,8 @@
 """parkrun & brunch — comparison app for George, Duncan and Raju.
 
 Reads the `parkrun` schema (read-only) from the local DuckDB and presents:
-  Tab 1  intro + participation overlap (Venn) + per-athlete company
+  Tab 1  intro + participation calendar + overlap (Venn) + per-athlete company
+         + milestone matrix (milestone_matrix.py)
   Tab 2  head-to-head summary (targets, latest result, record, cumulative 1sts)
   Tab 3  head-to-head detail (drill into a single contest: scoreline one-liner
          + victory lollipop chart + results table)
@@ -39,6 +40,7 @@ from matplotlib_venn import venn3
 import parkrun_calendar as cal
 from estimator_tab import render_estimates
 from h2h_streaks import render_streak_heatmap
+from milestone_matrix import render_milestone_matrix
 from parkrun_core import TARGET_WINDOW_DAYS
 from parkrun_ui import (  # shared with label_impact.py — see that module
     ATHLETE_COLORS,
@@ -1091,6 +1093,10 @@ with tab1:
                 margin=dict(t=50, b=0, l=0, r=0),
             )
             show_chart(fig2)
+
+    st.divider()
+    if section("Milestones", "t1_milestones"):
+        render_milestone_matrix(_ver)
 
 # =========================================================================== #
 # TAB 2 — head-to-head summary
