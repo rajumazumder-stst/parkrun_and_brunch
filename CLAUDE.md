@@ -258,8 +258,10 @@ where they differ from the original brief, **the spec wins**.
   Crown Dependencies and overseas territories their own, and 🇳🇦 / 🇸🇿 for the
   parkruns parkrun files under South Africa. The country filter becomes
   parent then children. Data: `event_countries` (§ Data model). The
-  committed snapshot does not carry that table until the first refresh after
-  merging, and the app shows parent flags until then.
+  snapshot did not carry that table until the first refresh after merging —
+  a manual one, 8 Oct 2026, run the same night once the hosted planner was
+  seen still showing parent countries; until a refresh loads it, the app
+  falls back to parent countries in the filter, table and map alike.
 - ✅ **Tab 1 matrices, PB runs filter, draft planner filters — live**
   (8 Oct 2026). Tab 1 ends with two tables: the **milestone matrix**
   (`milestone_matrix.py`) and beneath it **Different parkruns**
