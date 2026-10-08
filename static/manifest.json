@@ -1,7 +1,7 @@
 {
   "name": "parkrun & brunch",
   "short_name": "PR&B",
-  "start_url": ".",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#23201d",
   "theme_color": "#23201d",

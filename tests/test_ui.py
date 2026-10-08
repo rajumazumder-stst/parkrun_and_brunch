@@ -18,8 +18,9 @@ import parkrun_ui as ui
 
 REPO = parkrun_core.REPO
 APP_MODULES = ["parkrun_app.py", "parkrun_ui.py", "estimator_tab.py",
-               "buggy_handicap.py", "method_impact.py", "handicap_page.py",
-               "label_impact.py", "where_next.py", "parkrun_calendar.py", "app.py"]
+               "buggy_handicap.py", "method_impact.py",
+               "label_impact.py", "where_next.py", "parkrun_calendar.py", "app.py",
+               "milestone_matrix.py", "venue_matrix.py", "h2h_streaks.py"]
 
 
 def _calls_outside_ui(attr: str) -> list:
@@ -178,11 +179,21 @@ def test_app_runs_and_year_filters_take_several_years(monkeypatch):
         at.multiselect(key="t5_rank_by").set_value(["Raju"])
     at.run()
     assert not at.exception
+    # The panel is a draft: nothing reaches the map until Apply filters.
+    assert at.session_state["t5_state_applied"]["filters"]["countries"] == []
+    assert at.session_state["t5_state_applied"]["filters"]["done_filter"]["Raju"] == "Not done"
+    at.button(key="t5_apply").click().run()
+    assert not at.exception
+    assert at.session_state["t5_state_applied"]["filters"]["countries"] == ["United Kingdom"]
+    assert at.session_state["t5_state_applied"]["filters"]["exclude"] == [1]
+    assert at.session_state["t5_state_applied"]["filters"]["done_filter"]["Raju"] == "Done"
 
     # Clear all filters: the neutral setting, not the opening one — units
-    # and rank metric included, the view untouched.
+    # and rank metric included, the view untouched. A clear applies at once.
     at.button(key="t5_clear").click().run()
     assert not at.exception
+    assert at.session_state["t5_state_applied"]["filters"]["countries"] == []
+    assert at.session_state["t5_state_applied"]["filters"]["done_filter"]["Raju"] == "Any"
     assert at.multiselect(key="t5_countries").value == []
     assert at.multiselect(key="t5_exclude").value == []
     for name in ("George", "Raju", "Duncan"):
@@ -215,6 +226,18 @@ def _keys_under(node) -> set:
             out.add(n.key)
         stack.extend(getattr(n, "children", {}).values())
     return out
+
+
+@pytest.mark.parametrize("app", ["http://localhost:8501/",
+                                 "https://parkrun-and-brunch.streamlit.app/~/+/"])
+def test_manifest_start_url_opens_the_site_root(app):
+    """A relative start_url resolves against the manifest's own address, not
+    the page's: "." sent an Android install to /app/static/, a 404."""
+    import json
+    from urllib.parse import urljoin, urlsplit
+    manifest = json.loads((REPO / "static" / "manifest.json").read_text())
+    url = urljoin(urljoin(app, "app/static/manifest.json"), manifest["start_url"])
+    assert urlsplit(url).path == "/"
 
 
 def test_years_desc_is_newest_first_and_keeps_type():

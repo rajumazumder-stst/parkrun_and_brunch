@@ -919,7 +919,7 @@ WHERE n_window >= 1;
 """
 
 
-def ensure_legacy_views(con: duckdb.DuckDBPyConnection, *, force: bool = False) -> None:
+def ensure_legacy_views(con: duckdb.DuckDBPyConnection) -> None:
     """Create the pre-buggy views alongside the live ones.
 
     These freeze a SUPERSEDED method — one pooled 91-day median, no mode split,
@@ -929,16 +929,16 @@ def ensure_legacy_views(con: duckdb.DuckDBPyConnection, *, force: bool = False) 
         and is now spent; kept because it is why the promotion was staged.
       * The label-impact comparison, which diffs old against new.
 
-    `force=True` is how the deploy snapshot gets them (see build_snapshot): the
-    hosted /buggy-handicap page shows that comparison, so the views it reads
-    have to travel with the snapshot. They are NOT built into the
-    source-of-truth DB — nothing there needs them, and a stored view of a
-    retired method is one more thing a future migration has to carry.
+    Built only into a dev DB, for the dev-only `label_impact.py`. The deploy
+    snapshot carried them from 2 Sep until 8 Oct 2026, for the hosted
+    /buggy-handicap page, which has since been removed. They are NOT built
+    into the source-of-truth DB — nothing there needs them, and a stored view
+    of a retired method is one more thing a future migration has to carry.
 
     Whoever renders them owes the reader a label saying which numbers are the
     old ones. A view called `_legacy` is not self-describing in a table.
     """
-    if not force and os.environ.get("PARKRUN_LABEL_AUDIT") != "1":
+    if os.environ.get("PARKRUN_LABEL_AUDIT") != "1":
         log("legacy views: skipped (set PARKRUN_LABEL_AUDIT=1 to build them)")
         return
     con.execute(LEGACY_HEAD_TO_HEAD_SQL.format(
@@ -1718,10 +1718,9 @@ def build_snapshot(con: duckdb.DuckDBPyConnection) -> None:
     snap = duckdb.connect(str(tmp))
     try:
         ensure_views(snap)
-        # The hosted /buggy-handicap page carries the label-impact comparison,
-        # so the frozen pre-buggy views ship with the snapshot. force=True:
-        # this is the one place they are built without PARKRUN_LABEL_AUDIT.
-        ensure_legacy_views(snap, force=True)
+        # No legacy views: the hosted /buggy-handicap page that read them was
+        # removed on 8 Oct 2026, and the dev-only label_impact.py builds its
+        # own (run_local.sh, PARKRUN_LABEL_AUDIT=1).
         snap.execute("CHECKPOINT;")
     finally:
         snap.close()

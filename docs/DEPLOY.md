@@ -79,16 +79,16 @@ same commit**, which is why the code and the regenerated snapshot must be
 committed together — the rollout note below is not theoretical, it is a
 near-miss that happened.
 
-`app.py` is a router, not the app: `st.navigation([...], position="hidden")`
-over two page scripts.
+`app.py` is the entrypoint, not the app: a one-page
+`st.navigation([...], position="hidden")` over `parkrun_app.py`.
 
 | Path | Page | Contents |
 |---|---|---|
 | `/` | `parkrun_app.py` | the six tabs |
-| `/buggy-handicap` | `handicap_page.py` | what the buggy costs · what labelling changed |
 
-`/buggy-handicap` is **unlisted, not access-controlled** — hidden navigation
-means no link to it, not no access. Anyone with the URL reads it.
+`/buggy-handicap` (`handicap_page.py`, what the buggy costs · what labelling
+changed) was a second, unlisted route from 2 Sep until **8 Oct 2026**, when it
+was removed. The URL now shows Streamlit's "Page not found" and opens `/`.
 
 **The deploy snapshot carries driving times** (`travel_times`, since 1 Oct
 2026), routed from each athlete's neighbourhood centroid. The centroids are
@@ -97,17 +97,13 @@ table holds results and the parkruns' own coordinates only. A neighbourhood
 is the most the times can give away. That was the agreed limit, and it is
 why exact home addresses must never go into that file.
 
-**The deploy snapshot now carries the legacy views.** `build_snapshot` calls
-`ensure_legacy_views(force=True)`, because the second tab of `/buggy-handicap`
-compares the pre-buggy method against the current one and needs
-`v_head_to_head_legacy` to do it. This reverses an earlier rule that kept them
-out of anything hosted, on the grounds that a superseded method should not be
-queryable on a public app. What guards against misreading them now is
-presentation, not absence — so if that tab's framing is ever loosened, this is
-the thing that was traded away.
-
-They are still **not** built into the source-of-truth DB; `bootstrap` and
-`refresh` never call `ensure_legacy_views`, only `build_snapshot` does.
+**The deploy snapshot no longer carries the legacy views** (since 8 Oct
+2026). It did from 2 Sep, because the second tab of `/buggy-handicap` needed
+`v_head_to_head_legacy`; with that page removed, the earlier rule is back — a
+superseded method is not queryable on the public app. The committed snapshot
+sheds them at the first refresh after the change is merged. They are built
+only into a dev DB (`run_local.sh` under `PARKRUN_LABEL_AUDIT=1`), never into
+the source-of-truth DB.
 
 **`components/calendar/` ships with the code.** Tab 3's head-to-head picker is a
 declared Streamlit component, and Streamlit serves its static files itself from
@@ -120,9 +116,9 @@ build step, no `node_modules`, and nothing to add to `requirements.txt`.
 `calendar_proto.py` is **never deployed** — it is the dev bench (`docs/DEV.md`),
 imported by nothing.
 
-`label_impact.py` is still never deployed. It is a dev-only twin of
-`/buggy-handicap` that only the local launcher starts, running the same two
-shared modules against an isolated dev DB.
+`label_impact.py` is never deployed. Only the local launcher starts it, running
+the two shared analysis modules against an isolated dev DB. Since
+`/buggy-handicap` was removed it is the only place they are drawn.
 
 The same guard applies to any tool that writes labels.
 `scripts/export_buggy_review.py` refuses to write to the deploy snapshot — it is
@@ -318,10 +314,11 @@ ordering means a freshly-deployed helper is always skipped once. Moving the
 check below the pull is a one-line fix if it ever matters.
 
 **`st.components.v1.html` is past its removal date.** `parkrun_app.py` uses it
-to inject the home-screen icons, and Streamlit says it "will be removed after
-2026-06-01" — a date now passed. It works only because `requirements.txt` pins
-`streamlit==1.58.0`. The first time that pin is bumped, expect the icon
-injection to break; `st.iframe` is the replacement.
+to inject the home-screen icons and manifest and to lift the Cloud wrapper's
+`user-scalable=no`, and Streamlit says it "will be removed after 2026-06-01" —
+a date now passed. It works only because `requirements.txt` pins
+`streamlit==1.58.0`. The first time that pin is bumped, expect both to break;
+losing the zoom fix is silent. `st.iframe` is the replacement.
 
 ## Ad-hoc refresh from your Mac
 

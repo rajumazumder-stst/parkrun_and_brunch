@@ -1,15 +1,15 @@
-"""Label impact — the dev-only twin of the hosted /buggy-handicap page.
+"""Label impact — what the buggy costs, and what labelling changed. Dev-only.
 
-Both tabs here are the same code the hosted page runs; this app exists so they
-can be driven against an isolated dev DB without touching the deploy snapshot:
+It was the twin of the hosted /buggy-handicap page until that page was removed
+on 8 Oct 2026; it is now the only place these two analyses are drawn, against
+an isolated dev DB:
 
     PARKRUN_LABEL_AUDIT=1 ./scripts/run_local.sh
     # or directly:
     PARKRUN_DB=data/parkrun_dev.duckdb streamlit run label_impact.py --server.port 8502
 
 The views the comparison reads (`v_head_to_head_legacy`) are built into a dev DB
-by `run_local.sh` under that flag, and into the deploy snapshot by
-`build_snapshot`. See `method_impact.py` and `buggy_handicap.py` for the two
+by `run_local.sh` under that flag. See `method_impact.py` and `buggy_handicap.py` for the two
 analyses; nothing but layout lives here.
 """
 
@@ -24,7 +24,7 @@ from parkrun_ui import DB_PATH, data_version
 st.set_page_config(page_title="Label impact", page_icon="🧪", layout="wide")
 
 st.title("🧪 Label impact")
-st.caption(f"Dev copy of the hosted /buggy-handicap page — {DB_PATH}")
+st.caption(f"Dev only — {DB_PATH}")
 
 _ver = data_version()
 

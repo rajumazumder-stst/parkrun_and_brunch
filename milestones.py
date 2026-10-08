@@ -1,5 +1,5 @@
-"""Milestone arithmetic for the tab 1 milestone matrix — pure, no streamlit,
-no database. `milestone_matrix.py` draws the table; this decides what it says.
+"""Milestone arithmetic for the tab 1 milestone matrix and the unique-parkruns
+matrix — pure, no streamlit, no database. `milestone_matrix.py` draws the table; this decides what it says.
 
 The Nth run is the Nth entry of the athlete's dates sorted, never the scraped
 `run_number`: that column is the *event's* run number, shared by everyone who
@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import datetime as dt
 from dataclasses import dataclass, field
-from typing import Iterable
+from typing import Iterable, Sequence
 
 from milestone_config import milestones_for
 
@@ -41,14 +41,17 @@ class MilestoneSummary:
 
 
 def milestone_summary(run_dates: Iterable[dt.date], *, junior: bool = False,
-                      today: dt.date | None = None) -> MilestoneSummary:
+                      today: dt.date | None = None,
+                      ladder: Sequence[int] | None = None) -> MilestoneSummary:
     """Totals, milestones reached and the next one, from a participant's run
     dates. A date appears once per run, so a same-day double is two entries.
-    `today` defaults to the local date; pass it to pin the day counts."""
+    `today` defaults to the local date; pass it to pin the day counts.
+    `ladder` replaces the official milestones (the unique-parkruns matrix
+    counts first visits against its own); `junior` is ignored when given."""
     dates = sorted(run_dates)
     today = today or dt.date.today()
     total = len(dates)
-    ladder = milestones_for(junior)
+    ladder = milestones_for(junior) if ladder is None else tuple(ladder)
 
     reached: list[Milestone] = []
     if dates:

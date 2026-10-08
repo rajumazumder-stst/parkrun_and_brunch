@@ -3,16 +3,17 @@
 Reads the `parkrun` schema (read-only) from the local DuckDB and presents:
   Tab 1  intro + participation calendar + overlap (Venn) + per-athlete company
          + milestone matrix (milestone_matrix.py)
-  Tab 2  head-to-head summary (targets, latest result, record, cumulative 1sts)
+         + unique-parkruns matrix (venue_matrix.py)
+  Tab 2  personal bests + head-to-head summary (targets, latest result,
+         record, win/loss streaks, cumulative 1sts)
   Tab 3  head-to-head detail (drill into a single contest: scoreline one-liner
          + victory lollipop chart + results table)
   Tab 4  form — target time by Saturday
-  Tab 5  map — where the head-to-heads happen
+  Tab 5  where they meet, and where next (where_next.py)
   Tab 6  what the buggy estimator guessed, per run (estimator_tab.py)
 
-This is a PAGE SCRIPT, not the entrypoint: `app.py` routes to it via
-`st.navigation`, which is what lets the handicap analysis live at a path on the
-same domain without a nav link. `st.set_page_config` therefore lives in `app.py`
+This is a PAGE SCRIPT, not the entrypoint: `app.py` runs it through a one-page
+`st.navigation`, so `st.set_page_config` lives in `app.py`
 — only one call is legal per run — and the browser-tab title for this page comes
 from its `st.Page(title=...)`.
 
@@ -41,6 +42,7 @@ import parkrun_calendar as cal
 from estimator_tab import render_estimates
 from h2h_streaks import render_streak_heatmap
 from milestone_matrix import render_milestone_matrix
+from venue_matrix import render_venue_matrix
 from parkrun_core import TARGET_WINDOW_DAYS
 from parkrun_ui import (  # shared with label_impact.py — see that module
     ATHLETE_COLORS,
@@ -72,15 +74,32 @@ from parkrun_ui import (  # shared with label_impact.py — see that module
     stat_phone_css,
     stat_value,
 )
-from where_next import (RANGE_ROW_CSS, render_h2h_view, render_planner,
-                        view_toggle)
+from where_next import (PLANNER_SKIP_KEYS, RANGE_ROW_CSS, render_h2h_view,
+                        render_planner, view_toggle)
 
 # Logo built by scripts/build_logo.py (three runners in ATHLETE_COLORS on a
 # fried egg). Resolved off __file__, not the CWD, so it survives being launched
 # from anywhere. Falls back to the old emoji if the file is missing, so a bad
 # checkout degrades to a working app rather than a crash on line 1.
 _ICON = Path(__file__).resolve().parent / "static" / "logo-512.png"
-def _inject_home_screen_icons() -> None:
+
+
+# Shared by both scripts below: every same-origin document above the
+# component's frame, nearest first — the app itself, then Cloud's wrapper when
+# hosted. It stops at the first cross-origin one, which is left alone.
+_PARENT_DOCS_JS = """<script>
+        function prbParentDocs() {
+          var docs = [], w = window;
+          while (w.parent && w.parent !== w) {
+            w = w.parent;
+            try { docs.push(w.document); } catch (e) { break; }
+          }
+          return docs;
+        }
+        </script>"""
+
+
+def _home_screen_icons_js() -> str:
     """Give "Add to Home Screen" our icon on both platforms.
 
     The two platforms read different things, so both are needed:
@@ -99,37 +118,102 @@ def _inject_home_screen_icons() -> None:
     document head. Both platforms read the DOM when the user taps install, so
     links injected at load time are visible by then. None of this is supported
     by Streamlit, hence the guard: any failure leaves the page untouched.
+
+    "The real document" is the **top** one, which on Streamlit Cloud is not
+    the app: the app is an iframe inside Cloud's wrapper (see
+    `_pinch_zoom_js`), so the links go into every reachable document, top
+    included. Their URLs are made absolute against the *app* document, which
+    is where `/app/static/` is served from (`/~/+/app/static/` on Cloud).
     """
-    st.components.v1.html(
-        """<script>
-        try {
-          var d = window.parent.document;
-          // Served by [server] enableStaticServing in .streamlit/config.toml.
-          // Must be real URLs: iOS ignores data: URIs for apple-touch-icon.
-          if (!d.querySelector('link[rel="apple-touch-icon"]')) {
-            var l = d.createElement('link');
-            l.rel = 'apple-touch-icon';
-            l.href = './app/static/apple-touch-icon.png';
-            d.head.appendChild(l);
+    return """<script>
+        (function () {
+          function add(d, base) {
+            // Served by [server] enableStaticServing in .streamlit/config.toml.
+            // Must be real URLs: iOS ignores data: URIs for apple-touch-icon.
+            if (!d.querySelector('link[rel="apple-touch-icon"]')) {
+              var l = d.createElement('link');
+              l.rel = 'apple-touch-icon';
+              l.href = new URL('app/static/apple-touch-icon.png', base).href;
+              d.head.appendChild(l);
+            }
+            if (!d.querySelector('link[data-prb-manifest]')) {
+              // Drop the host's manifest first - Chrome uses only the first one.
+              d.querySelectorAll('link[rel="manifest"]').forEach(function (n) {
+                n.parentNode.removeChild(n);
+              });
+              var m = d.createElement('link');
+              m.rel = 'manifest';
+              m.setAttribute('data-prb-manifest', '1');
+              m.href = new URL('app/static/manifest.json', base).href;
+              d.head.appendChild(m);
+            }
           }
-          if (!d.querySelector('link[data-prb-manifest]')) {
-            // Drop the host's manifest first - Chrome uses only the first one.
-            d.querySelectorAll('link[rel="manifest"]').forEach(function (n) {
-              n.parentNode.removeChild(n);
+          var docs = prbParentDocs();
+          docs.forEach(function (d) {
+            try { add(d, docs[0].baseURI); } catch (e) { /* leave it alone */ }
+          });
+        })();
+        </script>"""
+
+
+def _pinch_zoom_js() -> str:
+    """Give a phone back pinch-zoom on the hosted app.
+
+    Streamlit Community Cloud serves the app inside its own wrapper page
+    (the app is the iframe at `/~/+/`), and that wrapper's viewport meta ends
+    in `user-scalable=no`. The top-level page owns zoom, so Android Chrome —
+    and an iPhone home-screen web app — could not pinch-zoom anything. The
+    app's own document allows it; run locally there is no wrapper and no bug.
+
+    The wrapper is same-origin with the app, so this walks up from the
+    component's frame and rewrites every reachable viewport meta without
+    `user-scalable` / `maximum-scale`, then watches each head in case the
+    host sets it again. Like the home-screen icons, unsupported and guarded:
+    a cross-origin or missing parent leaves the page untouched.
+    `static/dev-cloud-wrapper.html` (gitignored) recreates the wrapper
+    locally for testing on a phone.
+
+    The watcher (a MutationObserver) lives in the component frame's realm and
+    dies with it, so a fresh one is installed on every load — no "already
+    installed" marker on the parent, which would outlive the watcher it
+    vouched for and stop a replacement."""
+    return """<script>
+        (function () {
+          function fix(d) {
+            d.querySelectorAll('meta[name="viewport"]').forEach(function (m) {
+              var c = m.getAttribute('content') || '';
+              var kept = c.split(',').map(function (p) { return p.trim(); })
+                .filter(function (p) {
+                  return p && !/^(user-scalable|maximum-scale)\\s*=/i.test(p);
+                }).join(', ');
+              if (kept !== c) m.setAttribute('content', kept);
             });
-            var m = d.createElement('link');
-            m.rel = 'manifest';
-            m.setAttribute('data-prb-manifest', '1');
-            m.href = './app/static/manifest.json';
-            d.head.appendChild(m);
           }
-        } catch (e) { /* cross-origin or no parent: leave the page alone */ }
-        </script>""",
-        height=0,
-    )
+          prbParentDocs().forEach(function (d) {
+            try {
+              fix(d);
+              // Streamlit appends style tags to the app's head on most
+              // reruns; only a change touching a <meta> is worth a look.
+              new MutationObserver(function (recs) {
+                if (recs.some(function (r) {
+                  return r.target.nodeName === 'META' ||
+                    Array.prototype.some.call(r.addedNodes, function (n) {
+                      return n.nodeName === 'META';
+                    });
+                })) fix(d);
+              }).observe(
+                d.head, {subtree: true, childList: true, attributes: true,
+                         attributeFilter: ['content']});
+            } catch (e) { /* leave it alone */ }
+          });
+        })();
+        </script>"""
 
 
-_inject_home_screen_icons()
+# One zero-height component for both scripts: each component is its own
+# iframe and its own gap in the layout, so two would cost two of each.
+st.components.v1.html(_PARENT_DOCS_JS + _home_screen_icons_js()
+                      + _pinch_zoom_js(), height=0)
 
 
 # --------------------------------------------------------------------------- #
@@ -208,9 +292,25 @@ def load_target_window_runs(version) -> pd.DataFrame:
     return df
 
 
+# The runs filter over the three scopes: key -> (button label, WHERE clause over
+# `runs` in load_personal_bests; is_buggy is never NULL there, v_results_moded
+# coalesces it). It applies to every athlete alike, so under "buggy" a runner
+# who never pushes one shows dashes. The latest run ignores it: it is the
+# latest run, full stop.
+PB_FILTERS = {"all": ("All runs", "TRUE"),
+              "regular": ("Regular", "NOT is_buggy"),
+              "buggy": (f"Buggy {BUGGY_GLYPH}", "is_buggy")}
+
+
 @st.cache_data(show_spinner=False)
-def load_personal_bests(version) -> pd.DataFrame:
+def load_personal_bests(version, runs_filter: str = "all") -> pd.DataFrame:
     """Each athlete's fastest run in each of three scopes, plus their latest run.
+
+    ``runs_filter`` (a ``PB_FILTERS`` key, the tab's runs filter) narrows the
+    three scopes to regular or buggy runs; an athlete with no run of that kind
+    in a scope simply has no row for it. ``Latest run`` is never filtered.
+    Cached per filter, so the frame keeps one row per athlete and scope
+    whichever is chosen.
 
     Scopes are anchored on the latest ``refresh_date`` (so they move with the
     data, not the wall clock) and both rolling windows are inclusive of the
@@ -226,8 +326,10 @@ def load_personal_bests(version) -> pd.DataFrame:
     Note the 3-month window is *calendar* months, so it is a day or two wider
     than the 91-day form-target window used by the head-to-head — these answer
     different questions (best single run vs. baseline for a contest)."""
+    # The one interpolation is a fixed SQL fragment chosen by key, never text
+    # from the page.
     return _read_sql(
-        """
+        f"""
         WITH anchor AS (SELECT max(refresh_date) AS d FROM parkrun.current_targets),
         runs AS (
             SELECT a.athlete_name, r.run_date, e.short_name, r.time_seconds,
@@ -237,14 +339,15 @@ def load_personal_bests(version) -> pd.DataFrame:
             JOIN parkrun.events e USING (event_id)
             WHERE r.time_seconds IS NOT NULL
         ),
+        filtered AS (SELECT * FROM runs WHERE {PB_FILTERS[runs_filter][1]}),
         scoped AS (
-            SELECT 'All time' AS scope, 1 AS scope_ord, runs.* FROM runs
+            SELECT 'All time' AS scope, 1 AS scope_ord, filtered.* FROM filtered
             UNION ALL
-            SELECT 'Last 12 months', 2, runs.* FROM runs, anchor
-            WHERE runs.run_date BETWEEN anchor.d - INTERVAL 12 MONTH AND anchor.d
+            SELECT 'Last 12 months', 2, filtered.* FROM filtered, anchor
+            WHERE filtered.run_date BETWEEN anchor.d - INTERVAL 12 MONTH AND anchor.d
             UNION ALL
-            SELECT 'Last 3 months', 3, runs.* FROM runs, anchor
-            WHERE runs.run_date BETWEEN anchor.d - INTERVAL 3 MONTH AND anchor.d
+            SELECT 'Last 3 months', 3, filtered.* FROM filtered, anchor
+            WHERE filtered.run_date BETWEEN anchor.d - INTERVAL 3 MONTH AND anchor.d
         ),
         fastest AS (
             SELECT scope, scope_ord, athlete_name, run_date, short_name,
@@ -499,7 +602,16 @@ TGT_BIG = "1.5rem"
 TGT_GAP = "0.75rem"   # space between the last target and the popover button
 
 
-def render_personal_bests(pb: pd.DataFrame) -> None:
+def pb_order(pb: pd.DataFrame) -> list[str]:
+    """Athletes by all-time best, fastest first — the order of the PB boxes
+    and of the streaks heatmap. Pass the unfiltered frame, so switching the
+    runs filter never reshuffles the boxes or drops a runner."""
+    return list(pb[pb["scope"] == "All time"]
+                .sort_values("time_seconds")["athlete_name"])
+
+
+def render_personal_bests(pb: pd.DataFrame, order: list[str],
+                          runs_filter: str = "all") -> None:
     """One bordered box per athlete: the three scopes side by side, then that
     athlete's latest run full-width beneath a rule.
 
@@ -547,9 +659,6 @@ def render_personal_bests(pb: pd.DataFrame) -> None:
         unsafe_allow_html=True,
     )
 
-    all_time = pb[pb["scope"] == "All time"].sort_values("time_seconds")
-    order = list(all_time["athlete_name"])
-
     # Label / value / note are the shared stat-slot helpers (parkrun_ui):
     # the scope is the label, the time the value, the date the note.
     def _small(text: str, muted: bool = True) -> str:
@@ -557,7 +666,7 @@ def render_personal_bests(pb: pd.DataFrame) -> None:
 
     _big = stat_value
 
-    def _timed(row) -> str:
+    def _timed(row, glyph: bool = True) -> str:
         """The time, with 🛒 appended when that run was pushed.
 
         One definition for all four slots — the three scopes and the latest-run
@@ -566,7 +675,7 @@ def render_personal_bests(pb: pd.DataFrame) -> None:
         shows. A fastest run is rarely a buggy run, so most of the time this is
         the plain time; that is the mark doing its job, not a missing feature."""
         t = fmt_time(row["time_seconds"])
-        if not row.get("is_buggy"):
+        if not glyph or not row.get("is_buggy"):
             return t
         return (f"{t}<span class='pb-glyph' style='margin-left:{PB_GLYPH_GAP}'>"
                 f"{BUGGY_GLYPH}</span>")
@@ -590,16 +699,21 @@ def render_personal_bests(pb: pd.DataFrame) -> None:
 
     def _slot(name: str, scope: str) -> None:
         """One slot: the scope, then that run's time, venue and date — or
-        dashes where the athlete has no run in that scope."""
+        dashes where the athlete has no run of the chosen kind in that scope.
+
+        Under the buggy filter the times carry no glyph: every one is a buggy
+        run, and the filter already says so."""
+        rf = "all" if scope == PB_LATEST else runs_filter
         m = pb[(pb["athlete_name"] == name) & (pb["scope"] == scope)]
         if m.empty:
-            value, venue, date = "—", "no runs", "—"
+            value, date = "—", "—"
+            venue = "no runs" if rf == "all" else f"no {rf} runs"
         else:
             r = m.iloc[0]
             # Glyph beside the time, NOT a second box per athlete: the
             # layout is fixed-height and pinned, and splitting it would
             # break the alignment the whole block is built on.
-            value, venue = _timed(r), r["short_name"]
+            value, venue = _timed(r, glyph=rf != "buggy"), r["short_name"]
             date = pd.Timestamp(r["run_date"]).strftime("%d %b %Y")
         for html in (_small(scope, muted=False), _big(value), _venue(venue),
                      _small(date)):
@@ -778,11 +892,28 @@ div[class*="st-key-sec-"] [data-testid="stButton"] button:hover {
 """
 
 
+INVOLVING = "Involving "
+
+
+def class_matches(cls: str, classification: str) -> bool:
+    """Whether a head-to-head's classification passes the classification
+    filter: "All", an exact classification, or "Involving <runner>" (tab 3) —
+    any head-to-head that runner was ranked in, two-way or three-way."""
+    if cls == "All":
+        return True
+    if cls.startswith(INVOLVING):
+        return cls.removeprefix(INVOLVING) in classification.split(" vs ")
+    return classification == cls
+
+
 def apply_filters(df: pd.DataFrame, cls: str = "All", yr=(), se=()) -> pd.DataFrame:
     """Classification is a single choice; years and seasons are lists, empty
     meaning all."""
     if cls != "All":
-        df = df[df["classification"] == cls]
+        # Always a Series mask, never a plain list: on an empty frame `df[[]]`
+        # reads as "select no COLUMNS" and the next `df["year"]` raises.
+        df = df[df["classification"].map(lambda c: class_matches(cls, c))
+                .astype(bool)]
     if yr:
         df = df[df["year"].isin([int(y) for y in yr])]
     if se:
@@ -790,12 +921,14 @@ def apply_filters(df: pd.DataFrame, cls: str = "All", yr=(), se=()) -> pd.DataFr
     return df
 
 
-def h2h_filter_row(prefix: str):
+def h2h_filter_row(prefix: str, by_runner: bool = False):
     """The classification + Year/Season filter row shared by the detail and map
     tabs: three columns, date options scoped to the picked classification.
+    `by_runner` adds the "Involving <runner>" choices (tab 3 only).
     Returns the (classification, year, season) selections."""
     c1, c2, c3 = st.columns(3)
-    cls = c1.selectbox("Head-to-head classification", CLASS_OPTS,
+    cls = c1.selectbox("Head-to-head classification",
+                       CLASS_OPTS_BY_RUNNER if by_runner else CLASS_OPTS,
                        key=f"{prefix}_class")
     yr, se = year_season_filters(apply_filters(h2h, cls=cls), prefix, c2, c3)
     return cls, yr, se
@@ -842,7 +975,7 @@ def apply_calendar_click(hit: dict, cells: pd.DataFrame, h2h: pd.DataFrame, *,
     crow = h2h[(h2h["run_date"] == clicked[0])
                & (h2h["event_id"] == clicked[1])].iloc[0]
     pending = {}
-    if cls != "All" and cls != crow["classification"]:
+    if not class_matches(cls, crow["classification"]):
         pending["t3_class"] = crow["classification"]
     # A click outside the chosen years (or seasons) ADDS that year to the
     # selection rather than replacing it — the reader built that set on
@@ -906,7 +1039,10 @@ try:
     h2h = load_h2h(_ver)
     targets = load_targets(_ver)
     target_runs = load_target_window_runs(_ver)
-    personal_bests = load_personal_bests(_ver)
+    # "all" spelt out: st.cache_data keys on the arguments as passed, so a
+    # defaulted call would cache the same frame twice beside tab 2's filter.
+    personal_bests = load_personal_bests(_ver, "all")
+    pb_runner_order = pb_order(personal_bests)
     meta = load_data_meta(_ver)
 except duckdb.IOException:
     st.error(
@@ -916,6 +1052,13 @@ except duckdb.IOException:
     st.stop()
 
 CLASS_OPTS = ["All"] + sorted(h2h["classification"].unique())
+# Tab 3 also offers each runner: every head-to-head they were ranked in.
+CLASS_OPTS_BY_RUNNER = (
+    ["All"]
+    + [INVOLVING + n for n in ATHLETE_COLORS
+       if any(n in c.split(" vs ") for c in CLASS_OPTS[1:])]
+    + CLASS_OPTS[1:]
+)
 
 with st.sidebar:
     st.markdown("### 🏃 parkrun & brunch")
@@ -1098,20 +1241,35 @@ with tab1:
     if section("Milestones", "t1_milestones"):
         render_milestone_matrix(_ver)
 
+    st.divider()
+    if section("Different parkruns", "t1_venues"):
+        render_venue_matrix(_ver)
+
 # =========================================================================== #
 # TAB 2 — head-to-head summary
 # =========================================================================== #
 with tab2:
     st.header("⚔️ Head-to-head")
+    keep_widget_state(("t2_pb_runs",))
 
     if section("Personal bests", "t2_pbs"):
         st.caption(
             "Each runner's fastest parkrun over three periods — all time, "
             "the last 12 months and the last 3 months, the two rolling "
             "windows counted back from the latest refresh and including that "
-            "day. Below the line is their most recent run, whatever the time."
+            "day. The filter narrows those three to regular or buggy runs, for "
+            "all three runners alike. Below the line is their most recent run, "
+            "whatever the time and whatever the filter."
         )
-        render_personal_bests(personal_bests)
+        # Always exactly one choice: seeded to "all", and `required` stops a
+        # click on the lit button from clearing it.
+        if st.session_state.get("t2_pb_runs") not in PB_FILTERS:
+            st.session_state["t2_pb_runs"] = "all"
+        pb_filter = st.segmented_control(
+            "Runs", list(PB_FILTERS), format_func=lambda k: PB_FILTERS[k][0],
+            key="t2_pb_runs", label_visibility="collapsed", required=True)
+        render_personal_bests(load_personal_bests(_ver, pb_filter),
+                              pb_runner_order, pb_filter)
 
     st.divider()
     if section("How a head-to-head works", "t2_how", default=False):
@@ -1326,11 +1484,7 @@ with tab2:
             "every head-to-head — the classification and year/season choices "
             "above do not apply. A hatched cell is a runner against themselves."
         )
-        pb_order = list(
-            personal_bests[personal_bests["scope"] == "All time"]
-            .sort_values("time_seconds")["athlete_name"]
-        )
-        render_streak_heatmap(h2h, pb_order)
+        render_streak_heatmap(h2h, pb_runner_order)
 
     # ----- cumulative 1st-place finishes over the selected period ----- #
     st.divider()
@@ -1413,7 +1567,7 @@ with tab3:
     # Everything below is computed whether or not the picker is on screen: the
     # result section needs the selection, and hiding the controls must not also
     # hide what they last chose.
-    pick3, yr3, se3 = (h2h_filter_row("t3") if show_pick
+    pick3, yr3, se3 = (h2h_filter_row("t3", by_runner=True) if show_pick
                        else (st.session_state.get("t3_class", "All"),
                              st.session_state.get("t3_year", []),
                              st.session_state.get("t3_season", [])))
@@ -1587,8 +1741,9 @@ with tab4:
         fc1, fc2 = st.columns(2)
         yr, se = year_season_filters(sat, "t4", fc1, fc2)
         st.caption(
-            "Filter by year *or* season. Click a name in the legend to "
-            "hide that runner — the axes rescale to whoever is left."
+            "Filter by year *or* season. Click a name in the legend to hide "
+            f"that line — a runner's regular and {BUGGY_GLYPH} lines are "
+            "separate entries — and the axes rescale to whatever is left."
         )
         sat_f = apply_filters(sat, cls="All", yr=yr, se=se)
 
@@ -1629,11 +1784,12 @@ with tab4:
             )
             if has_modes:
                 # px names a combined trace 'Duncan, buggy'; say it in words.
-                # legendgroup per athlete so one click hides both their lines.
+                # px already gives every line its own legendgroup, so a
+                # legend click hides that line alone — a runner's regular and
+                # buggy lines separately. Do not regroup them per athlete.
                 def _rename(tr):
                     name, _, mode = tr.name.partition(", ")
                     tr.name = name + (f" {BUGGY_GLYPH}" if mode == "buggy" else "")
-                    tr.legendgroup = name
                 fig.for_each_trace(_rename)
                 st.caption(
                     f"A dotted line is the target for runs **with the "
@@ -1665,7 +1821,7 @@ with tab5:
     # the classification / year / season row; the planner has its own.
     # Each view's filters are off screen while the other shows, so keep them —
     # bar the clear button and the maps, whose values cannot be set.
-    keep_widget_state(("t5_",), skip=("t5_clear", "t5_map_", "t5_filters_pop"))
+    keep_widget_state(("t5_",), skip=PLANNER_SKIP_KEYS)
     if view_toggle() == "Head-to-heads":
         pick5, yr5, se5 = h2h_filter_row("t5")
         render_h2h_view(_ver, None if pick5 == "All" else

@@ -1,6 +1,7 @@
 """The parkrun milestones and their official colours — defined here and nowhere
 else. `milestones.py` (the arithmetic) and `milestone_matrix.py` (the tab 1
-table) both read from this module.
+table) both read from this module. Also the unofficial unique-parkruns ladder
+(`UNIQUE_MILESTONES`) read by `venue_matrix.py`, which has no colours.
 
 Standard library only, like `parkrun_core.py`, so the pure milestone module
 and its tests import nothing heavier.
@@ -44,6 +45,12 @@ JUNIOR_ONLY: frozenset[int] = frozenset({10})
 # The matrix always draws these columns; anything above 500 appears only once
 # someone has reached it or is next to.
 ALWAYS_SHOWN: tuple[int, ...] = tuple(m for m in MILESTONES if m <= 500)
+
+# The unique-parkruns matrix (`venue_matrix.py`): after the first new parkrun,
+# every multiple of 50. Not official milestones, so no official colours —
+# that matrix is drawn in neutral greys. 2,000 is past every parkrun there is.
+UNIQUE_STEP = 50
+UNIQUE_MILESTONES: tuple[int, ...] = tuple(range(UNIQUE_STEP, 2001, UNIQUE_STEP))
 
 # The "1st" (start date) column's outline.
 FIRST_RUN_OUTLINE = "#E08A00"

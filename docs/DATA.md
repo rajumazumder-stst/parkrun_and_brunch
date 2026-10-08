@@ -32,8 +32,9 @@ Handicaps measured from these labels — **George 0.13 (`measured`)**, Duncan an
 Raju on the `0.15` default; Duncan's seven buggy runs are below the 8-per-class
 gate, his raw interval crosses zero and his course-controlled estimates point
 the *other* way. Note that gate is a disjunction — the count is only one of
-three reasons, and removing it alone would change nothing. The working is at
-`/buggy-handicap`, recomputed live.
+three reasons, and removing it alone would change nothing. The working is in the
+dev-only `label_impact.py`, recomputed live (it was also hosted at
+`/buggy-handicap` until 8 Oct 2026).
 
 Labelling changed the record, as it was always going to: 175 of 205 occasions
 unchanged, 6 winners flipped, 3 with places reordered, none lost.

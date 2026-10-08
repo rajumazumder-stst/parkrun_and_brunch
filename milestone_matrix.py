@@ -1,6 +1,7 @@
 """Tab 1 — the milestone matrix: each runner's milestone history in one table.
 The arithmetic is in `milestones.py`; the milestone list and colours in
-`milestone_config.py`.
+`milestone_config.py`. `venue_matrix.py` imports this module's loader and
+table helpers, so the two tables drawn one above the other cannot drift.
 
 "Junior" here means a runner's **buggy runs**, counted as a participant of
 their own and drawn indented beneath that runner: the child in the buggy is
@@ -32,7 +33,8 @@ from streaks import uk_date
 # scrape reads the adult /all/ page — but the filter says so rather than
 # relying on it.
 RUNS_SQL = """
-SELECT r.athlete_id, a.athlete_name, r.run_date, r.is_buggy
+SELECT r.athlete_id, a.athlete_name, r.run_date, r.is_buggy,
+       r.event_id, e.short_name   -- for venue_matrix.py's first visits
 FROM parkrun.v_results_moded r
 JOIN parkrun.athletes a USING (athlete_id)
 JOIN parkrun.events   e USING (event_id)
@@ -142,35 +144,80 @@ def tint(hex_: str, dark_guess: bool) -> str:
 
 # --- HTML --------------------------------------------------------------------
 
-def _css(dark_guess: bool) -> str:
-    """Names are pinned while the table swipes, so their cells need the opaque
+def table_css(p: str, dark_guess: bool, min_width: str, ring: str) -> str:
+    """The rules every milestone-style table shares, under class prefix `p`
+    (`ms` here, `vm` for venue_matrix.py): the swipe wrapper, cell shape, the
+    pinned name column, the big total, the small sub-line, the to-go text, and
+    the header badge — filled (`{p}-badge`) or outlined in `ring`
+    (`{p}-badge {p}-badge-ring`).
+    One copy, so a layout fix lands in both tables drawn one above the other.
+
+    Names are pinned while the table swipes, so their cells need the opaque
     page surface or the milestone cells would show through."""
     empty = "rgba(128,128,128,.07)"
-    return f"""<style>
-.ms-wrap {{ overflow-x:auto; -webkit-overflow-scrolling:touch; max-width:100%; }}
-.ms {{ border-collapse:separate; border-spacing:3px; min-width:820px; width:100%; }}
-.ms th {{ font-size:.8rem; font-weight:600; padding:2px 4px; text-align:center;
+    return f"""
+.{p}-wrap {{ overflow-x:auto; -webkit-overflow-scrolling:touch; max-width:100%; }}
+.{p} {{ border-collapse:separate; border-spacing:3px; min-width:{min_width};
+          width:100%; }}
+.{p} th {{ font-size:.8rem; font-weight:600; padding:2px 4px; text-align:center;
           vertical-align:bottom; white-space:nowrap; }}
-.ms td {{ border-radius:6px; padding:3px 2px; text-align:center;
+.{p} td {{ border-radius:6px; padding:3px 2px; text-align:center;
           border:2px solid transparent;
           vertical-align:middle; white-space:nowrap; font-size:.82rem;
           line-height:1.3; background:{empty}; }}
-.ms .ms-name {{ position:sticky; left:0; z-index:1;
+.{p} .{p}-name {{ position:sticky; left:0; z-index:1;
           {themed("background", LIGHT_SURFACE, DARK_SURFACE, dark_guess)}
           text-align:left; font-size:.95rem; font-weight:600; min-width:6.6rem; }}
+.{p} .{p}-total {{ font-size:1.45rem; font-weight:700;
+          font-variant-numeric:tabular-nums; background:transparent; }}
+.{p}-sub {{ font-size:.68rem; opacity:.72; }}
+.{p}-togo {{ font-weight:600; }}
+.{p}-badge {{ display:inline-block; min-width:2.4rem; padding:2px 6px;
+          border-radius:999px; font-weight:700; font-size:.78rem; }}
+.{p}-badge-ring {{ border:2px solid {ring}; padding:0 6px; }}
+"""
+
+
+def reached_body(x, p: str) -> str:
+    """A reached cell's contents: the date, then days since the first run and
+    since the previous milestone."""
+    return (f"{short_date(x.date)}<br><span class='{p}-sub'>"
+            f"{fmt_n(x.days_since_first)}d · +{fmt_n(x.days_since_prev)}d</span>")
+
+
+def togo_body(s, p: str) -> str:
+    """The next milestone's cell contents: what is still to go."""
+    return f"<span class='{p}-togo'>{fmt_n(s.runs_to_go)} to go</span>"
+
+
+def ring_badge(label: str, p: str) -> str:
+    """A header badge outlined rather than filled — the "1st" column."""
+    return f"<span class='{p}-badge {p}-badge-ring'>{label}</span>"
+
+
+def table_html(p: str, css: str, head: str, body: list[str]) -> str:
+    """The swipeable table `table_css(p, …)` styles, around its header row and
+    body rows — one copy for the same reason as `table_css`."""
+    return (css + f"<div class='{p}-wrap'><table class='{p}'>"
+            "<thead>" + head + "</thead><tbody>" + "".join(body)
+            + "</tbody></table></div>")
+
+
+def name_cell(name: str, p: str) -> str:
+    """A runner's pinned name cell: their colour dot, then the name."""
+    dot = ATHLETE_COLORS.get(name, OUTLINE_GREY)
+    return (f"<td class='{p}-name'><span style='color:{dot}'>●</span> "
+            f"{escape(name)}</td>")
+
+
+def _css(dark_guess: bool) -> str:
+    return f"""<style>{table_css("ms", dark_guess, "820px", FIRST_RUN_OUTLINE)}
 /* No opacity here: the pinned cell must stay opaque or the table shows
    through it as it swipes. */
 .ms .ms-jr {{ font-weight:400; font-size:.85rem; padding-left:1.1rem; }}
-.ms .ms-total {{ font-size:1.45rem; font-weight:700;
-          font-variant-numeric:tabular-nums; background:transparent; }}
 .ms .ms-first {{ box-shadow:inset 0 0 0 2px {FIRST_RUN_OUTLINE}; }}
 .ms .ms-na {{ background:transparent; opacity:.55; }}
 .ms .ms-days {{ background:transparent; font-variant-numeric:tabular-nums; }}
-.ms-badge {{ display:inline-block; min-width:2.4rem; padding:2px 6px;
-          border-radius:999px; font-weight:700; font-size:.78rem; }}
-.ms-badge-first {{ border:2px solid {FIRST_RUN_OUTLINE}; padding:0 6px; }}
-.ms-sub {{ font-size:.68rem; opacity:.72; }}
-.ms-togo {{ font-weight:600; }}
 </style>"""
 
 
@@ -188,9 +235,7 @@ def _who(row: dict) -> str:
 def _name_cell(row: dict) -> str:
     if row["junior"]:
         return f"<td class='ms-name ms-jr' title='{escape(_who(row))}'>↳ {escape(JUNIOR_LABEL)}</td>"
-    dot = ATHLETE_COLORS.get(row["name"], OUTLINE_GREY)
-    return (f"<td class='ms-name'><span style='color:{dot}'>●</span> "
-            f"{escape(row['name'])}</td>")
+    return name_cell(row["name"], "ms")
 
 
 def _first_cell(row: dict) -> str:
@@ -217,9 +262,7 @@ def _milestone_cell(row: dict, m: int, dark_guess: bool) -> str:
         if i > 0:
             tip += f" · {days(x.days_since_prev)} since {ordinal(ladder[i - 1])}"
         return (f"<td style='{tint(colour, dark_guess)}' "
-                f"title='{escape(tip)}'>{short_date(x.date)}<br>"
-                f"<span class='ms-sub'>{fmt_n(x.days_since_first)}d · "
-                f"+{fmt_n(x.days_since_prev)}d</span></td>")
+                f"title='{escape(tip)}'>{reached_body(x, 'ms')}</td>")
     if m == s.next_milestone:
         tip = f"{_who(row)} · {fmt_n(s.runs_to_go)} to go to the {ordinal(m)}"
         # A border, not an outline: an outline is painted above the pinned
@@ -227,8 +270,7 @@ def _milestone_cell(row: dict, m: int, dark_guess: bool) -> str:
         border = themed("border-color", visible(colour, LIGHT_SURFACE),
                         visible(colour, DARK_SURFACE), dark_guess)
         return (f"<td style='border-style:dashed;{border}' "
-                f"title='{escape(tip)}'><span class='ms-togo'>"
-                f"{fmt_n(s.runs_to_go)} to go</span></td>")
+                f"title='{escape(tip)}'>{togo_body(s, 'ms')}</td>")
     return "<td></td>"
 
 
@@ -245,7 +287,7 @@ def _days_cell(row: dict) -> str:
 def matrix_html(rows: list[dict], dark_guess: bool = False) -> str:
     columns = milestone_columns([r["s"] for r in rows])
     head = ("<tr><th class='ms-name'></th><th>Total runs</th>"
-            "<th><span class='ms-badge ms-badge-first'>1st</span></th>"
+            f"<th>{ring_badge('1st', 'ms')}</th>"
             + "".join(f"<th>{_badge(m)}</th>" for m in columns)
             + f"<th>{SPAN_HEADER}</th></tr>")
     body = []
@@ -256,9 +298,7 @@ def matrix_html(rows: list[dict], dark_guess: bool = False) -> str:
         cells += [_milestone_cell(r, m, dark_guess) for m in columns]
         cells.append(_days_cell(r))
         body.append("<tr>" + "".join(cells) + "</tr>")
-    return (_css(dark_guess) + "<div class='ms-wrap'><table class='ms'>"
-            "<thead>" + head + "</thead><tbody>" + "".join(body)
-            + "</tbody></table></div>")
+    return table_html("ms", _css(dark_guess), head, body)
 
 
 def render_milestone_matrix(version: str) -> None:

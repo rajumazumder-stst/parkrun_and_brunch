@@ -1274,10 +1274,33 @@ def planner_cleared(routed) -> dict:
     return out
 
 
+# The filters panel is a draft: its widgets change nothing on the map until
+# Apply filters copies them into APPLIED_KEY. Both buttons work through
+# APPLY_NOW_KEY because the values to apply only exist once the widgets have
+# been drawn, after any on_click has run.
+# Plain state, not widgets: named so no prefix in PLANNER_SKIP_KEYS matches.
+APPLIED_KEY = "t5_state_applied"
+APPLY_NOW_KEY = "t5_state_apply_now"
+FILTERS_POP_KEY = "t5_filters_pop"
+APPLY_KEY, CLEAR_KEY = "t5_apply", "t5_clear"
+# Tab 5 keys keep_widget_state must never write back: buttons, the maps and
+# the popover, whose values cannot be set through session state.
+PLANNER_SKIP_KEYS = (CLEAR_KEY, APPLY_KEY, "t5_map_", FILTERS_POP_KEY)
+
+
+def apply_planner_filters() -> None:
+    """The Apply button's on_click: apply on this rerun and close the panel,
+    so the result it filters is what the reader sees next."""
+    st.session_state[APPLY_NOW_KEY] = True
+    st.session_state[FILTERS_POP_KEY] = False
+
+
 def clear_planner_filters(routed=()) -> None:
     """The Clear button's on_click: runs before any widget of the rerun
-    exists, which is what makes setting widget keys here legal."""
+    exists, which is what makes setting widget keys here legal. A clear is
+    applied at once — it is a deliberate press, not a selection in progress."""
     ss = st.session_state
+    ss[APPLY_NOW_KEY] = True
     for k in list(ss.keys()):
         if isinstance(k, str) and k.startswith(PLANNER_RESEEDED_KEYS):
             del ss[k]
@@ -1560,7 +1583,7 @@ def _planner_filters(*, countries, hc, travel, has_travel, base) -> dict:
     routed = ([n for n in ATHLETES
                if not travel[travel["athlete_name"] == n].empty]
               if has_travel else [])
-    st.button("Clear all filters", key="t5_clear", width="stretch",
+    st.button("Clear all filters", key=CLEAR_KEY, width="stretch",
               on_click=clear_planner_filters, args=(routed,),
               help="Every filter to its neutral setting: miles, ranked on "
                    "driving time by everyone, anyone, any head-to-head, the "
@@ -1659,6 +1682,20 @@ def _planner_filters(*, countries, hc, travel, has_travel, base) -> dict:
     return out
 
 
+def apply_draft(draft: dict, stamp) -> dict:
+    """The filters the planner uses: the last applied set, or the panel's
+    current values on the first run (the opening defaults), on the run after
+    Apply or Clear, and when the data has changed under the session (`stamp`)
+    — an applied set from before a refresh may name a ranking, ranges or
+    parkruns the new data no longer has."""
+    ss = st.session_state
+    held = ss.get(APPLIED_KEY)
+    if (ss.pop(APPLY_NOW_KEY, False) or held is None
+            or held["stamp"] != stamp):
+        ss[APPLIED_KEY] = {"stamp": stamp, "filters": draft}
+    return ss[APPLIED_KEY]["filters"]
+
+
 def render_planner(version, h2h: pd.DataFrame) -> None:
     events = load_events_geo(version)
     done = load_done(version)
@@ -1681,9 +1718,14 @@ def render_planner(version, h2h: pd.DataFrame) -> None:
            ". There are no driving times in this database yet.")
     )
     base = plan_candidates(events, done, None, done_filter={})
-    with closable_popover("⚙️ Filters", key="t5_filters_pop", width="stretch"):
-        f = _planner_filters(countries=countries, hc=hc, travel=travel,
-                             has_travel=has_travel, base=base)
+    with closable_popover("⚙️ Filters", key=FILTERS_POP_KEY, width="stretch"):
+        draft = _planner_filters(countries=countries, hc=hc, travel=travel,
+                                 has_travel=has_travel, base=base)
+        f = apply_draft(draft, (version, tv))
+        if draft != f:
+            st.caption("Changes not applied yet.")
+        st.button("Apply filters", key=APPLY_KEY, type="primary",
+                  width="stretch", on_click=apply_planner_filters)
     st.markdown(_legend_html(has_travel), unsafe_allow_html=True)
 
     units, rank_by = f["units"], f["rank_by"]
