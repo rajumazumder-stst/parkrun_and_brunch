@@ -107,7 +107,9 @@ def _home_screen_icons_js() -> str:
     * iOS uses `apple-touch-icon`. Streamlit's index.html ships only
       `<link rel="shortcut icon">`, so iOS falls back to fetching an icon from
       the server root and gets the host's default. page_icon rewrites just that
-      one favicon href, so it cannot reach the home screen.
+      one favicon href, so it cannot reach the home screen. Cloud's wrapper
+      page carries its own `apple-touch-icon` (Streamlit's logo), so that one
+      is replaced, like the manifest, rather than ours added beside it.
     * Android/Chrome prefers a **web app manifest** and only falls back to
       apple-touch-icon when there is none. Streamlit Cloud serves its own
       manifest, which is why installing gave an app called "Streamlit" with
@@ -127,26 +129,24 @@ def _home_screen_icons_js() -> str:
     """
     return """<script>
         (function () {
+          // Ours replaces the host's: Chrome reads only the first manifest,
+          // and Cloud's wrapper ships an apple-touch-icon of its own.
+          function own(d, rel, path, base) {
+            if (d.querySelector('link[rel="' + rel + '"][data-prb]')) return;
+            d.querySelectorAll('link[rel="' + rel + '"]').forEach(function (n) {
+              n.parentNode.removeChild(n);
+            });
+            var l = d.createElement('link');
+            l.rel = rel;
+            l.setAttribute('data-prb', '1');
+            l.href = new URL(path, base).href;
+            d.head.appendChild(l);
+          }
           function add(d, base) {
             // Served by [server] enableStaticServing in .streamlit/config.toml.
             // Must be real URLs: iOS ignores data: URIs for apple-touch-icon.
-            if (!d.querySelector('link[rel="apple-touch-icon"]')) {
-              var l = d.createElement('link');
-              l.rel = 'apple-touch-icon';
-              l.href = new URL('app/static/apple-touch-icon.png', base).href;
-              d.head.appendChild(l);
-            }
-            if (!d.querySelector('link[data-prb-manifest]')) {
-              // Drop the host's manifest first - Chrome uses only the first one.
-              d.querySelectorAll('link[rel="manifest"]').forEach(function (n) {
-                n.parentNode.removeChild(n);
-              });
-              var m = d.createElement('link');
-              m.rel = 'manifest';
-              m.setAttribute('data-prb-manifest', '1');
-              m.href = new URL('app/static/manifest.json', base).href;
-              d.head.appendChild(m);
-            }
+            own(d, 'apple-touch-icon', 'app/static/apple-touch-icon.png', base);
+            own(d, 'manifest', 'app/static/manifest.json', base);
           }
           var docs = prbParentDocs();
           docs.forEach(function (d) {
