@@ -212,7 +212,7 @@ and refreshing the browser shows the *old* drawing — the file watcher reruns t
 script, not its imports. Restart the server. This has looked like "my change did
 nothing" twice; it is not a caching bug in the app.
 
-## The buggy-labels page, and its dev twin
+## The label-impact app (dev-only)
 
 Two tabs, two questions about the hand-written labels:
 
@@ -221,17 +221,16 @@ Two tabs, two questions about the hand-written labels:
 | What the buggy costs | `buggy_handicap.py` | how much slower is a buggy run? |
 | What labelling changed | `method_impact.py` | what did labelling do to the record? |
 
-**Hosted** at `/buggy-handicap` (`handicap_page.py`). **Dev twin** at
-`localhost:8502` (`label_impact.py`), started by:
+**Dev-only**, at `localhost:8502` (`label_impact.py`) — the hosted copy at
+`/buggy-handicap` (`handicap_page.py`) was removed on 8 Oct 2026. Started by:
 
 ```bash
 PARKRUN_LABEL_AUDIT=1 ./scripts/run_local.sh
 ```
 
-which runs the real app on `:8501` and the twin on `:8502` (`PARKRUN_PORT` /
-`PARKRUN_LABEL_PORT` to move them). Both files are layout only — same tabs, same
-modules — so the local instrument and the hosted page cannot drift apart on the
-arithmetic. The twin exists to drive them against an isolated dev DB.
+which runs the real app on `:8501` and `label_impact.py` on `:8502`
+(`PARKRUN_PORT` / `PARKRUN_LABEL_PORT` to move them). It is layout only over
+the two shared modules, driven against an isolated dev DB.
 
 ### What the buggy costs
 
@@ -258,12 +257,12 @@ for whichever contest you pick. Two checkboxes filter it — what changed, and
 what used the handicap bridge — ANDed rather than exclusive, because "a bridged
 target that changed the result" is the cell worth looking at.
 
-**These are retired numbers on a public page.** The legacy views ship in the
-deploy snapshot (`build_snapshot` calls `ensure_legacy_views(force=True)`) purely
-so this tab can exist; they were previously kept out of anything hosted so a
-superseded method could not be queried. What guards against misreading them is
-now the framing — the tab title, the `Old winner` / `New winner` columns, the
-docstring in `method_impact.py`. Loosen that and the protection goes with it.
+**These are retired numbers.** From 2 Sep to 8 Oct 2026 the legacy views
+shipped in the deploy snapshot so the hosted `/buggy-handicap` page could show
+this tab. With that page removed they are dev-only again (`run_local.sh` under
+`PARKRUN_LABEL_AUDIT=1`), and `ensure_legacy_views` lost its `force` bypass.
+What guards against misreading them is still the framing — the tab title, the
+`Old winner` / `New winner` columns, the docstring in `method_impact.py`.
 
 `run_local.sh` still builds the views into a dev DB under
 `PARKRUN_LABEL_AUDIT=1`, because `pipeline seed` copies tables and rebuilds
@@ -279,8 +278,12 @@ occasion `Unchanged`. That was the zero-label equivalence check as a live page,
 and it is spent — the confirmed buggy labels ended it, which is what the tab now
 exists to show.
 
-scipy is a **hosted** dependency, pinned in `requirements.txt`. It is the only
-one there that the five-tab app does not itself use.
+scipy is pinned in `requirements.txt`, in the pipeline section, for the
+estimator (`buggy_estimator.py`). The refresh only warns if it is missing, so
+the estimator would stop labelling runs without failing anything. No hosted
+module imports it since `/buggy-handicap` was removed (8 Oct 2026);
+`buggy_handicap.py` still needs it, for the dev-only `label_impact.py`.
+Streamlit Cloud installs it anyway, because there is one requirements file.
 
 ## Fake labels — removed
 
@@ -305,11 +308,13 @@ history if some future need proves otherwise.
 ## Tests
 
 ```bash
-python -m pytest       # from the repo root — 197 cases, ~65s (bare `pytest` misses the repo on sys.path)
+python -m pytest       # from the repo root — 251 cases, 40-75s (bare `pytest` misses the repo on sys.path)
 pytest -q tests/test_buggy_estimator.py
 pytest -q tests/test_calendar.py       # fast: no model fitting
 pytest -q tests/test_where_next.py     # fast: planner, markers, routable/crossings, travel
-pytest -q tests/test_ui.py             # zoom lock, stat slots, one app smoke run
+pytest -q tests/test_streaks.py        # fast: win/loss streaks
+pytest -q tests/test_milestones.py tests/test_milestone_matrix.py tests/test_venue_matrix.py
+pytest -q tests/test_ui.py             # zoom lock, stat slots, conventions, one app smoke run
 ```
 
 **pytest is a dev tool, deliberately not in `requirements.txt`** — same
@@ -399,6 +404,10 @@ Gotchas, all of which have cost an hour each:
   would have passed against the very bug that made tab 3 unusable on a phone.
 * Pinch-zoom can be simulated with CDP `Emulation.setPageScaleFactor`, which is
   how the bottom sheet's fixed apparent size was checked at 1×, 2× and 3×.
+* To test the app as hosted — pinch-zoom, the home-screen icon — open
+  `static/dev-cloud-wrapper.html` (gitignored), a local copy of Streamlit
+  Cloud's wrapper page with the app in an iframe. Run locally there is no
+  wrapper, so neither fix has anything to do.
 
 
 ## Open decisions
@@ -562,12 +571,14 @@ redefines the window.
 
 ### 2. Test coverage is thin
 
-**Partly addressed.** `tests/test_buggy_estimator.py` covers the estimator (44
+**Partly addressed.** `tests/test_buggy_estimator.py` covers the estimator (51
 cases) and `tests/test_calendar.py` the calendar week scheme (16, including a
 parity check that the Python rule and the SQL one agree — the bug that check
 would have caught, DuckDB's `::INT` rounding rather than truncating, was
-actually shipped and then found by hand). Neither needs the project database.
-Everything else remains untested: the pipeline's views, the
+actually shipped and then found by hand). Since then the planner
+(`test_where_next.py`), the streaks, the milestone arithmetic and both tab 1
+matrices have tests too, plus `test_ui.py`'s conventions and one app smoke run
+against the committed snapshot. Still untested: the pipeline's views, the
 head-to-head arithmetic, `_winning_margin`, the handicap gate. The reasoning
 below still applies to those.
 
@@ -583,7 +594,7 @@ handful of rows and assert `v_head_to_head` ranks and bridges as documented.
 
 **Value: high. Risk: none. Size: medium, and splittable.**
 
-### 3. `parkrun_pipeline.py` is 1,500 lines
+### 3. `parkrun_pipeline.py` is 2,000 lines
 
 Scraping, schema, migrations, views, reconcile, upsert, snapshot build and the
 MotherDuck push all live in one file. The natural seams are already visible in
@@ -598,7 +609,7 @@ tests, not before them.
 
 ### 4. `parkrun_app.py` mixes data access and rendering
 
-1,740 lines holding nine `@st.cache_data` loaders and every render function.
+1,840 lines holding eight `@st.cache_data` loaders and every render function.
 Lifting the loaders into a `queries.py` would leave the app file as layout, and
 would let the loaders be tested without Streamlit.
 
@@ -606,8 +617,8 @@ would let the loaders be tested without Streamlit.
 
 ### 5. Long render functions
 
-`render_impact` (191 lines), `render_personal_bests` (164), `ensure_views`
-(162). Conventional advice says split them. The counter-argument is real: these
+`render_impact` (194 lines), `render_personal_bests` (136), `ensure_views`
+(163). Conventional advice says split them. The counter-argument is real: these
 are cohesive, heavily commented, and `CLAUDE.md` explains the shape of several
 of them, so a split trades one kind of readability for another and produces a
 diff too large to review line by line.
@@ -634,8 +645,9 @@ choice rather than an oversight.
 
 ### 8. ~~Trivia~~ — DONE
 
-`requirements.txt` named `handicap_app.py`, a file that does not exist; it now
-names `handicap_page.py`.
+`requirements.txt` named `handicap_app.py`, a file that never existed; it was
+corrected to `handicap_page.py`, and since 8 Oct 2026 names no page at all
+(scipy is commented for the estimator).
 
 ### 9. `parkrun_calendar.py` holds the app's renderers and the bench's
 

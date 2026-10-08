@@ -35,6 +35,7 @@ import json
 import math
 from html import escape
 
+import duckdb
 import folium
 import pandas as pd
 import streamlit as st
@@ -47,7 +48,7 @@ from streamlit_folium import st_folium
 from parkrun_calendar import theme as cal_theme
 from parkrun_core import crosses_water
 from parkrun_ui import (ATHLETE_COLORS, BUGGY_GLYPH, _read_sql, closable_popover,
-                        flag, fmt_n)
+                        flag, flag_html, fmt_n)
 
 # Fixed athlete order for every per-athlete mark: a square means the same
 # runner in every marker, so the order can never depend on the data.
@@ -144,18 +145,30 @@ MAP_CSS = """
 # --------------------------------------------------------------------------- #
 # Data
 # --------------------------------------------------------------------------- #
+EVENTS_GEO_SQL = """
+    SELECT e.event_id, e.short_name, e.latitude, e.longitude, e.live,
+           e.seriesid, e.country_code,
+           coalesce(c.country_name, 'Unknown') AS country_name,
+           coalesce({child}, c.country_name, 'Unknown') AS child_country
+    FROM parkrun.events e
+    LEFT JOIN parkrun.country_lookup c USING (country_code)
+    {join}
+    WHERE e.latitude IS NOT NULL AND e.longitude IS NOT NULL
+"""
+
+
 @st.cache_data(show_spinner=False)
 def load_events_geo(version) -> pd.DataFrame:
-    return _read_sql(
-        """
-        SELECT e.event_id, e.short_name, e.latitude, e.longitude, e.live,
-               e.seriesid, e.country_code,
-               coalesce(c.country_name, 'Unknown') AS country_name
-        FROM parkrun.events e
-        LEFT JOIN parkrun.country_lookup c USING (country_code)
-        WHERE e.latitude IS NOT NULL AND e.longitude IS NOT NULL
-        """
-    )
+    """`country_name` is the country parkrun files an event under;
+    `child_country` where it is (England, Namibia ...), the parent itself
+    where the country has no children."""
+    try:
+        return _read_sql(EVENTS_GEO_SQL.format(
+            child="x.child_country",
+            join="LEFT JOIN parkrun.event_countries x USING (event_id)"))
+    except duckdb.CatalogException:
+        # A database built before event_countries: every child is its parent.
+        return _read_sql(EVENTS_GEO_SQL.format(child="NULL", join=""))
 
 
 @st.cache_data(show_spinner=False)
@@ -248,9 +261,43 @@ def regular_parkruns(events: pd.DataFrame, done: pd.DataFrame) -> pd.DataFrame:
     return five_k[five_k["live"] | five_k["event_id"].isin(ran)]
 
 
+# The Countries filter is two levels: a parent (the country parkrun files a
+# parkrun under) and, for a parent with any, its child countries — United
+# Kingdom over England, Scotland ...; South Africa over Eswatini, Namibia and
+# South Africa itself. A child's option is "parent › child", so the South
+# Africa child cannot collide with its parent.
+CHILD_SEP = " › "
+
+
+def _children(df: pd.DataFrame) -> pd.Series:
+    return df["child_country"] if "child_country" in df else df["country_name"]
+
+
+def country_options(df: pd.DataFrame) -> dict:
+    """{option: label}, each parent followed by its children, A–Z, each label
+    with its flag and count. A parent gets children only where some child
+    differs from it, so Australia stays one option."""
+    out = {}
+    child = _children(df)
+    for parent, n in sorted(df["country_name"].value_counts().items()):
+        out[parent] = f"{flag(parent)} {parent} ({fmt_n(n)})"
+        kids = child[df["country_name"] == parent].value_counts()
+        if set(kids.index) == {parent}:
+            continue
+        for kid, m in sorted(kids.items()):
+            glyph = flag(kid)
+            out[parent + CHILD_SEP + kid] = (
+                "\u2003" + (f"{glyph} " if glyph else "") + f"{kid} ({fmt_n(m)})")
+    return out
+
+
 def filter_countries(df: pd.DataFrame, countries) -> pd.DataFrame:
-    """Empty means all — the app's multiselect convention."""
-    return df[df["country_name"].isin(countries)] if countries else df
+    """Empty means all — the app's multiselect convention. A parent takes in
+    all its children; choices add up."""
+    if not countries:
+        return df
+    keys = df["country_name"] + CHILD_SEP + _children(df)
+    return df[df["country_name"].isin(countries) | keys.isin(countries)]
 
 
 def h2h_index(hc: pd.DataFrame) -> dict:
@@ -806,7 +853,8 @@ def _runs_lines(eid, dt: pd.DataFrame) -> list:
 
 def _title(row, extra: str = "") -> str:
     return (f"<b>{escape(str(row.short_name))}</b> "
-            f"<span style='opacity:.65'>{escape(str(row.country_name))}"
+            f"<span style='opacity:.65'>"
+            f"{escape(str(getattr(row, 'child_country', row.country_name)))}"
             f"{extra}</span>")
 
 
@@ -1226,10 +1274,33 @@ def planner_cleared(routed) -> dict:
     return out
 
 
+# The filters panel is a draft: its widgets change nothing on the map until
+# Apply filters copies them into APPLIED_KEY. Both buttons work through
+# APPLY_NOW_KEY because the values to apply only exist once the widgets have
+# been drawn, after any on_click has run.
+# Plain state, not widgets: named so no prefix in PLANNER_SKIP_KEYS matches.
+APPLIED_KEY = "t5_state_applied"
+APPLY_NOW_KEY = "t5_state_apply_now"
+FILTERS_POP_KEY = "t5_filters_pop"
+APPLY_KEY, CLEAR_KEY = "t5_apply", "t5_clear"
+# Tab 5 keys keep_widget_state must never write back: buttons, the maps and
+# the popover, whose values cannot be set through session state.
+PLANNER_SKIP_KEYS = (CLEAR_KEY, APPLY_KEY, "t5_map_", FILTERS_POP_KEY)
+
+
+def apply_planner_filters() -> None:
+    """The Apply button's on_click: apply on this rerun and close the panel,
+    so the result it filters is what the reader sees next."""
+    st.session_state[APPLY_NOW_KEY] = True
+    st.session_state[FILTERS_POP_KEY] = False
+
+
 def clear_planner_filters(routed=()) -> None:
     """The Clear button's on_click: runs before any widget of the rerun
-    exists, which is what makes setting widget keys here legal."""
+    exists, which is what makes setting widget keys here legal. A clear is
+    applied at once — it is a deliberate press, not a selection in progress."""
     ss = st.session_state
+    ss[APPLY_NOW_KEY] = True
     for k in list(ss.keys()):
         if isinstance(k, str) and k.startswith(PLANNER_RESEEDED_KEYS):
             del ss[k]
@@ -1270,7 +1341,7 @@ def _results_table(c: pd.DataFrame, units: str, rank_by=None,
     rank_by = list(rank_by or [])
     ranked = "total_min" in c
     cols: list = []       # (header, texts, sort keys)
-    greyed, bold = [], []
+    greyed, bold, raw = [], [], []
 
     titles: dict = {}
 
@@ -1286,10 +1357,12 @@ def _results_table(c: pd.DataFrame, units: str, rank_by=None,
     if "crossing" in c:
         names = names.where(~c["crossing"], names + f" {CROSSING}")
     add("parkrun", names, c["short_name"].str.lower())
-    # The flag alone; the name is the cell's tooltip and its sort key.
+    # The flag alone; the name is the cell's tooltip and its sort key. HTML,
+    # because Northern Ireland's flag is a drawing (parkrun_ui.IMAGE_FLAG).
     if "country_name" in c:
-        add("Country", c["country_name"].map(flag), c["country_name"],
-            c["country_name"].astype(str))
+        child = _children(c).astype(str)
+        add("Country", child.map(flag_html), child, child)
+        raw.append("Country")
     if ranked:
         t_col = ("Total time", c["total_min"].map(_fmt_min), c["total_min"])
         d_col = (f"Total {unit}", c["total_dist"].map(lambda v: fmt_n(v, 1)),
@@ -1313,7 +1386,7 @@ def _results_table(c: pd.DataFrame, units: str, rank_by=None,
         lambda r: ", ".join(f"{n} ({fmt_n(r[n])})" for n in ATHLETES if r[n] > 0)
         or "nobody", axis=1)
     add("Run by", run_by, run_by.str.lower())
-    return ResultsTable(cols, greyed, bold, titles)
+    return ResultsTable(cols, greyed, bold, titles, raw)
 
 
 # The table is an HTML table drawn by st.html (in the page, not an iframe),
@@ -1331,11 +1404,13 @@ TABLE_ROW_PX, TABLE_MAX_PX = 35, 420
 class ResultsTable:
     """`cols` is [(header, cell texts, sort keys)]; `greyed` and `bold` name
     the headers styled as not ranked and as the ranking total; `titles` maps
-    a header to each cell's tooltip (the country's name under its flag)."""
+    a header to each cell's tooltip (the country's name under its flag);
+    `raw` names the headers whose cell texts are already HTML."""
 
-    def __init__(self, cols, greyed, bold, titles=None):
+    def __init__(self, cols, greyed, bold, titles=None, raw=()):
         self.cols, self.greyed, self.bold = cols, greyed, bold
         self.titles = titles or {}
+        self.raw = set(raw)
 
     @property
     def columns(self) -> list:
@@ -1381,7 +1456,7 @@ def results_table_html(t: ResultsTable, table_id: str = "t5-results") -> str:
         cells = "".join(
             f'<td data-v="{escape(_sort_key(keys[i]))}"{style(h)}'
             + (f' title="{escape(t.titles[h][i])}"' if h in t.titles else "")
-            + f'>{escape(str(texts[i]))}</td>'
+            + f'>{texts[i] if h in t.raw else escape(str(texts[i]))}</td>'
             for h, texts, keys in t.cols)
         rows.append(f"<tr>{cells}</tr>")
     return f"""
@@ -1500,7 +1575,7 @@ def render_h2h_view(version, mh: pd.DataFrame | None) -> None:
 # over the sidebar, which every tab shares, so filters there stayed on show
 # from other tabs). The panel belongs to this tab, keeps the map at the top
 # of it on a phone, and has a Close button there (closable_popover).
-def _planner_filters(*, counts, hc, travel, has_travel, base) -> dict:
+def _planner_filters(*, countries, hc, travel, has_travel, base) -> dict:
     """Every planner filter, drawn into the current container — the Filters
     panel, about 300px wide inside on a 390px phone, so rows stack rather
     than sit side by side (bar the ranges: RANGE_ROW_CSS)."""
@@ -1508,7 +1583,7 @@ def _planner_filters(*, counts, hc, travel, has_travel, base) -> dict:
     routed = ([n for n in ATHLETES
                if not travel[travel["athlete_name"] == n].empty]
               if has_travel else [])
-    st.button("Clear all filters", key="t5_clear", width="stretch",
+    st.button("Clear all filters", key=CLEAR_KEY, width="stretch",
               on_click=clear_planner_filters, args=(routed,),
               help="Every filter to its neutral setting: miles, ranked on "
                    "driving time by everyone, anyone, any head-to-head, the "
@@ -1594,8 +1669,8 @@ def _planner_filters(*, counts, hc, travel, has_travel, base) -> dict:
     out.update(minutes_range=minutes_range, distance_range=distance_range)
 
     out["countries"] = st.multiselect(
-        "Countries", list(counts.index),
-        format_func=lambda c: f"{flag(c)} {c} ({fmt_n(counts[c])})",
+        "Countries", list(countries),
+        format_func=lambda c: countries.get(c, c),
         key="t5_countries", placeholder="All countries")
 
     # Session state only: a reload clears it. Options are every candidate, not
@@ -1607,6 +1682,20 @@ def _planner_filters(*, counts, hc, travel, has_travel, base) -> dict:
     return out
 
 
+def apply_draft(draft: dict, stamp) -> dict:
+    """The filters the planner uses: the last applied set, or the panel's
+    current values on the first run (the opening defaults), on the run after
+    Apply or Clear, and when the data has changed under the session (`stamp`)
+    — an applied set from before a refresh may name a ranking, ranges or
+    parkruns the new data no longer has."""
+    ss = st.session_state
+    held = ss.get(APPLIED_KEY)
+    if (ss.pop(APPLY_NOW_KEY, False) or held is None
+            or held["stamp"] != stamp):
+        ss[APPLIED_KEY] = {"stamp": stamp, "filters": draft}
+    return ss[APPLIED_KEY]["filters"]
+
+
 def render_planner(version, h2h: pd.DataFrame) -> None:
     events = load_events_geo(version)
     done = load_done(version)
@@ -1614,7 +1703,7 @@ def render_planner(version, h2h: pd.DataFrame) -> None:
     hc = h2h_counts(h2h)
 
     parkruns = regular_parkruns(events, done)
-    counts = parkruns["country_name"].value_counts()
+    countries = country_options(parkruns)
 
     tv = travel_version()
     travel = load_travel(tv) if tv is not None else None
@@ -1629,9 +1718,14 @@ def render_planner(version, h2h: pd.DataFrame) -> None:
            ". There are no driving times in this database yet.")
     )
     base = plan_candidates(events, done, None, done_filter={})
-    with closable_popover("⚙️ Filters", key="t5_filters_pop", width="stretch"):
-        f = _planner_filters(counts=counts, hc=hc, travel=travel,
-                             has_travel=has_travel, base=base)
+    with closable_popover("⚙️ Filters", key=FILTERS_POP_KEY, width="stretch"):
+        draft = _planner_filters(countries=countries, hc=hc, travel=travel,
+                                 has_travel=has_travel, base=base)
+        f = apply_draft(draft, (version, tv))
+        if draft != f:
+            st.caption("Changes not applied yet.")
+        st.button("Apply filters", key=APPLY_KEY, type="primary",
+                  width="stretch", on_click=apply_planner_filters)
     st.markdown(_legend_html(has_travel), unsafe_allow_html=True)
 
     units, rank_by = f["units"], f["rank_by"]

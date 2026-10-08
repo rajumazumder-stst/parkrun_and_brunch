@@ -84,6 +84,17 @@ Rules:
   `COUNTRY_ISO`; a country missing there shows 🏳️ and fails
   `test_every_country_in_the_lookup_has_a_flag`. Windows draws flag emoji as
   two letters (GB), which still reads.
+- **The flag is the child country's** (`event_countries`): 🏴󠁧󠁢󠁷󠁬󠁳󠁿 for a Welsh
+  parkrun, 🇳🇦 for Windhoek, not the 🇬🇧 / 🇿🇦 of the site parkrun files them
+  under. England, Scotland and Wales are emoji tag sequences
+  (`SUBDIVISION_FLAG`), which Windows draws as a plain black flag. Northern
+  Ireland has no emoji: it gets the **Ulster Banner**, drawn as SVG
+  (`ULSTER_BANNER_SVG`, chosen 4 Oct 2026), so it appears only where HTML is
+  drawn (`flag_html`) — in plain text, a multiselect option, the name stands
+  alone. A child missing a flag fails `test_every_child_country_has_a_flag`.
+- **The country filter is two levels**: each parent, then its children
+  indented under it (an em space — `country_options`). A parent takes in all
+  its children; a parent whose every child is itself (Australia) has none.
 
 ## Charts
 
@@ -95,7 +106,10 @@ Rules:
   could not scroll past it.
 - **Legends stay clickable.** Clicking a legend item hides that trace, and
   autorange still rescales to what is left. Group per athlete
-  (`legendgroup`) so one click hides all of that runner's traces.
+  (`legendgroup`) so one click hides all of that runner's traces — except
+  tab 4, where each runner's regular and buggy lines are separate groups,
+  because those are asked about
+  separately.
 - **Narrow by filters, not by zooming.** A date range belongs in the shared
   Year/Season multiselects, not in a zoom gesture.
 - **Folium maps are not locked.** A map has to zoom. Leave its default
@@ -141,6 +155,13 @@ Rules:
   2 Oct 2026 it resets units and the rank metric too (a Clear that left km
   on read as broken); only the view toggle is left alone. Keys whose widget
   re-seeds itself well (head-to-head rows, ranges) are deleted instead.
+- **A filter panel behind a button applies on demand.** Tab 5's planner
+  panel is a draft until **Apply filters** (primary, full width, at the
+  foot): one rerun of the map for a set of changes, rather than one per
+  click. A caption says when the panel differs from what is applied. Apply
+  closes the panel; Clear applies at once. Not `st.form` — the range rows
+  keep their boxes and slider in step through callbacks, which a form
+  forbids.
 
 ## Tables
 
@@ -152,6 +173,9 @@ Rules:
   not be grey *and italic* as on the map. Escape every cell.
 - **Lead with what decided the order**: the ranking total comes straight
   after the name, bold, headed "(ranked)"; the other total follows plain.
+- **The tab 1 matrices share one table skeleton** (`milestone_matrix.table_css`
+  / `table_html`), each under its own class prefix (`ms`, `vm`): swipeable
+  sideways on a phone with the names pinned. A layout fix goes there once.
 
 ## Hover text
 

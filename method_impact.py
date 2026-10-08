@@ -1,12 +1,12 @@
 """Label impact — the pre-buggy head-to-head method against the current one.
 
-Imported by **two** apps: the dev-only `label_impact.py` and the hosted
-`handicap_page.py` (a tab at `/buggy-handicap`). Same reason `buggy_handicap.py`
+Imported by the dev-only `label_impact.py` (the hosted `/buggy-handicap` page
+that also did was removed on 8 Oct 2026). Same reason `buggy_handicap.py`
 is its own module — one implementation of an argument about two named people.
 
 It reads `v_head_to_head_legacy`: a single pooled 91-day median, no mode split,
-no handicap bridge. **Those are retired numbers.** They ship in the deploy
-snapshot only so this comparison can be shown, and everything rendered here is
+no handicap bridge. **Those are retired numbers.** They are built into a dev DB
+only so this comparison can be shown, and everything rendered here is
 labelled old-against-new for that reason — a column headed `Old winner` is
 self-describing in a way a view named `_legacy` is not.
 
@@ -96,7 +96,7 @@ def render_impact(version: str) -> None:
         st.error(
             "The legacy views are missing from this database, so there is nothing "
             "to compare against.\n\n"
-            "The deploy snapshot carries them; a dev DB needs them built:\n"
+            "A dev DB needs them built:\n"
             "```bash\n"
             "PARKRUN_LABEL_AUDIT=1 python -c \"import duckdb, parkrun_pipeline as p; \\\n"
             "  c=duckdb.connect('data/parkrun_dev.duckdb'); p.ensure_views(c); \\\n"

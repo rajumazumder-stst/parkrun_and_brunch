@@ -12,6 +12,8 @@ method difference indistinguishable from a rounding difference.
 
 from __future__ import annotations
 
+import base64
+import html
 import os
 from zoneinfo import ZoneInfo
 
@@ -131,16 +133,68 @@ COUNTRY_ISO = {
     "New Zealand": "NZ", "Norway": "NO", "Poland": "PL", "Singapore": "SG",
     "South Africa": "ZA", "Sweden": "SE", "United Kingdom": "GB",
     "United States": "US",
+    # Child countries (data/event_countries.csv): where a parkrun is, inside
+    # the country parkrun files it under.
+    "Isle of Man": "IM", "Guernsey": "GG", "Jersey": "JE", "St Helena": "SH",
+    "Gibraltar": "GI", "Falkland Islands": "FK", "Cayman Islands": "KY",
+    "Eswatini": "SZ", "Namibia": "NA",
 }
+# England, Scotland and Wales have no ISO 3166 code, so no regional-indicator
+# pair: their emoji are tag sequences on the ISO 3166-2 subdivision code. They
+# show on Apple and Android; Windows draws a plain black flag.
+SUBDIVISION_FLAG = {"England": "gbeng", "Scotland": "gbsct", "Wales": "gbwls"}
 NO_FLAG = "🏳️"
+
+# Northern Ireland has no emoji at all. The Ulster Banner (chosen 4 Oct 2026)
+# is drawn instead, so it can appear only where HTML is drawn — `flag_html`;
+# plain-text places such as a multiselect option show the name without a flag.
+# 3:2 like the emoji flags beside it: white field, red St George's cross, a
+# white six-pointed star bearing the red hand, the crown above.
+ULSTER_BANNER_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 40">'
+    '<rect width="60" height="40" fill="#fff"/>'
+    '<path d="M26 0h8v40h-8zM0 16h60v8H0z" fill="#cf142b"/>'
+    '<polygon fill="#fff" points="30.00,11.00 32.74,15.75 38.23,15.75 35.48,'
+    '20.50 38.23,25.25 32.74,25.25 30.00,30.00 27.26,25.25 21.77,25.25 24.52,'
+    '20.50 21.77,15.75 27.26,15.75"/>'
+    '<g fill="#cf142b"><rect x="28.1" y="20.3" width="4.5" height="4.4" rx="1"/>'
+    '<rect x="28.2" y="17.2" width=".95" height="4" rx=".45"/>'
+    '<rect x="29.35" y="16.5" width=".95" height="4.6" rx=".45"/>'
+    '<rect x="30.5" y="16.7" width=".95" height="4.4" rx=".45"/>'
+    '<rect x="31.65" y="17.5" width=".95" height="3.7" rx=".45"/>'
+    '<polygon points="28.5,22.8 26.6,20.4 27.3,19.8 29.2,21.6"/></g>'
+    '<polygon fill="#f2c230" points="26.6,10.4 26.1,6.6 28.1,8.5 30,5.6 31.9,'
+    '8.5 33.9,6.6 33.4,10.4"/><circle cx="30" cy="4.7" r=".9" fill="#f2c230"/>'
+    '</svg>')
+IMAGE_FLAG = {"Northern Ireland": ULSTER_BANNER_SVG}
 
 
 def flag(country_name) -> str:
-    """The country's flag emoji; the white flag for Unknown or an unmapped one."""
-    iso = COUNTRY_ISO.get(str(country_name))
+    """The country's flag emoji; the white flag for Unknown or an unmapped
+    one; "" for a country whose flag is an image only (IMAGE_FLAG)."""
+    name = str(country_name)
+    if name in IMAGE_FLAG:
+        return ""
+    if name in SUBDIVISION_FLAG:
+        return ("\U0001F3F4" + "".join(chr(0xE0000 + ord(ch))
+                                       for ch in SUBDIVISION_FLAG[name])
+                + "\U000E007F")
+    iso = COUNTRY_ISO.get(name)
     if not iso:
         return NO_FLAG
     return "".join(chr(0x1F1E6 + ord(ch) - ord("A")) for ch in iso)
+
+
+def flag_html(country_name) -> str:
+    """`flag` for an HTML page: the emoji, or the drawn flag where there is
+    no emoji, sized to sit in a line of text like one."""
+    svg = IMAGE_FLAG.get(str(country_name))
+    if svg is None:
+        return html.escape(flag(country_name))
+    src = "data:image/svg+xml;base64," + base64.b64encode(svg.encode()).decode()
+    return (f'<img src="{src}" alt="{html.escape(str(country_name))}" '
+            'style="height:.95em;width:auto;vertical-align:-.1em;'
+            'border-radius:1px;box-shadow:0 0 0 .5px rgba(0,0,0,.35)">')
 
 
 def fmt_n(x, dp: int = 0) -> str:

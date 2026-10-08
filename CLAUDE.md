@@ -34,14 +34,10 @@ where they differ from the original brief, **the spec wins**.
   can be hosted (e.g. Streamlit Community Cloud) from the repo alone.
   `requirements.txt` pins the runtime deps.
 - ✅ Deployed to Streamlit Community Cloud (serves the bundled read-only
-  snapshot; auto-redeploys on push to the deployed branch). Two routes, from one
-  app — `app.py` is a router, `st.navigation(..., position="hidden")`:
-  - <https://parkrun-and-brunch.streamlit.app/> — the six tabs
-    (`parkrun_app.py`)
-  - <https://parkrun-and-brunch.streamlit.app/buggy-handicap> — the buggy
-    labels: what the buggy costs · what labelling changed (`handicap_page.py`).
-    **Unlisted, not access-controlled** — no link points at it, but anyone with
-    the URL can read it.
+  snapshot; auto-redeploys on push to the deployed branch). One route,
+  <https://parkrun-and-brunch.streamlit.app/> — the six tabs
+  (`parkrun_app.py`), behind `app.py`'s one-page `st.navigation`. The second
+  route, `/buggy-handicap`, was removed on 8 Oct 2026 (below).
 - ✅ MotherDuck migration — `python parkrun_pipeline.py motherduck` (re)seeds a
   **parkrun-only** cloud DB (`md:parkrun_snapshot`; catalog name ≠ the `parkrun`
   schema so `parkrun.v_overlap` stays unambiguous). Was the runtime source of
@@ -75,22 +71,30 @@ where they differ from the original brief, **the spec wins**.
   the symmetric handicap bridge), the review-sheet export/import tooling, and
   the whole UI surface. The estimator that labels future runs automatically
   followed on 5 Sep 2026 — see below.
-- ✅ **Buggy handicap hosted at `/buggy-handicap`** (2 Sep 2026) — the working
+- 📕 **`/buggy-handicap` — removed** (8 Oct 2026). The page script
+  (`handicap_page.py`) and its route are gone, and the deploy snapshot no
+  longer ships the frozen pre-buggy views (`build_snapshot` stopped calling
+  `ensure_legacy_views(force=True)`; the committed snapshot drops them at the
+  first refresh after merging). The two analyses survive, unchanged, in the
+  dev-only `label_impact.py` over `buggy_handicap.py` / `method_impact.py`.
+  The link George and Duncan were sent now shows Streamlit's "Page not found"
+  and opens the main app. History of the page, kept for context:
+- 📕 **Buggy handicap hosted at `/buggy-handicap`** (2 Sep 2026) — the working
   behind each athlete's handicap, on the main app's own domain, so it is
-  shareable rather than a screenshot of `localhost:8502`. `app.py` is now a
+  shareable rather than a screenshot of `localhost:8502`. `app.py` became a
   router: `st.navigation([...], position="hidden")` over `parkrun_app.py` (the
   tabs, at `/`) and `handicap_page.py`. Hidden navigation is the point —
   a `pages/` directory gives the same URLs but forces a nav list into the
   sidebar, putting a statistical argument about two named people in front of
-  every visitor who came for parkrun results. The page is **unlisted, not
-  access-controlled**. The analysis lives in `buggy_handicap.py`, imported by
-  both it and `label_impact.py`. The page carries **two tabs** — what the buggy
+  every visitor who came for parkrun results. The page was **unlisted, not
+  access-controlled**. The analysis lived in `buggy_handicap.py`, imported by
+  both it and `label_impact.py`. The page carried **two tabs** — what the buggy
   costs, and what labelling changed (the pre-buggy method against the current
-  one). That second tab reads `v_head_to_head_legacy`, so **the deploy snapshot
-  now ships the frozen pre-buggy views** (`build_snapshot` calls
+  one). That second tab read `v_head_to_head_legacy`, so **the deploy snapshot
+  then shipped the frozen pre-buggy views** (`build_snapshot` called
   `ensure_legacy_views(force=True)`). That was a deliberate reversal: those
   views hold a retired method, and the guard against someone reading them as
-  current is now presentation — every column and caption says old-against-new —
+  current became presentation — every column and caption says old-against-new —
   rather than their absence.
 - ✅ **Participation calendars — live** (10 Sep 2026). A GitHub-contributions
   grid of who ran which week on tab 1, and the same drawing as tab 3's
@@ -158,7 +162,7 @@ where they differ from the original brief, **the spec wins**.
   in-scope call — 103 rows backfilled, 101 scored — and tab 6 shows them beside
   the label. Two deliberate reversals, recorded so they do not read as
   inconsistency: it sits in the **main app**, not the unlisted `/buggy-handicap`
-  route where the handicap analysis lives, and it is the one place the UI
+  route where the handicap analysis lived (removed 8 Oct 2026), and it is the one place the UI
   **separates estimated from confirmed**, which everywhere else it refuses to
   do. The table is write-once, which is what makes a later hand correction
   non-destructive. Measured reliability at the backfill: George 90% overall
@@ -206,10 +210,21 @@ where they differ from the original brief, **the spec wins**.
   ranking is shown grey and italic, tagged "not ranked", on the map and in
   the table. The table leads with the total it ranked on, bold and headed
   "(ranked)", then a **Country** column showing only the flag (the name is
-  its tooltip); the country filter puts the flag before each name. It is an
+  its tooltip) — the **child country's** flag (`event_countries`; Northern
+  Ireland's is the Ulster Banner, drawn as SVG); the country filter puts the
+  flag before each name, each parent followed by its children. It is an
   HTML table (`st.html`, sortable, resizable, scrolling) because
   `st.dataframe` cannot draw italic or style a header. The filters sit behind a **"⚙️ Filters" button** (a popover
-  that belongs to tab 5, unlike the sidebar every tab shares). The map
+  that belongs to tab 5, unlike the sidebar every tab shares). The panel
+  is a **draft**: nothing changes on the map until **Apply filters** at its
+  foot (`t5_apply`), which copies the panel into `t5_state_applied` and closes it;
+  "Changes not applied yet." shows while the two differ, and Clear all
+  filters resets and applies in one press. The panel's values are also
+  applied without a press on the first run (the opening defaults) and
+  whenever the data or the driving times change under the session
+  (`apply_draft`, stamped with both versions), since an applied set from
+  before a refresh may name parkruns, ranges or a ranking the new data
+  lacks. The map
   opens on the **top recommendations alone** — or the matches, where
   nothing is ranked — with the done / not-done layers one tap away in the
   layer box. Hover text says only what is there. A parkrun nobody has run
@@ -237,6 +252,31 @@ where they differ from the original brief, **the spec wins**.
   manual refresh the same night routed the new parkruns into the source of
   truth (475 per athlete, one unreachable — Inis Meáin; `travel_times`
   2,517 → 3,942 rows) and shipped them in the snapshot.
+- ✅ **Child-country flags — live** (built 4 Oct 2026, merged 8 Oct 2026). Tab 5 flags a parkrun
+  by where it is, not by the site parkrun files it under: 🏴󠁧󠁢󠁥󠁮󠁧󠁿 / 🏴󠁧󠁢󠁳󠁣󠁴󠁿 / 🏴󠁧󠁢󠁷󠁬󠁳󠁿,
+  the Ulster Banner for Northern Ireland (drawn — there is no emoji), the
+  Crown Dependencies and overseas territories their own, and 🇳🇦 / 🇸🇿 for the
+  parkruns parkrun files under South Africa. The country filter becomes
+  parent then children. Data: `event_countries` (§ Data model). The
+  committed snapshot does not carry that table until the first refresh after
+  merging, and the app shows parent flags until then.
+- ✅ **Tab 1 matrices, PB runs filter, draft planner filters — live**
+  (8 Oct 2026). Tab 1 ends with two tables: the **milestone matrix**
+  (`milestone_matrix.py`) and beneath it **Different parkruns**
+  (`venue_matrix.py`) — see the Repository files rows. Tab 2's personal
+  bests gain a runs filter (All runs · Regular · Buggy 🛒); tab 3's
+  classification dropdown offers **Involving <runner>**; tab 4's legend hides
+  a runner's regular or 🛒 line alone; tab 5's filter panel is a draft applied
+  by a button. On the hosted app a phone can **pinch-zoom** again — Cloud's
+  wrapper page sets `user-scalable=no`, which the app now lifts — and the
+  home-screen icon and manifest go into the wrapper's page as well as the
+  app's (`parkrun_app.py`, `_PARENT_DOCS_JS`). `static/dev-cloud-wrapper.html`
+  (gitignored) recreates the wrapper locally for testing on a phone; checked
+  there on Android Chrome 154. The fix runs once the app has loaded, so on a
+  first visit pinch-zoom waits a few seconds. The manifest's `start_url` is
+  `/`: it resolves against the manifest's own address, and the `.` it had
+  sent an Android install to `/app/static/`, a 404 — harmless while the app's
+  manifest never reached the top page, live the moment it did.
 - 📕 **Fake dev labels — removed** (5 Sep 2026). `scripts/dev_fake_labels.py`
   fabricated plausible buggy labels so the buggy-mode UI had something to render
   before the real ones existed, a quarter of them `estimated` so the old
@@ -544,6 +584,32 @@ time without saying so, so it is derived where it is shown
 `is_mainland` alone says yes to Dublin). That holds while every home is on
 mainland GB.
 
+### `event_countries`
+Where each parkrun actually is, inside the country parkrun files it under:
+the **child country**, for tab 5's flags and its two-level country filter.
+United Kingdom's children are England, Scotland, Wales, Northern Ireland,
+Isle of Man, Guernsey, Jersey, St Helena, Gibraltar, Falkland Islands and
+Cayman Islands; South Africa's are South Africa, Namibia and Eswatini. Every
+other country has none — no row means the child is the parent.
+
+| Column | Notes |
+|---|---|
+| event_id | PK |
+| child_country | e.g. `Wales`, `Namibia` |
+| placed_by | `boundary` \| `nearest-boundary` \| `manual` (from the CSV) \| `nearest-parkrun` |
+
+Seeded from `data/event_countries.csv` (1,665 rows, 5k and junior), placed
+once on 4 Oct 2026 by point-in-polygon against Natural Earth 1:10m map units
+— `nearest-boundary` for a beach pin just offshore, `manual` for Kambaku Golf
+Club, which the 1:10m border puts 180 m into Mozambique. `apply_event_countries`
+rebuilds the table every refresh (and `python parkrun_pipeline.py countries`):
+the CSV, then every event it does not cover yet in a country with children
+takes the child of the **nearest parkrun** it does cover, logged by name so a
+new parkrun near a border can be checked and given a CSV row. Own table, not
+a column on `events`, for the `course_difficulty` reason below. Shipped in
+the deploy snapshot; the app falls back to child = parent on a database
+without it.
+
 ### `course_difficulty`
 External per-course difficulty score, used as a covariate by the buggy
 estimator. Deliberately **its own table, not a column on `events`** —
@@ -725,7 +791,7 @@ Saturday" (a skipped gate doesn't advance it).
 
 After Path B, the refresh runs `apply_travel_times()` (routes any routable
 parkrun missing a drive time, or one that has moved — most weeks nothing;
-never fatal), then `apply_rule_labels()` (labels any unlabelled run whose answer follows from a rule rather than a judgement — Raju has never pushed a buggy; write-once, so a correction always outranks it), then `apply_model_labels()` (the estimator, on George's and Duncan's unlabelled runs — **forward-only**: a run behind an athlete's label frontier is logged for hand review, never back-filled, because rewriting a head-to-head settled months ago would show up nowhere. `PARKRUN_ESTIMATOR=off` disables it, and an ImportError only warns — the refresh is the delivery path for the whole app and must not die for a missing optional dependency), then `build_model_estimates()` (records what the estimator makes of every in-scope run it has not scored yet — **write-once**, so the call survives a later hand correction instead of being erased by it; ~0.32s per run, so at most a second a week once backfilled), then `update_current_targets()` (snapshots today's
+never fatal), then `apply_course_difficulty()` and `apply_event_countries()` (both from cached CSVs, no network), then `apply_rule_labels()` (labels any unlabelled run whose answer follows from a rule rather than a judgement — Raju has never pushed a buggy; write-once, so a correction always outranks it), then `apply_model_labels()` (the estimator, on George's and Duncan's unlabelled runs — **forward-only**: a run behind an athlete's label frontier is logged for hand review, never back-filled, because rewriting a head-to-head settled months ago would show up nowhere. `PARKRUN_ESTIMATOR=off` disables it, and an ImportError only warns — the refresh is the delivery path for the whole app and must not die for a missing optional dependency), then `build_model_estimates()` (records what the estimator makes of every in-scope run it has not scored yet — **write-once**, so the call survives a later hand correction instead of being erased by it; ~0.32s per run, so at most a second a week once backfilled), then `update_current_targets()` (snapshots today's
 current-form targets), exports the results snapshot CSV and rebuilds
 `data/parkrun_snapshot.duckdb`; `scripts/parkrun_refresh.sh` then commits and
 pushes both — that push is what deploys the new data. The analytics views
@@ -752,6 +818,7 @@ are (re)created on every connection via `ensure_views()`.
 | `data/parkrun_results.csv` (versioned snapshots) | `data/events.json` (transient download) |
 | `data/parkrun_run_modes.csv` (label audit trail) | |
 | `data/course_difficulty.csv` (cached scores + aliases) | |
+| `data/event_countries.csv` (child country per event) | |
 | `data/country_lookup.csv` | |
 | `data/athletes_lookup.csv` | |
 | `data/parkrun_snapshot.duckdb` (read-only, deploy snapshot) | |
@@ -781,25 +848,28 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | Path | Purpose |
 |---|---|
 | `parkrun_pipeline.py` | Loader: `bootstrap` / `refresh` / `status` / `snapshot` / `seed` / `motherduck` (Path A/B, DuckDB) + analytics views/targets + deploy-snapshot build + parkrun-only MotherDuck upload (`build_motherduck`). Also owns scraping (`scrape_athlete`) and time parsing (`time_to_seconds`). |
-| `app.py` | **Entrypoint and router only.** `st.set_page_config` (one call is legal per run) + `st.navigation([...], position="hidden")` mapping `/` → `parkrun_app.py` and `/buggy-handicap` → `handicap_page.py`. Hidden, not a `pages/` directory, so the analysis has a URL but no nav link |
+| `app.py` | **Entrypoint only.** `st.set_page_config` (one call is legal per run) + a one-page `st.navigation([...], position="hidden")` mapping `/` → `parkrun_app.py`. It routed `/buggy-handicap` → `handicap_page.py` too until 8 Oct 2026; kept as `st.navigation` so a second page is one `st.Page` away with no sidebar nav list |
 | `parkrun_app.py` | Streamlit front end (6 tabs: overlap · personal bests + head-to-head summary · head-to-head detail · form/target-time · where they meet (head-to-head map + planner, layout in `where_next.py`) · what the model guessed) reading the `parkrun` schema read-only; DB path resolved via `PARKRUN_DB` env/secret (incl. `md:` MotherDuck), else the bundled snapshot. Auto-reloads on new data via the shared `data_version()` cache key (**`parkrun_ui.py`** — see that row); 🔄 Reload button clears the cache manually. A page script: no `set_page_config` of its own |
 | `where_next.py` | Tab 5, "Where they meet": the view toggle, the head-to-head view and the planner (overlapping layers in a tree, `LayerTree` over folium's `TreeLayerControl`, drawn browser-side by `JsMarkers`; `done_marker` / `open_marker` with the recommendation number; the in-view counter; `range_filter`, a two-ended slider kept in step with two number boxes, one line on a phone via `RANGE_ROW_CSS`; the opening defaults and `planner_cleared`; `results_table_html`, the sortable HTML results table) and its pure `plan_candidates`. Also home of `_pie_svg` / `h2h_venues`, the head-to-head pies, which moved here from `parkrun_app.py` when this tab took over from the head-to-head-only map |
 | `parkrun_travel.py` | Pipeline-side only (imports `requests`): routes each home to every road-reachable parkrun (`parkrun_core.routable`) via OpenRouteService (OSRM was tried and dropped), incrementally, into `travel_times`. Homes from `~/.config/parkrun/homes.csv`, ORS key from `ORS_API_KEY` or `~/.config/parkrun/ors_key` |
 | `docs/STYLE.md` | **The style guide** — stat slots (label above value above note, the shared `stat_*` helpers), the chart zoom lock, the filter conventions. Read it before adding a number, a chart or a filter |
 | `buggy_estimator.py` | The per-run buggy estimator: four causal features (same-course excess via the shared `add_baselines` cascade, 91-day form residual, course difficulty, and the athlete's buggy share at *this* event since their first buggy run — shrunk toward their era-wide rate by `EVENT_RATE_PRIOR` pseudo-runs, so a first visit to a course asserts nothing rather than 0%). A same-sign residual streak and a trailing buggy rate were built and then **removed** on evidence: the streak fitted with opposite signs for the two athletes, and the trailing rate proved a near-substitute for the per-event share, keeping both being worse than keeping either — the reasoning is kept beside `FEATURES`, an L2 logistic regression per athlete fitted with `scipy.optimize`, and a walk-forward harness that scores every run from its own past only. **Class balancing is required, not optional** — at a 7% base rate the unbalanced fit never fires once. The half-life for recency decay is tuned inside the walk-forward on log-loss (accuracy is degenerate at a low base rate) and floored on effective positives. The per-event share is exempt from z-scoring (`RAW_FEATURES`) — it sits at exactly 0 for the pre-buggy decade, so standardising against that makes every in-era value an outlier. Imports no streamlit, so `scripts/export_buggy_review.py` can share `add_baselines` and the sheet and the model see identical evidence. **Writes nothing itself** — `score_unlabelled` returns the calls and `parkrun_pipeline.apply_model_labels` does the insert, so the model stays side-effect free and testable without a database |
 | `streaks.py` | **The win/loss streak arithmetic**, imports only pandas: `win_streaks(h2h)` — one row per athlete × scope (each classification, plus `Any`): the current streak, the best-ever win streak (ties go to the latest) and `live` when the current streak is that record — plus `uk_date` ("3 Oct 2026"). Derived from `v_head_to_head`, no view of its own, so a buggy relabel moves a streak as it moves the placings. One implementation for the app and the bench |
+| `milestone_config.py` | **The milestone list and the official milestone colours**, defined once (stdlib only). 10 is junior-only; columns above 500 appear only once someone has reached them or is next to. `FIRST_RUN_OUTLINE` for the "1st" column. A test fails if another module writes a milestone colour out again. Also `UNIQUE_STEP` / `UNIQUE_MILESTONES` (50, 100 … 2,000), the unofficial ladder `venue_matrix.py` reads, which carries no colours |
+| `milestones.py` | The milestone arithmetic, pure (no streamlit, no DB): `milestone_summary(run_dates, junior=, today=, ladder=)` → total, first/last, days since each, days from first to latest run, every milestone reached (date, days since first, days since the previous milestone) and the next one with runs to go. The Nth run is the Nth sorted date, **never `run_number`**, which is the *event's* run number. `ladder` replaces the official list (the unique-parkruns matrix passes `UNIQUE_MILESTONES`), and `junior` is then ignored |
+| `milestone_matrix.py` | Tab 1's **milestone matrix** (beneath the company section; the unique-parkruns matrix follows it): one row per runner in `ATHLETE_COLORS` order, each buggy runner followed by an indented `↳ with buggy 🛒` **junior row** — their buggy runs counted as the child's own tally, the only rows that can reach the 10. An `st.html` table (per-cell borders and tooltips), scrolling sideways on a phone with names pinned. Theme colours use CSS `light-dark()`, reading the `color-scheme` Streamlit sets on `.stApp`, because `st.context.theme` can disagree with the page; the server's guess is only the fallback. Also home of what both tab 1 matrices share — `load_milestone_runs` and the table pieces `table_css(prefix, …)`, `table_html`, `name_cell`, `reached_body`, `togo_body`, `ring_badge` — one copy, so a layout fix lands in both |
+| `venue_matrix.py` | Tab 1's **unique-parkruns matrix**, beneath the milestone matrix: when each runner first ran their 1st, 50th, 100th … different parkrun (`UNIQUE_MILESTONES` in `milestone_config.py`, multiples of 50), the parkrun named in each tooltip, and their latest new one. Same `milestone_summary` arithmetic fed first-visit dates and that ladder; formatting helpers shared with `milestone_matrix.py`. **Neutral greys, never the official milestone colours** — these are not parkrun milestones. One row per runner, no junior rows. Section "Different parkruns". Columns: the count with "of N runs" beneath (from the milestone matrix's own frame, `load_milestone_runs`, so the two totals agree), the 1st (date and venue), each multiple of 50 up to the furthest anyone has reached or is next to (the next one dashed, with new parkruns to go), and the latest new parkrun (name and date) |
 | `h2h_streaks.py` | Tab 2's win/loss streaks heatmap: layout only (an `st.html` table), over `streaks.py` |
 | `streaks_proto.py` | Dev-only design bench on port 8504 (`docs/DEV.md`): four candidate streak views — scorecards, diverging bars, timeline, heatmap — side by side, with a long-names stress test. Nothing imports it |
 | `estimator_tab.py` | Tab 6 — what the estimator guessed, per run. Reads `model_estimates` joined to the label; four `st.multiselect` filters on one empty-means-all rule, each option carrying a count of what the *other* filters leave. The filters **split in two and the split is the design**: year/parkrun choose which runs, so the reliability tiles answer to them; model-call/review select on the outcome, so the tiles ignore them — an accuracy computed after "wrong only" reads 0% by construction. Imports no `buggy_estimator` and no scipy: scoring happened in the refresh, this is a plain SELECT |
-| `buggy_handicap.py` | The handicap measurement, imported by **both** `label_impact.py` and `handicap_page.py`: per athlete, the runs between their first and last buggy run, split by mode — mean/SD/median, density curves with a rug of the real runs, and three estimates (raw difference in means, course fixed effects, the same plus a form-drift term). Recommends a value only when the estimates agree in sign, the raw interval clears zero, and there are ≥ 8 buggy runs. **One implementation only** — the `_winning_margin` rule applies: a second copy would make a method difference indistinguishable from a rounding one. Needs `scipy` |
-| `handicap_page.py` | Page script at `/buggy-handicap` — **2 tabs**, *What the buggy costs* (`render_handicap`) and *What labelling changed* (`render_impact`). Layout only; both analyses are shared modules. Unlisted by design; the audience is the two people it is about, reached by a link they are sent — unlisted is **not** access-controlled |
-| `method_impact.py` | The pre-buggy head-to-head method against the current one: per-occasion verdicts (filterable to what changed and/or what used the handicap bridge) and paired victory charts. Imported by `handicap_page.py` and `label_impact.py`. Reads `v_head_to_head_legacy` — **retired numbers**, which is why every column and caption here says old-against-new |
+| `buggy_handicap.py` | The handicap measurement, imported by the dev-only `label_impact.py` (and by the hosted `handicap_page.py` until it was removed, 8 Oct 2026): per athlete, the runs between their first and last buggy run, split by mode — mean/SD/median, density curves with a rug of the real runs, and three estimates (raw difference in means, course fixed effects, the same plus a form-drift term). Recommends a value only when the estimates agree in sign, the raw interval clears zero, and there are ≥ 8 buggy runs. **One implementation only** — the `_winning_margin` rule applies: a second copy would make a method difference indistinguishable from a rounding one. Needs `scipy` |
+| `method_impact.py` | The pre-buggy head-to-head method against the current one: per-occasion verdicts (filterable to what changed and/or what used the handicap bridge) and paired victory charts. Imported by `label_impact.py` (dev-only). Reads `v_head_to_head_legacy` — **retired numbers**, which is why every column and caption here says old-against-new |
 | `parkrun_core.py` | **Facts every part of the project must agree on**, and the one module that imports nothing but the standard library — that constraint is why it exists. The cohort (`ATHLETE_NAMES`, `BUGGY_ATHLETES`), the 91-day `TARGET_WINDOW_DAYS`, the `LABEL_SOURCES`/`TRAINING_SOURCES` vocabulary, and `resolve_db`. `parkrun_pipeline.py` owns these naturally but imports `requests` and `bs4`, and the hosted app installs neither — so before this each side kept its own copy and `TARGET_WINDOW_DAYS` was written out three times, kept in step by a test that read the pipeline's *source text*. Anything only one module needs stays in that module |
 | `parkrun_calendar.py` | **The calendars** (see Visualisations): the week scheme, the SQL and frames behind it, every renderer, and the two ways a drawing is embedded — `embed_svg` for a read-only grid and `svg_component` for tab 3's clickable one. Imports streamlit but no plotly. Holds more schemes than the app ships (five head-to-head colourings, three phone layouts) because `calendar_proto.py` compares them; the app picks one of each |
 | `components/calendar/` | The declared Streamlit component behind tab 3's picker — `index.html` (the postMessage protocol, hand-written, no build step) and `detail.js` (the bottom sheet and the floating label, **shared** with the read-only calendars so the two cannot behave differently). Static files, committed, served by Streamlit from the app's own origin — which is what lets the sheet reach the parent document |
 | `calendar_proto.py` | Dev-only design bench on port 8503 (`docs/DEV.md`). The only place the five head-to-head colour schemes, the three phone layouts and the five per-year tally treatments can be seen against each other. Nothing imports it; deleting it costs the app nothing |
 | `parkrun_ui.py` | Shared UI layer imported by **both** apps: DB resolution, `data_version`, `ATHLETE_COLORS`/`MEDAL`, `fmt_time`, `fmt_n` (every displayed number, thousands comma — docs/STYLE.md § Numbers), `flag` / `COUNTRY_ISO`, the buggy display helpers (`BUGGY_GLYPH`, `mode_suffix`, `mode_text`, highlight colours), `_h2h_headline`, `_victory_fig` and `_winning_margin`, plus `show_chart` (every plotly chart, zoom-locked), `closable_popover` (every popover, with a Close button on a phone) and the `stat_*` slot helpers (docs/STYLE.md). **`data_version` is the cache key for both apps** — `max(scrape_timestamp)` plus `max(set_at)` and `count(*)` from `run_modes`, since labels are edited out of band and never move the scrape timestamp; 60s TTL. It lives here for the `_winning_margin` reason: two copies that drifted would have the two apps disagreeing about whether the data had changed. `_winning_margin` must exist **once only** — `label_impact.py` diffs old against new, so a second copy of that arithmetic would make a method difference indistinguishable from a rounding one |
-| `label_impact.py` | **Dev-only twin of the hosted page** (its own port): the same two tabs, the same shared modules, driven against an isolated dev DB so the comparison can be exercised without touching the deploy snapshot. Layout only |
+| `label_impact.py` | **Dev-only** (its own port): *What the buggy costs* and *What labelling changed*, over the shared modules, driven against an isolated dev DB. Was the twin of the hosted `/buggy-handicap` page until that page was removed (8 Oct 2026); now the only place these analyses are drawn. Layout only |
 | `scripts/run_local.sh` | Local dev launcher: venv + isolated `data/parkrun_dev.duckdb` (built via `pipeline seed`, **not** `cp` — the committed snapshot carries only the views it had when last rebuilt) + `streamlit run`. Under `PARKRUN_LABEL_AUDIT=1` it also builds the legacy views and starts `label_impact.py` on a second port (see `docs/DEV.md`) |
 | `scripts/parkrun_refresh.sh` | Master refresh from this Mac (manual or scheduled — the one code path): pull clone → seed the local source-of-truth DB if absent → pipeline → audit-file push (fatal; this is the deploy) → freshness stamp → notification. The success notification carries the estimator's calls for the week, read from `$STATE_DIR/last_estimates.txt` (the `last_refresh_epoch` pattern) — one line per call with its confidence and the measured reliability of that *kind* of call. `notify_lines` exists because AppleScript has no `\n` escape and a real newline in `osascript -e` is a parse error, so lines are joined with `return`; quotes are escaped first, since a parkrun name is free text |
 | `scripts/parkrun_autorefresh.sh` | Scheduling policy calling the master (launchd agents run self-syncing deployed copies at `~/.config/parkrun/`, Sat 14:30 + Sun 11:00 + missed-weekend login prompt — see `docs/DEPLOY.md` § Scheduled refresh) |
@@ -812,19 +882,20 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | `static/logo-512.png` | `page_icon` source: the browser-tab favicon |
 | `static/apple-touch-icon.png` | 180×180 for the iOS "Add to Home Screen" icon, served at `/app/static/` |
 | `.streamlit/config.toml` | `enableStaticServing = true` so `static/` is reachable at `/app/static/` |
-| `tests/` | pytest suite, run from the repo root. **pytest is dev-only, deliberately not in `requirements.txt`** (same convention as `openpyxl` and `cairosvg`). 217 cases; only `test_ui.py`'s app smoke runs read a database (the committed snapshot, read-only). `test_where_next.py` (119: planner, head-to-head filter, range ends and caps, the lamp and circle markers, the overlapping layer tree, the GB opening view, the results table, mainland boxes, `routable` / `crosses_water`, travel top-ups with a fake HTTP session, and the privacy contracts that `travel_times` ships with no origin column and that a failed travel step logs no coordinates), `test_ui.py` (11: no `st.plotly_chart` outside `show_chart`, no `st.popover` outside `closable_popover`, no count written without its thousands comma (`fmt_n`), a flag for every country in the lookup, the stat-slot order, newest-first years, the smoke run — which also checks tab 5's opening defaults, Clear and the phone range rows — and that filters survive being off screen), plus: `buggy_estimator` (51 — four of them cross-module contracts, that `TARGET_WINDOW_DAYS`, the label vocabulary and the cohort each have exactly one definition in `parkrun_core.py`; six covering `score_runs`, and one that reads the pipeline's source to assert nothing UPDATEs `run_modes` but the vocabulary rename) the win/loss streaks (20: a three-way 2nd is a loss, a dead heat a win for both, "Any" pooling in date order, best-ever ties to the latest, a single result, all wins, `live`, UK dates, the heatmap columns and `best_period`'s "–now"), and the calendar week scheme (16, including a parity check that the Python rule and `WEEK_SQL` agree, run against an in-memory DuckDB) |
+| `tests/` | pytest suite, run from the repo root. **pytest is dev-only, deliberately not in `requirements.txt`** (same convention as `openpyxl` and `cairosvg`). 251 cases; only `test_ui.py`'s app smoke runs read a database (the committed snapshot, read-only). `test_where_next.py` (124: planner, the two-level country filter and child-country flags, the nearest-parkrun placement, head-to-head filter, range ends and caps, the lamp and circle markers, the overlapping layer tree, the GB opening view, the results table, mainland boxes, `routable` / `crosses_water`, travel top-ups with a fake HTTP session, and the privacy contracts that `travel_times` ships with no origin column and that a failed travel step logs no coordinates), `test_ui.py` (14: no `st.plotly_chart` outside `show_chart`, no `st.popover` outside `closable_popover`, no count written without its thousands comma (`fmt_n`), a flag for every country in the lookup and every child country, the stat-slot order, newest-first years, the smoke run — which also checks tab 5's opening defaults, that the filter panel is a draft until Apply, Clear and the phone range rows — that filters survive being off screen, and that the web app manifest's `start_url` opens the site root, locally and behind Cloud's `/~/+/`), plus: `buggy_estimator` (51 — four of them cross-module contracts, that `TARGET_WINDOW_DAYS`, the label vocabulary and the cohort each have exactly one definition in `parkrun_core.py`; six covering `score_runs`, and one that reads the pipeline's source to assert nothing UPDATEs `run_modes` but the vocabulary rename) the win/loss streaks (20: a three-way 2nd is a loss, a dead heat a win for both, "Any" pooling in date order, best-ever ties to the latest, a single result, all wins, `live`, UK dates, the heatmap columns and `best_period`'s "–now"), the milestone arithmetic (`test_milestones.py`, 14: zero and one run, a total exactly on a milestone, the junior-only 10, same-day doubles, day counts against today, and one definition of the list and colours — no other module writes a milestone colour out), the milestone matrix (`test_milestone_matrix.py`, 7: the junior row beneath a buggy runner, the adult 10 dash, reached-cell tooltips, the dashed next cell, the first-to-latest column, columns above 500 only when reached or next, UK formats), the unique-parkruns matrix (`test_venue_matrix.py`, 5: the multiples-of-50 ladder, a custom ladder leaving the default alone, rows and columns, the tooltip naming the venue in no official colour, first visits from the milestone frame), and the calendar week scheme (16, including a parity check that the Python rule and `WEEK_SQL` agree, run against an in-memory DuckDB) |
 | `docs/DEV.md` | Local dev workflow (incl. `PARKRUN_LABEL_AUDIT=1` for the label-impact app). Also **§ Deferred refactors** — streamlining that has been identified and costed but not done, each with value/risk/size, so the analysis is not redone every time the code looks tidyable. **Read it before starting a cleanup**; two items in it were considered and deliberately rejected. Also **§ Open decisions** — unsettled data-safety questions (the pipeline's default write target, whether the dev DB still needs a `parkrun` schema, a shrink gate on the committed artefacts), each with the options and what they cost |
 | `docs/DATA.md` | The buggy labels: what each `source` means, how the training set grows, how to correct a label by hand |
 | `docs/MODEL.md` | The estimator as built: the four features and why each survived, the fitted coefficients, every constant, class balancing and recency, the walk-forward numbers, and the features that were removed on evidence. **The fitted numbers move every refresh** — the reasoning is what is durable |
 | `docs/DEPLOY.md` | Deploy/ops: local source-of-truth DB + snapshot delivery, scheduled refresh, rebuilding/seeding, retired MotherDuck path (secret flip, tokens, re-seed) |
 | `TODO.md` | The to-do list: unscoped visualisation ideas plus concrete requests, each with its open questions. An item moves to **Current status** when it ships |
-| `requirements.txt` | Pinned runtime deps for hosting (Streamlit Cloud etc.) |
+| `requirements.txt` | Pinned deps: the web app, then the pipeline (requests, bs4, lxml, html5lib, and scipy for the estimator). One file, so Streamlit Cloud installs the pipeline's too |
 | `data/parkrun_events.csv` | Event catalogue (events.json dump + Victoria Dock) |
 | `data/country_lookup.csv` | country_code → country_name |
 | `data/athletes_lookup.csv` | Athlete names + DOB |
 | `data/parkrun_results.csv` | Results snapshot exported by the pipeline (keyed on event_id) |
 | `data/parkrun_run_modes.csv` | Buggy labels exported by the pipeline — the audit trail for labels, most of them now written by the estimator. **Write-only: one writer, no readers** |
 | `data/course_difficulty.csv` | Cached course-difficulty scores + hand-maintained `alias_of` column |
+| `data/event_countries.csv` | Child country per event (England, Namibia ...) for tab 5's flags; hand-maintained after the 4 Oct 2026 placement — add a row when the refresh logs a nearest-parkrun guess |
 | `data/parkrun_snapshot.duckdb` | Read-only, parkrun-only DuckDB the deployed app serves |
 | `adhoc/` | One-off investigations using the parkrun data but **outside the app** — see `adhoc/README.md` |
 
@@ -865,13 +936,16 @@ hand-emitted SVG (the calendars) with one hand-written Streamlit component
 
 ## Visualisations
 
-**Built (`parkrun_app.py`, 6 tabs)** — plus the buggy-labels
-page at `/buggy-handicap` (`handicap_page.py`, 2 tabs: *What the buggy costs* ·
-*What labelling changed*) and its dev twin `label_impact.py` on its own port,
-both layout over the shared `buggy_handicap.py` / `method_impact.py`
-(`docs/DEV.md`):
+**Built (`parkrun_app.py`, 6 tabs)** — plus, dev-only, `label_impact.py` on its
+own port (2 tabs: *What the buggy costs* · *What labelling changed*), layout
+over the shared `buggy_handicap.py` / `method_impact.py` (`docs/DEV.md`). The
+hosted `/buggy-handicap` page that showed the same two tabs was removed on
+8 Oct 2026:
 - **Tab 1** the **participation calendar** ("When do they run?" — see below) +
-  participation overlap / Venn (`v_overlap`) + per-athlete company.
+  participation overlap / Venn (`v_overlap`) + per-athlete company + the
+  **milestone matrix** (`milestone_matrix.py`; buggy runs as junior rows) +
+  the **unique-parkruns matrix** (`venue_matrix.py`; 1st then every 50th
+  different parkrun, neutral greys).
 - **Tab 2** form-adjusted head-to-head summary (`v_head_to_head`,
   `current_targets`): **personal bests + latest run** (top of the tab — see
   below), the
@@ -887,7 +961,11 @@ both layout over the shared `buggy_handicap.py` / `method_impact.py`
   year/season filters; swipes sideways on a phone with names pinned), and a
   **cumulative 1st-place finishes** trend (requires a head-to-head; year/season
   filterable; hover names the winning parkrun).
-- **Tab 3** head-to-head detail (drill into a single contest): the filters, the
+- **Tab 3** head-to-head detail (drill into a single contest): the filters
+  (the classification dropdown here also offers **Involving <runner>** —
+  every head-to-head that runner was ranked in, two- or three-way;
+  the options are tab 3's only (`CLASS_OPTS_BY_RUNNER`, matched by
+  `class_matches`) — tab 2 and tab 5 keep the plain list), the
   **head-to-head calendar picker** (see below), then — for the chosen contest —
   a scoreline one-liner (winner, % vs form, winning margin, note on any
   3rd-placed finisher — all 2 dp), a **victory lollipop chart** (raw `pct_diff`
@@ -896,9 +974,9 @@ both layout over the shared `buggy_handicap.py` / `method_impact.py`
   results table.
 - **Tab 4** **form — target time by Saturday** (`v_saturday_targets`): one line
   per **(athlete, mode)** — solid regular, dotted with a buggy — mm:ss axis,
-  year/season filter, line breaks across >91-day gaps, axes rescale when an
-  athlete is hidden via the legend (one `legendgroup` per athlete, so a click
-  hides both their lines).
+  year/season filter, line breaks across >91-day gaps, axes rescale when a
+  line is hidden via the legend (one `legendgroup` per line, so a click hides
+  a runner's regular or 🛒 line alone).
 - **Tab 6** **what the model guessed** (`estimator_tab.py`, `model_estimates`):
   per athlete, a reliability strip, a **confidence chart** — every call placed
   on a 50-100% axis in two lanes by direction, wrong calls drawn last as open
@@ -1002,7 +1080,19 @@ today counts; ties on time break to the earliest date. Note the 3-month window
 is deliberately *not* the head-to-head's 91-day form window — these answer
 different questions (best single run vs. baseline for a contest).
 
-Beneath the three scopes, behind a rule and spanning the box, is that athlete's
+A **runs filter** above the boxes (`t2_pb_runs`, a segmented control: All
+runs · Regular · Buggy 🛒) narrows the three scopes for all three runners
+alike — under Buggy, Raju's slots read "no buggy runs".
+`load_personal_bests(version, runs_filter)` is one cached query per value, the
+value choosing a fixed `WHERE` fragment from `PB_FILTERS` (key → button label,
+clause). The box order never comes from the filtered frame: `pb_order()` reads
+the unfiltered `all` frame once (`pb_runner_order`), and the streaks heatmap
+uses the same order, so switching the filter never reshuffles the boxes or
+drops a runner. Under Buggy the
+times carry no 🛒, since the filter already says so. The latest run ignores
+the filter.
+
+Beneath the scopes, behind a rule and spanning the box, is that athlete's
 **latest run** — time, parkrun, date, and 🛒 if it was pushed. It is ranked by
 date, not time, so it needs its own window function rather than a fourth branch
 of `scoped`; a same-day double breaks to the faster of the two. It is a strip
@@ -1012,7 +1102,8 @@ depends on; and "most recent" is a different kind of fact from "fastest", so
 sitting it in the same row would invite reading it as a fourth PB.
 
 All four slots — the three scopes and the latest run — carry 🛒 when that run
-was pushed, from one `_timed()` helper so they cannot disagree. The glyph is
+was pushed (except under the Buggy filter, where `_timed(..., glyph=False)`
+leaves it off), from one `_timed()` helper so they cannot disagree. The glyph is
 set off by an explicit `PB_GLYPH_GAP` margin rather than a space: a space is set
 in the time's tabular figures, which are wide enough that the glyph reads as a
 sixth digit. A fastest run is rarely a buggy run, so the scope columns usually

@@ -3,9 +3,6 @@ streamlit==1.58.0
 duckdb==1.5.4
 pandas==3.0.3
 plotly==6.8.0
-# handicap_page.py only: Welch interval, course fixed effects and the density
-# curves. app.py itself does no statistics; both apps share this file.
-scipy==1.18.0
 matplotlib==3.11.0
 matplotlib-venn==1.1.2
 folium==0.20.0
@@ -17,3 +14,7 @@ requests==2.34.2
 beautifulsoup4==4.15.0
 lxml==6.1.1
 html5lib==1.1
+# The buggy estimator (buggy_estimator.py). No hosted module imports it since
+# /buggy-handicap was removed (8 Oct 2026), but the refresh needs it: a missing
+# scipy only warns there, so the estimator would stop labelling runs silently.
+scipy==1.18.0

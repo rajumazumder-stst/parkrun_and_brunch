@@ -1,20 +1,12 @@
-"""Entrypoint and router for the hosted app.
+"""Entrypoint for the hosted app: one page, `/` → parkrun_app.py.
 
-Two pages on one domain:
+It was a router for two pages until 8 Oct 2026, when the unlisted
+`/buggy-handicap` page was removed (its analysis lives on in the dev-only
+`label_impact.py`). `st.navigation` is kept with one hidden page so a second
+page is one `st.Page` away and adds no nav list to the sidebar.
 
-    /                 parkrun_app.py    the five-tab comparison app
-    /buggy-handicap   handicap_page.py  what the buggy costs · what labelling
-                                        changed
-
-`position="hidden"` is the point of routing through `st.navigation` at all.
-A `pages/` directory would give the same URLs but force a nav list into the
-sidebar, which put a statistical argument about two named people in front of
-every visitor who came to look at parkrun results. Hidden navigation keeps the
-path reachable by anyone sent the link and invisible to everyone else — the
-page is unlisted, not access-controlled.
-
-`st.set_page_config` lives here because only one call is legal per run; each
-page's browser-tab title comes from its `st.Page(title=...)`.
+`st.set_page_config` lives here because only one call is legal per run; the
+browser-tab title comes from the `st.Page(title=...)`.
 
 Run:  streamlit run app.py
 """
@@ -34,10 +26,6 @@ st.set_page_config(page_title="parkrun & brunch",
 st.navigation(
     [
         st.Page("parkrun_app.py", title="parkrun & brunch", default=True),
-        # Titles the whole page, not one of its tabs: it carries both what the
-        # buggy costs and what labelling changed.
-        st.Page("handicap_page.py", title="The buggy labels",
-                url_path="buggy-handicap"),
     ],
     position="hidden",
 ).run()

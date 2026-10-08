@@ -1,8 +1,8 @@
 """Buggy handicap — what pushing a buggy actually costs each athlete.
 
-Imported by **two** apps: the dev-only `label_impact.py` (as a tab) and the
-hosted `handicap_page.py`, served at `/buggy-handicap`. It lives here rather
-than in either of them for the same reason `_winning_margin` lives once in
+Imported by the dev-only `label_impact.py` (as a tab). The hosted
+`handicap_page.py` at `/buggy-handicap` imported it too until 8 Oct 2026, when
+that page was removed. It lives in its own module for the same reason `_winning_margin` lives once in
 `parkrun_ui`: a second
 copy of this arithmetic would make a method difference indistinguishable from a
 rounding one, and this module's output is the argument for numbers two named
@@ -14,8 +14,9 @@ derived on screen rather than asserted in a commit message. Everything here is
 computed from the labels currently in the database: correct a label and every
 figure moves.
 
-Needs scipy (Welch interval, course fixed effects, gaussian_kde) — which is why
-scipy is in requirements.txt even though `app.py` itself does no statistics.
+Needs scipy (Welch interval, course fixed effects, gaussian_kde). It is pinned
+in requirements.txt for the estimator in the refresh; nothing hosted imports
+this module since /buggy-handicap was removed (8 Oct 2026).
 """
 
 from __future__ import annotations
