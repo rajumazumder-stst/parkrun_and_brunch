@@ -52,6 +52,7 @@ from parkrun_ui import (  # shared with label_impact.py — see that module
     _h2h_headline,
     _read_sql,
     _render_basis_note,
+    _surface_color,
     _victory_fig,
     HL_BUGGY,
     HL_REGULAR,
@@ -845,6 +846,63 @@ def section(title: str, key: str, *, default: bool = True,
     return st.session_state[k]
 
 
+def render_title() -> None:
+    """Tab 1's title with the app icon at its right, never taller than the
+    title's text and never overlapping it.
+
+    The icon is sized in `em` of the title's own font, so it tracks the text:
+    one line (1.2em, the line height) on a wide screen, two on a phone, where
+    the title is set as two fixed lines ("🏃 parkrun" / "& brunch") and the
+    font shrinks with the viewport so both lines and the icon fit even at
+    360px. A natural wrap would not do: at 44px it broke after "&", leaving
+    no room for a two-line icon, and on a narrow phone it would run to three.
+    The longer line, "🏃 parkrun", measured 210px at 44px, so 7.9em is a
+    line, the icon and the gap with ~5% to spare for a wider emoji font.
+
+    The two icons (`scripts/build_app_icon.py`) are stacked and the dark one
+    masked out in a light theme. `light-dark()` reads the `color-scheme`
+    Streamlit sets on `.stApp`, so it follows the theme actually shown — the
+    same reason `milestone_matrix.themed` uses it — and a gradient colour stop
+    is the one place an image can be switched by it. `st.context.theme` is
+    only the fallback for a browser without `light-dark()`.
+    """
+    dark_mask = ("linear-gradient(#000,#000)" if _surface_color() == "#0e1117"
+                 else "linear-gradient(transparent,transparent)")
+    themed_mask = ("linear-gradient(light-dark(transparent,#000),"
+                   "light-dark(transparent,#000))")
+    st.markdown(f"""
+<style>
+.prb-title {{ display:flex; align-items:center; gap:0.35em;
+  font-size:2.75rem; padding:1.25rem 0 1rem; }}
+.prb-title h1 {{ font-size:1em; line-height:1.2; padding:0; margin:0;
+  flex:0 1 auto; min-width:0; }}
+.prb-title .prb-br {{ display:none; }}
+/* Streamlit's hover link-to-heading button sits inside the h1 and would
+   hold the icon a button's width away from the text. */
+.prb-title [data-testid="stHeaderActionElements"] {{ display:none; }}
+.prb-title .prb-icon {{ position:relative; flex:none;
+  height:1.2em; width:1.2em; border-radius:22%; overflow:hidden; }}
+.prb-title .prb-icon img {{ position:absolute; inset:0;
+  width:100%; height:100%; display:block; }}
+.prb-title .prb-icon img.prb-dark {{
+  -webkit-mask-image:{dark_mask}; mask-image:{dark_mask};
+  -webkit-mask-image:{themed_mask}; mask-image:{themed_mask}; }}
+@media (max-width: 640px) {{
+  .prb-title {{ font-size:min(2.75rem, calc((100vw - 40px) / 7.9)); }}
+  .prb-title .prb-br {{ display:inline; }}
+  .prb-title .prb-line {{ white-space:nowrap; }}
+  .prb-title .prb-icon {{ height:2.4em; width:2.4em; }}
+}}
+</style>
+<div class="prb-title">
+  <h1><span class="prb-line">🏃 parkrun</span> <br class="prb-br"><span
+    class="prb-line">&amp; brunch</span></h1>
+  <span class="prb-icon" role="img" aria-label="p&amp;b app icon"><img
+    src="app/static/title-icon-light.jpg" alt=""><img class="prb-dark"
+    src="app/static/title-icon-dark.jpg" alt=""></span>
+</div>""", unsafe_allow_html=True)
+
+
 # Shrinks the section buttons and pins them to the right margin. Scoped by the
 # `st-key-sec-*` class the keyed container emits, so the sidebar's Reload button
 # and every other control in the app keep their normal size and layout.
@@ -1102,7 +1160,7 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
 # TAB 1 — intro + overlap
 # =========================================================================== #
 with tab1:
-    st.title("🏃 parkrun & brunch ☕")
+    render_title()
     if section("George, Duncan & Raju", "t1_intro"):
         st.markdown(
             """
