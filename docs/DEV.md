@@ -318,7 +318,8 @@ pytest -q tests/test_ui.py             # zoom lock, stat slots, conventions, one
 ```
 
 **pytest is a dev tool, deliberately not in `requirements.txt`** — same
-convention as `openpyxl` for the review sheet and `cairosvg` for the logo. The
+convention as `openpyxl` for the review sheet and `fontTools` for the retired
+SVG logos. The
 hosted app must stay deployable without it. Install it into the project venv:
 
 ```bash

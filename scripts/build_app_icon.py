@@ -2,8 +2,8 @@
 """Build the app icons and web app manifest from the raster logo.
 
 Source: assets/app_icon_black_bg.jpg (1024x1024, the egg-and-runners logo on
-black). assets/app_icon_cream_bg.jpg is the same design on cream, kept as the
-alternative and not used.
+black). assets/app_icon_cream_bg.jpg is the same design on cream; it is used
+only for tab 1's title icon in a light theme.
 
 Writes into static/ (served at /app/static/, see .streamlit/config.toml):
 
@@ -11,6 +11,12 @@ Writes into static/ (served at /app/static/, see .streamlit/config.toml):
   logo-192.png          192x192  Android, via the manifest
   logo-512.png          512x512  Android, via the manifest; also page_icon
   manifest.json                  what Android installs from
+  title-icon-dark.jpg   320x320  tab 1's title icon, dark theme (black source)
+  title-icon-light.jpg  320x320  tab 1's title icon, light theme (cream source)
+
+The title icons are drawn at most ~106 CSS px (two title lines on a phone),
+so 320 covers a 3x screen. JPEG, like their sources: no transparency to keep,
+and a third the size of the PNG.
 
 PNG, not JPEG: both platforms expect it. The source has no transparency and
 the outputs keep none, which iOS needs (it fills a transparent pixel with
@@ -30,6 +36,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "assets" / "app_icon_black_bg.jpg"
+SOURCE_LIGHT = ROOT / "assets" / "app_icon_cream_bg.jpg"
 STATIC = ROOT / "static"
 
 # Sampled from the source's background, so the Android splash screen and
@@ -44,6 +51,9 @@ SHORT_NAME = "p&b"
 
 SIZES = (("apple-touch-icon.png", 180), ("logo-192.png", 192),
          ("logo-512.png", 512))
+TITLE_SIZE = 320
+TITLE_ICONS = (("title-icon-dark.jpg", SOURCE),
+               ("title-icon-light.jpg", SOURCE_LIGHT))
 
 
 def main() -> int:
@@ -64,6 +74,12 @@ def main() -> int:
         src.resize((size, size), Image.Resampling.LANCZOS).save(
             STATIC / fname, optimize=True)
         print(f"wrote static/{fname} ({size}x{size})")
+
+    for fname, path in TITLE_ICONS:
+        Image.open(path).convert("RGB").resize(
+            (TITLE_SIZE, TITLE_SIZE), Image.Resampling.LANCZOS).save(
+            STATIC / fname, quality=88, optimize=True)
+        print(f"wrote static/{fname} ({TITLE_SIZE}x{TITLE_SIZE})")
 
     manifest = {
         "name": NAME,

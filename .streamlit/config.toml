@@ -1,5 +1,5 @@
-# Serves files from static/ at /app/static/<name>. Needed so iOS can fetch
-# apple-touch-icon.png for the home-screen shortcut — see
-# _inject_apple_touch_icon() in app.py.
+# Serves files from static/ at /app/static/<name>: the home-screen icons and
+# manifest (_home_screen_icons_js() in parkrun_app.py) and tab 1's title icons
+# (render_title()). All built by scripts/build_app_icon.py.
 [server]
 enableStaticServing = true
