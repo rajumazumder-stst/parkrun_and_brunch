@@ -77,8 +77,8 @@ from parkrun_ui import (  # shared with label_impact.py — see that module
 from where_next import (PLANNER_SKIP_KEYS, RANGE_ROW_CSS, render_h2h_view,
                         render_planner, view_toggle)
 
-# Logo built by scripts/build_logo.py (three runners in ATHLETE_COLORS on a
-# fried egg). Resolved off __file__, not the CWD, so it survives being launched
+# Logo built by scripts/build_app_icon.py (three runners in ATHLETE_COLORS on
+# a fried egg). Resolved off __file__, not the CWD, so it survives being launched
 # from anywhere. Falls back to the old emoji if the file is missing, so a bad
 # checkout degrades to a working app rather than a crash on line 1.
 _ICON = Path(__file__).resolve().parent / "static" / "logo-512.png"
@@ -116,6 +116,11 @@ def _home_screen_icons_js() -> str:
       their logo. Chrome honours only the *first* `<link rel="manifest">`, so
       theirs must be removed rather than ours merely appended.
 
+    The label under the icon is "p&b" on both: Android takes the manifest's
+    `short_name`, iOS the `apple-mobile-web-app-title` meta, falling back to
+    the page title ("parkrun & brunch", or Cloud's own title on the wrapper).
+    `scripts/build_app_icon.py` writes the manifest; keep the two in step.
+
     The component runs in a same-origin iframe, so it can reach the real
     document head. Both platforms read the DOM when the user taps install, so
     links injected at load time are visible by then. None of this is supported
@@ -142,11 +147,20 @@ def _home_screen_icons_js() -> str:
             l.href = new URL(path, base).href;
             d.head.appendChild(l);
           }
+          function title(d, text) {
+            d.querySelectorAll('meta[name="apple-mobile-web-app-title"]')
+              .forEach(function (n) { n.parentNode.removeChild(n); });
+            var m = d.createElement('meta');
+            m.name = 'apple-mobile-web-app-title';
+            m.content = text;
+            d.head.appendChild(m);
+          }
           function add(d, base) {
             // Served by [server] enableStaticServing in .streamlit/config.toml.
             // Must be real URLs: iOS ignores data: URIs for apple-touch-icon.
             own(d, 'apple-touch-icon', 'app/static/apple-touch-icon.png', base);
             own(d, 'manifest', 'app/static/manifest.json', base);
+            title(d, 'p&b');
           }
           var docs = prbParentDocs();
           docs.forEach(function (d) {

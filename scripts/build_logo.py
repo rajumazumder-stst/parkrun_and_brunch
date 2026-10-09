@@ -1,22 +1,21 @@
 #!/usr/bin/env python3
-"""Build the app logo: one SVG source per variant -> the PNG sizes the browser
-and iOS want.
+"""Build the two vector logo variants as SVG sources in assets/.
 
-Two variants are kept:
+  toast    "PR&B" on a slice of toast, the letters in the three athletes'
+           chart colours.
+  runners  Three runners in those colours striding across a fried egg.
 
-  toast    (ACTIVE) "PR&B" on a slice of toast, the letters in the three
-                    athletes' chart colours.
-  runners           Three runners in those colours striding across a fried egg.
+Neither is the app icon any more. Until 9 Oct 2026 the toast variant was
+rasterised into static/ as the favicon and home-screen icon; those PNGs and
+the web app manifest now come from scripts/build_app_icon.py, which works from
+a raster source (assets/app_icon_black_bg.jpg). This script writes SVGs only,
+so running it can never overwrite the live icons.
 
-Only ACTIVE is rasterised into static/; the other variant's SVG is still built
-so it stays current and reviewable.
-
-    python3 scripts/build_logo.py            # build both SVGs + ACTIVE's PNGs
+    python3 scripts/build_logo.py            # build both SVGs
     python3 scripts/build_logo.py runners    # build just that variant's SVG
 
-Needs cairosvg (rasterising) and fontTools + matplotlib (glyph outlines). All
-three are build-time only and deliberately stay out of requirements.txt, which
-is the deployed runtime: the PNGs are committed, so a deploy never rebuilds.
+Needs fontTools + matplotlib (glyph outlines), build-time only and deliberately
+out of requirements.txt.
 
 The lettering is converted from DejaVu Sans Bold into plain SVG paths at build
 time, so the committed SVG renders identically on any machine with no font
@@ -30,10 +29,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 ASSETS = ROOT / "assets"
-STATIC = ROOT / "static"
-
-ACTIVE = "toast"
-
 # Same hex values as ATHLETE_COLORS in app.py (Dark2).
 GEORGE, RAJU, DUNCAN = "#1b9e77", "#d95f02", "#7570b3"
 
@@ -182,12 +177,6 @@ VARIANTS = {"toast": svg_toast, "runners": svg_runners}
 
 
 def main(argv: list[str]) -> int:
-    try:
-        import cairosvg
-    except ImportError:
-        print("cairosvg not installed - pip install cairosvg", file=sys.stderr)
-        return 1
-
     wanted = argv[1:] or list(VARIANTS)
     unknown = [v for v in wanted if v not in VARIANTS]
     if unknown:
@@ -196,55 +185,10 @@ def main(argv: list[str]) -> int:
         return 2
 
     ASSETS.mkdir(exist_ok=True)
-    STATIC.mkdir(exist_ok=True)
-
     for name in wanted:
-        svg = VARIANTS[name]()
-        (ASSETS / f"logo-{name}.svg").write_text(svg)
+        (ASSETS / f"logo-{name}.svg").write_text(VARIANTS[name]())
         print(f"wrote assets/logo-{name}.svg")
-
-        if name != ACTIVE:
-            continue
-        # 180 = iOS apple-touch-icon; 192 + 512 = what Chrome wants in a web app
-        # manifest; 512 also feeds page_icon.
-        for fname, size in (("apple-touch-icon.png", 180), ("logo-192.png", 192),
-                            ("logo-512.png", 512)):
-            cairosvg.svg2png(bytestring=svg.encode(), write_to=str(STATIC / fname),
-                             output_width=size, output_height=size)
-            print(f"wrote static/{fname} ({size}x{size}) from '{name}'")
-        _write_manifest()
     return 0
-
-
-def _write_manifest() -> None:
-    """The web app manifest Android installs from.
-
-    Streamlit Cloud serves its own manifest, which is why an Android "Add to
-    Home screen" installs an app called "Streamlit" with their logo: a manifest
-    always beats the apple-touch-icon fallback. app.py swaps this one in.
-
-    purpose "any maskable" is safe here because the icon is full-bleed — Android
-    crops maskable icons to a circle, and cropping a solid background just
-    trims the charcoal, leaving the toast centred.
-    """
-    import json
-
-    manifest = {
-        "name": "parkrun & brunch",
-        "short_name": "PR&B",
-        "start_url": ".",
-        "display": "standalone",
-        "background_color": BG,
-        "theme_color": BG,
-        "icons": [
-            {"src": "./logo-192.png", "sizes": "192x192", "type": "image/png",
-             "purpose": "any maskable"},
-            {"src": "./logo-512.png", "sizes": "512x512", "type": "image/png",
-             "purpose": "any maskable"},
-        ],
-    }
-    (STATIC / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
-    print("wrote static/manifest.json")
 
 
 if __name__ == "__main__":
