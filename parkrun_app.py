@@ -22,6 +22,8 @@ Run:  streamlit run app.py
 
 from __future__ import annotations
 
+import base64
+import io
 import math
 from datetime import datetime, timezone
 from html import escape
@@ -82,7 +84,8 @@ from where_next import (PLANNER_SKIP_KEYS, RANGE_ROW_CSS, render_h2h_view,
 # a fried egg). Resolved off __file__, not the CWD, so it survives being launched
 # from anywhere. Falls back to the old emoji if the file is missing, so a bad
 # checkout degrades to a working app rather than a crash on line 1.
-_ICON = Path(__file__).resolve().parent / "static" / "logo-512.png"
+_STATIC = Path(__file__).resolve().parent / "static"
+_ICON = _STATIC / "logo-512.png"
 
 
 # Shared by both scripts below: every same-origin document above the
@@ -846,6 +849,17 @@ def section(title: str, key: str, *, default: bool = True,
     return st.session_state[k]
 
 
+def _data_uri(path: Path, mime: str) -> str:
+    """A file inlined as a data URI.
+
+    Streamlit Cloud answered every binary file under `app/static/` and
+    `media/` with a 500 from 14 Oct 2026 (JSON was fine), which left the
+    title icon and the Venn blank. Inlined, neither depends on a second
+    request the host can refuse.
+    """
+    return f"data:{mime};base64,{base64.b64encode(path.read_bytes()).decode()}"
+
+
 def render_title() -> None:
     """Tab 1's title with the app icon at its right, never taller than the
     title's text and never overlapping it.
@@ -898,8 +912,9 @@ def render_title() -> None:
   <h1><span class="prb-line">🏃 parkrun</span> <br class="prb-br"><span
     class="prb-line">&amp; brunch</span></h1>
   <span class="prb-icon" role="img" aria-label="p&amp;b app icon"><img
-    src="app/static/title-icon-light.jpg" alt=""><img class="prb-dark"
-    src="app/static/title-icon-dark.jpg" alt=""></span>
+    src="{_data_uri(_STATIC / "title-icon-light.jpg", "image/jpeg")}" alt=""><img
+    class="prb-dark"
+    src="{_data_uri(_STATIC / "title-icon-dark.jpg", "image/jpeg")}" alt=""></span>
 </div>""", unsafe_allow_html=True)
 
 
@@ -1274,7 +1289,17 @@ with tab1:
                 if text:
                     text.set_fontsize(13)
                     text.set_fontweight("bold")
-            st.pyplot(fig)
+            # Inlined for the reason `_data_uri` gives: `st.pyplot` serves a
+            # /media/ file, which Cloud refuses.
+            buf = io.BytesIO()
+            fig.savefig(buf, format="png", dpi=200, bbox_inches="tight")
+            plt.close(fig)
+            venn_png = base64.b64encode(buf.getvalue()).decode()
+            st.markdown(
+                f'<img src="data:image/png;base64,{venn_png}" '
+                'style="width:100%" alt="Venn diagram of shared occasions">',
+                unsafe_allow_html=True,
+            )
 
         with col_b:
             # Per-athlete "company" breakdown.
