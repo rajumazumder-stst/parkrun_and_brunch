@@ -19,6 +19,53 @@ over refreshes** (tab 4) and **age-grade progression** (dropped, not wanted).
 
 ---
 
+## Tests explainer (artifact)
+
+Requested 8 Oct 2026. Publish an artifact that explains every test the suite
+runs (251 cases across eight files), for someone who does not read pytest
+output: what each file guards, which tests encode a *decision* rather than
+mechanics (the ones `docs/DEV.md` § Tests already singles out), and which
+contracts are cross-module (one definition of the window, the label
+vocabulary, the cohort; no raw `st.plotly_chart`; the thousands comma).
+
+**Open questions**
+- **Audience.** Raju only, or something George and Duncan could read?
+- **Static or generated.** A hand-written page goes stale the day a test is
+  added. A `pytest --collect-only` pass could build it from the docstrings,
+  at the cost of the docstrings having to be good enough to read.
+
+---
+
+## dbt with DuckDB
+
+Requested 8 Oct 2026. Plan to use dbt (`dbt-duckdb`) for this project. Unscoped:
+nothing below is decided.
+
+What it could take over: the analytics views (`v_results_moded`, `v_overlap`,
+`v_head_to_head`, `v_saturday_targets`) are SQL strings inside
+`parkrun_pipeline.py`, rebuilt by `ensure_views()` on every connection. They
+are the natural models, and dbt tests could replace some of what the pytest
+suite checks against the committed snapshot.
+
+**Open questions**
+- **Scope.** Views only, or the loaded tables too? The tables (`results`,
+  `run_modes`, `current_targets`, `model_estimates`) hold state that cannot be
+  rebuilt from anything (`CLAUDE.md` § Data model), so they should stay
+  outside dbt's drop-and-recreate.
+- **Views are recreated on every connection, including the hosted app's
+  read-only one.** dbt materialises into a database, so the read-only
+  snapshot must be built by dbt in the refresh, not by the app. How that
+  interacts with `build_snapshot` needs working out.
+- **Legacy and dev-only views** (`v_head_to_head_legacy`) are built by
+  `ensure_legacy_views` for the dev DB only: keep outside dbt, or a dev target?
+- **One-implementation rules.** The 91-day window lives once in
+  `parkrun_core.py` and is formatted into the SQL. A dbt `var` would be a
+  second definition unless it is read from there.
+- **Deploy.** Streamlit Cloud installs `requirements.txt`; dbt is a pipeline
+  dependency, so it belongs in the pipeline section, like `scipy`.
+
+---
+
 ## Planner: default country for an unranked list
 
 Left over from the drive-times-everywhere work, which went live on 2 Oct
