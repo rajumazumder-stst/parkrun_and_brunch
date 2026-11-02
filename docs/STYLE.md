@@ -216,9 +216,14 @@ Rules:
 
 ## Colour and marks
 
-- Athletes are always drawn in `ATHLETE_COLORS`, in that fixed order. Any mark
-  that has one slot per runner uses that order, so a position means the same
-  runner everywhere. That includes the tab 5 lamps, left to right.
+- **Athletes appear in the order George, Raju, Duncan** — `ATHLETE_COLORS`
+  order — wherever they are listed, drawn or named: boxes, rows, columns,
+  legends, chart lines, pie slices, filter options, prose and names inside a
+  label ("George vs Raju vs Duncan"). The only exception is an order that a
+  **result decides** (place, wins, fastest time, shortest drive); such a list
+  leads with what decided it (§ Tables). A position then means the same runner
+  everywhere, including the tab 5 lamps, left to right. Never `sorted()` over
+  athlete names: alphabetical gives Duncan, George, Raju.
 - A per-runner "has / hasn't" mark is a **rounded square**, like a calendar
   cell. On the tab 5 map the squares are lamps in a dark traffic-light housing
   ("Row, lit"): lit in the runner's colour for yes, unlit for no. A place
