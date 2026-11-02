@@ -1,4 +1,4 @@
-"""parkrun & brunch — comparison app for George, Duncan and Raju.
+"""parkrun & brunch — comparison app for George, Raju and Duncan.
 
 Reads the `parkrun` schema (read-only) from the local DuckDB and presents:
   Tab 1  intro + participation calendar + overlap (Venn) + per-athlete company
@@ -68,6 +68,7 @@ from parkrun_ui import (  # shared with label_impact.py — see that module
     fmt_n,
     fmt_time,
     POPOVER_CLOSE_CSS,
+    class_order,
     closable_popover,
     keep_widget_state,
     show_chart,
@@ -622,14 +623,6 @@ TGT_BIG = "1.5rem"
 TGT_GAP = "0.75rem"   # space between the last target and the popover button
 
 
-def pb_order(pb: pd.DataFrame) -> list[str]:
-    """Athletes by all-time best, fastest first — the order of the PB boxes
-    and of the streaks heatmap. Pass the unfiltered frame, so switching the
-    runs filter never reshuffles the boxes or drops a runner."""
-    return list(pb[pb["scope"] == "All time"]
-                .sort_values("time_seconds")["athlete_name"])
-
-
 def render_personal_bests(pb: pd.DataFrame, order: list[str],
                           runs_filter: str = "all") -> None:
     """One bordered box per athlete: the three scopes side by side, then that
@@ -1131,10 +1124,6 @@ try:
     h2h = load_h2h(_ver)
     targets = load_targets(_ver)
     target_runs = load_target_window_runs(_ver)
-    # "all" spelt out: st.cache_data keys on the arguments as passed, so a
-    # defaulted call would cache the same frame twice beside tab 2's filter.
-    personal_bests = load_personal_bests(_ver, "all")
-    pb_runner_order = pb_order(personal_bests)
     meta = load_data_meta(_ver)
 except duckdb.IOException:
     st.error(
@@ -1143,7 +1132,7 @@ except duckdb.IOException:
     )
     st.stop()
 
-CLASS_OPTS = ["All"] + sorted(h2h["classification"].unique())
+CLASS_OPTS = ["All"] + class_order(h2h["classification"])
 # Tab 3 also offers each runner: every head-to-head they were ranked in.
 CLASS_OPTS_BY_RUNNER = (
     ["All"]
@@ -1181,10 +1170,10 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
 # =========================================================================== #
 with tab1:
     render_title()
-    if section("George, Duncan & Raju", "t1_intro"):
+    if section("George, Raju & Duncan", "t1_intro"):
         st.markdown(
             """
-    Every Saturday morning, three friends — **George**, **Duncan** and **Raju** —
+    Every Saturday morning, three friends — **George**, **Raju** and **Duncan** —
     lace up for a **parkrun**: a free, timed 5k. Some weeks they line up together;
     other weeks they are scattered across the country chasing new venues. The one
     constant? **Brunch afterwards.** ☕🥐
@@ -1264,16 +1253,18 @@ with tab1:
             "three of them together and nothing else."
         )
 
-        has = {"Raju": "has_raju", "Duncan": "has_duncan", "George": "has_george"}
-        r, d, g = (overlap[has["Raju"]], overlap[has["Duncan"]], overlap[has["George"]])
+        # venn3 places A top-left, B top-right, C at the bottom: George, Raju,
+        # Duncan, the display order (docs/STYLE.md).
+        has = {n: f"has_{n.lower()}" for n in ATHLETE_COLORS}   # v_overlap columns
+        g, r, d = (overlap[has[n]] for n in ATHLETE_COLORS)
         subsets = (
-            int((r & ~d & ~g).sum()),  # Raju only
-            int((~r & d & ~g).sum()),  # Duncan only
-            int((r & d & ~g).sum()),  # Raju & Duncan
-            int((~r & ~d & g).sum()),  # George only
-            int((r & ~d & g).sum()),  # Raju & George
-            int((~r & d & g).sum()),  # Duncan & George
-            int((r & d & g).sum()),  # all three
+            int((g & ~r & ~d).sum()),  # George only
+            int((~g & r & ~d).sum()),  # Raju only
+            int((g & r & ~d).sum()),  # George & Raju
+            int((~g & ~r & d).sum()),  # Duncan only
+            int((g & ~r & d).sum()),  # George & Duncan
+            int((~g & r & d).sum()),  # Raju & Duncan
+            int((g & r & d).sum()),  # all three
         )
 
         col_v, col_b = st.columns([1, 1])
@@ -1281,12 +1272,8 @@ with tab1:
             fig, ax = plt.subplots(figsize=(5, 5))
             v = venn3(
                 subsets=subsets,
-                set_labels=("Raju", "Duncan", "George"),
-                set_colors=(
-                    ATHLETE_COLORS["Raju"],
-                    ATHLETE_COLORS["Duncan"],
-                    ATHLETE_COLORS["George"],
-                ),
+                set_labels=tuple(ATHLETE_COLORS),
+                set_colors=tuple(ATHLETE_COLORS.values()),
                 alpha=0.55,
                 ax=ax,
             )
@@ -1358,7 +1345,7 @@ with tab1:
             "Runs", list(PB_FILTERS), format_func=lambda k: PB_FILTERS[k][0],
             key="t1_pb_runs", label_visibility="collapsed", required=True)
         render_personal_bests(load_personal_bests(_ver, pb_filter),
-                              pb_runner_order, pb_filter)
+                              list(ATHLETE_COLORS), pb_filter)
 
     st.divider()
     if section("Milestones", "t1_milestones"):
@@ -1427,14 +1414,8 @@ with tab2:
             # ONE BOX PER ATHLETE, holding their non-buggy target first and their
             # buggy target second. Two athletes now have two current forms each, and
             # a flat row of five tiles buried whose target belonged to whom.
-            # Athletes ordered by their primary (non-buggy) target, so the reading
-            # order does not jump around as labels change.
-            def _primary(name: str) -> float:
-                g = targets[targets["athlete_name"] == name]
-                nb = g[g["mode"] == "nonbuggy"] if "mode" in g else g
-                return float((nb if not nb.empty else g)["target_seconds"].min())
-
-            names = sorted(targets["athlete_name"].unique(), key=_primary)
+            # Athletes in display order (George, Raju, Duncan), never by target.
+            names = [n for n in ATHLETE_COLORS if n in set(targets["athlete_name"])]
             cols = st.columns(len(names))
             for col, name in zip(cols, names):
                 g = targets[targets["athlete_name"] == name]
@@ -1586,7 +1567,7 @@ with tab2:
             "every head-to-head — the classification and year/season choices "
             "above do not apply. A hatched cell is a runner against themselves."
         )
-        render_streak_heatmap(h2h, pb_runner_order)
+        render_streak_heatmap(h2h, list(ATHLETE_COLORS))
 
     # ----- cumulative 1st-place finishes over the selected period ----- #
     st.divider()
@@ -1607,7 +1588,7 @@ with tab2:
 
                 fig4 = go.Figure()
                 no_wins = []
-                for name in sorted(summ["athlete_name"].unique()):
+                for name in [n for n in ATHLETE_COLORS if n in set(summ["athlete_name"])]:
                     w = trend[trend["athlete_name"] == name].sort_values("run_date")
                     color = ATHLETE_COLORS.get(name, "#888888")
                     if w.empty:
@@ -1865,7 +1846,7 @@ with tab4:
                 plot_df, x="run_date", y="target_seconds", color="athlete_name",
                 color_discrete_map=ATHLETE_COLORS,
                 category_orders={
-                    "athlete_name": sorted(sat_f["athlete_name"].unique()),
+                    "athlete_name": list(ATHLETE_COLORS),
                     "mode": ["nonbuggy", "buggy"],
                 },
                 custom_data=(["target_fmt", "n_window", "mode"] if has_modes

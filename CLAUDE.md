@@ -713,8 +713,9 @@ A **head-to-head** is an occasion where ≥ 2 of the cohort ran. Placing is
 The change is scoped to **the target only**. Steps 3–5 are the same arithmetic
 they always were.
 
-Each row carries `classification` (e.g. `George vs Raju`, `Duncan vs George vs
-Raju`), `n_ranked`, `actual_seconds`, `target_seconds`, `n_window`, `pct_diff`,
+Each row carries `classification` (e.g. `George vs Raju`, `George vs Raju vs
+Duncan`: names in display order, `list_position` over `parkrun_core.ATHLETE_IDS`,
+not alphabetical since 2 Nov 2026), `n_ranked`, `actual_seconds`, `target_seconds`, `n_window`, `pct_diff`,
 `place_rank`, `is_buggy`, `target_basis`. The app shows a per-head-to-head table
 + a 1sts/2nds/3rds leaderboard.
 
@@ -1111,10 +1112,9 @@ runs · Regular · Buggy 🛒) narrows the three scopes for all three runners
 alike — under Buggy, Raju's slots read "no buggy runs".
 `load_personal_bests(version, runs_filter)` is one cached query per value, the
 value choosing a fixed `WHERE` fragment from `PB_FILTERS` (key → button label,
-clause). The box order never comes from the filtered frame: `pb_order()` reads
-the unfiltered `all` frame once (`pb_runner_order`), and the streaks heatmap
-uses the same order, so switching the filter never reshuffles the boxes or
-drops a runner. Under Buggy the
+clause). The boxes, like the streaks heatmap, are in the fixed display order
+(`ATHLETE_COLORS`: George, Raju, Duncan; by all-time best until 2 Nov 2026),
+so switching the filter never reshuffles the boxes or drops a runner. Under Buggy the
 times carry no 🛒, since the filter already says so. The latest run ignores
 the filter.
 
@@ -1138,7 +1138,7 @@ show a bare time — that is the mark being an exception, not a bug.
 The scope / time / date stack is the app's **stat slot** (`docs/STYLE.md`); tab
 6's reliability tiles use the same helpers.
 
-Layout: one bordered box per athlete (ordered by all-time best), the three
+Layout: one bordered box per athlete (George, Raju, Duncan), the three
 scopes side by side inside it — **on a phone too**. Streamlit stacks every
 column below its own 640px breakpoint, which turned the three scopes into a
 vertical list; the scope row is therefore wrapped in
@@ -1175,8 +1175,8 @@ that a label is only shown for an athlete who actually uses a buggy — Raju's U
 is unchanged from before the feature, as is everyone's on a database with no
 labels.
 
-- **Current-form targets** (Tab 2) — one bordered box per athlete, ordered by
-  their regular target, showing **`21:36 / 🛒 24:37`** on one line. An athlete
+- **Current-form targets** (Tab 2) — one bordered box per athlete, George, Raju,
+  Duncan, showing **`21:36 / 🛒 24:37`** on one line. An athlete
   with no buggy runs shows a single time and no separator: a slash would imply a
   second target exists.
 - **Runs in window** — *one* popover per athlete covering the whole 91-day span,

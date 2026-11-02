@@ -29,7 +29,10 @@ SCHEMA = "parkrun"
 
 # --- the cohort -------------------------------------------------------------
 # Fixed. The mapping drives the per-athlete columns in v_overlap.
-ATHLETE_NAMES = {5672: "raju", 5462426: "duncan", 3087156: "george"}
+# In display order — George, Raju, Duncan (docs/STYLE.md): it also orders the
+# names inside a head-to-head classification ("George vs Raju vs Duncan").
+# parkrun_ui.ATHLETE_COLORS must list the same names in the same order.
+ATHLETE_NAMES = {3087156: "george", 5672: "raju", 5462426: "duncan"}
 ATHLETE_IDS = list(ATHLETE_NAMES)
 
 # Athletes who ever push a buggy. Raju never does, so he has no buggy form to

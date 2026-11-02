@@ -222,6 +222,15 @@ UK_TZ = ZoneInfo("Europe/London")
 # --------------------------------------------------------------------------- #
 # Filters
 # --------------------------------------------------------------------------- #
+def class_order(classes) -> list[str]:
+    """Head-to-head classifications in display order: two-ways before the
+    three-way, each by the athletes' places in ATHLETE_COLORS (George vs Raju,
+    George vs Duncan, Raju vs Duncan, then all three), never alphabetical."""
+    pos = {n: i for i, n in enumerate(ATHLETE_COLORS)}
+    return sorted(set(classes), key=lambda c: (
+        len(c.split(" vs ")), sorted(pos.get(n, 99) for n in c.split(" vs "))))
+
+
 def years_desc(values) -> list:
     """The distinct years in `values`, newest first — the one order every year
     filter in the app offers (docs/STYLE.md § Filters). The most recent year is
