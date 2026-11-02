@@ -134,12 +134,3 @@ about times (e.g. stopwatch bingo) or counts (tourist totals) do not.
 
 Each one reuses the same parts: a predicate on the event, a "still needed by"
 shortcut and a progress line.
-
----
-
-## Small fixes
-
-- The PB scope label "Last 12 months" wraps on a mid-width desktop, which
-  drops its time below "All time"'s. `stat_label(..., lines=2)` fixes that
-  (tab 6 uses it). It was not applied to the PB block, to keep that change
-  free of visual changes.

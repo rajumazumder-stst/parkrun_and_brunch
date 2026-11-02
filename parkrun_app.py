@@ -2,9 +2,9 @@
 
 Reads the `parkrun` schema (read-only) from the local DuckDB and presents:
   Tab 1  intro + participation calendar + overlap (Venn) + per-athlete company
-         + milestone matrix (milestone_matrix.py)
+         + personal bests + milestone matrix (milestone_matrix.py)
          + unique-parkruns matrix (venue_matrix.py)
-  Tab 2  personal bests + head-to-head summary (targets, latest result,
+  Tab 2  head-to-head summary (targets, latest result,
          record, win/loss streaks, cumulative 1sts)
   Tab 3  head-to-head detail (drill into a single contest: scoreline one-liner
          + victory lollipop chart + results table)
@@ -679,8 +679,8 @@ def render_personal_bests(pb: pd.DataFrame, order: list[str],
 
     # Label / value / note are the shared stat-slot helpers (parkrun_ui):
     # the scope is the label, the time the value, the date the note.
-    def _small(text: str, muted: bool = True) -> str:
-        return stat_note(text) if muted else stat_label(text)
+    def _small(text: str, muted: bool = True, lines: int = 1) -> str:
+        return stat_note(text) if muted else stat_label(text, lines=lines)
 
     _big = stat_value
 
@@ -733,7 +733,10 @@ def render_personal_bests(pb: pd.DataFrame, order: list[str],
             # break the alignment the whole block is built on.
             value, venue = _timed(r, glyph=rf != "buggy"), r["short_name"]
             date = pd.Timestamp(r["run_date"]).strftime("%d %b %Y")
-        for html in (_small(scope, muted=False), _big(value), _venue(venue),
+        # Two lines for the scopes: "Last 12 months" wraps on a mid-width
+        # desktop, and a wrapped label would drop its time below its neighbours'.
+        label = _small(scope, muted=False, lines=1 if scope == PB_LATEST else 2)
+        for html in (label, _big(value), _venue(venue),
                      _small(date)):
             st.markdown(html, unsafe_allow_html=True)
 
@@ -1335,6 +1338,27 @@ with tab1:
             show_chart(fig2)
 
     st.divider()
+    keep_widget_state(("t1_pb_runs",))
+    if section("Personal bests", "t1_pbs"):
+        st.caption(
+            "Each runner's fastest parkrun over three periods — all time, "
+            "the last 12 months and the last 3 months, the two rolling "
+            "windows counted back from the latest refresh and including that "
+            "day. The filter narrows those three to regular or buggy runs, for "
+            "all three runners alike. Below the line is their most recent run, "
+            "whatever the time and whatever the filter."
+        )
+        # Always exactly one choice: seeded to "all", and `required` stops a
+        # click on the lit button from clearing it.
+        if st.session_state.get("t1_pb_runs") not in PB_FILTERS:
+            st.session_state["t1_pb_runs"] = "all"
+        pb_filter = st.segmented_control(
+            "Runs", list(PB_FILTERS), format_func=lambda k: PB_FILTERS[k][0],
+            key="t1_pb_runs", label_visibility="collapsed", required=True)
+        render_personal_bests(load_personal_bests(_ver, pb_filter),
+                              pb_runner_order, pb_filter)
+
+    st.divider()
     if section("Milestones", "t1_milestones"):
         render_milestone_matrix(_ver)
 
@@ -1347,35 +1371,14 @@ with tab1:
 # =========================================================================== #
 with tab2:
     st.header("⚔️ Head-to-head")
-    keep_widget_state(("t2_pb_runs",))
 
-    if section("Personal bests", "t2_pbs"):
-        st.caption(
-            "Each runner's fastest parkrun over three periods — all time, "
-            "the last 12 months and the last 3 months, the two rolling "
-            "windows counted back from the latest refresh and including that "
-            "day. The filter narrows those three to regular or buggy runs, for "
-            "all three runners alike. Below the line is their most recent run, "
-            "whatever the time and whatever the filter."
-        )
-        # Always exactly one choice: seeded to "all", and `required` stops a
-        # click on the lit button from clearing it.
-        if st.session_state.get("t2_pb_runs") not in PB_FILTERS:
-            st.session_state["t2_pb_runs"] = "all"
-        pb_filter = st.segmented_control(
-            "Runs", list(PB_FILTERS), format_func=lambda k: PB_FILTERS[k][0],
-            key="t2_pb_runs", label_visibility="collapsed", required=True)
-        render_personal_bests(load_personal_bests(_ver, pb_filter),
-                              pb_runner_order, pb_filter)
-
-    st.divider()
     if section("How a head-to-head works", "t2_how", default=False):
         st.markdown(
             """
     A **head-to-head** is any occasion where two or more of them ran the same
     parkrun on the same day.
 
-    As the **personal bests** above show, they run to very different clocks — their
+    As the **personal bests** on the first tab show, they run to very different clocks — their
     best times sit minutes apart. Ranking a shared parkrun by finish time would
     therefore hand the same person the win every week and say nothing about how any
     of them actually ran that day. That is exactly why the head-to-head exists: we

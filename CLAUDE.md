@@ -864,7 +864,7 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 |---|---|
 | `parkrun_pipeline.py` | Loader: `bootstrap` / `refresh` / `status` / `snapshot` / `seed` / `motherduck` (Path A/B, DuckDB) + analytics views/targets + deploy-snapshot build + parkrun-only MotherDuck upload (`build_motherduck`). Also owns scraping (`scrape_athlete`) and time parsing (`time_to_seconds`). |
 | `app.py` | **Entrypoint only.** `st.set_page_config` (one call is legal per run) + a one-page `st.navigation([...], position="hidden")` mapping `/` → `parkrun_app.py`. It routed `/buggy-handicap` → `handicap_page.py` too until 8 Oct 2026; kept as `st.navigation` so a second page is one `st.Page` away with no sidebar nav list |
-| `parkrun_app.py` | Streamlit front end (6 tabs: overlap · personal bests + head-to-head summary · head-to-head detail · form/target-time · where they meet (head-to-head map + planner, layout in `where_next.py`) · what the model guessed) reading the `parkrun` schema read-only; DB path resolved via `PARKRUN_DB` env/secret (incl. `md:` MotherDuck), else the bundled snapshot. Auto-reloads on new data via the shared `data_version()` cache key (**`parkrun_ui.py`** — see that row); 🔄 Reload button clears the cache manually. A page script: no `set_page_config` of its own |
+| `parkrun_app.py` | Streamlit front end (6 tabs: overlap + personal bests · head-to-head summary · head-to-head detail · form/target-time · where they meet (head-to-head map + planner, layout in `where_next.py`) · what the model guessed) reading the `parkrun` schema read-only; DB path resolved via `PARKRUN_DB` env/secret (incl. `md:` MotherDuck), else the bundled snapshot. Auto-reloads on new data via the shared `data_version()` cache key (**`parkrun_ui.py`** — see that row); 🔄 Reload button clears the cache manually. A page script: no `set_page_config` of its own |
 | `where_next.py` | Tab 5, "Where they meet": the view toggle, the head-to-head view and the planner (overlapping layers in a tree, `LayerTree` over folium's `TreeLayerControl`, drawn browser-side by `JsMarkers`; `done_marker` / `open_marker` with the recommendation number; the in-view counter; `range_filter`, a two-ended slider kept in step with two number boxes, one line on a phone via `RANGE_ROW_CSS`; the opening defaults and `planner_cleared`; `results_table_html`, the sortable HTML results table) and its pure `plan_candidates`. Also home of `_pie_svg` / `h2h_venues`, the head-to-head pies, which moved here from `parkrun_app.py` when this tab took over from the head-to-head-only map |
 | `parkrun_travel.py` | Pipeline-side only (imports `requests`): routes each home to every road-reachable parkrun (`parkrun_core.routable`) via OpenRouteService (OSRM was tried and dropped), incrementally, into `travel_times`. Homes from `~/.config/parkrun/homes.csv`, ORS key from `ORS_API_KEY` or `~/.config/parkrun/ors_key` |
 | `docs/STYLE.md` | **The style guide** — stat slots (label above value above note, the shared `stat_*` helpers), the chart zoom lock, the filter conventions. Read it before adding a number, a chart or a filter |
@@ -965,13 +965,13 @@ hosted `/buggy-handicap` page that showed the same two tabs was removed on
 - **Tab 1** the title with the app icon at its right (`render_title`; never
   taller than the title text — one line, or two on a phone) + the
   **participation calendar** ("When do they run?" — see below) +
-  participation overlap / Venn (`v_overlap`) + per-athlete company + the
-  **milestone matrix** (`milestone_matrix.py`; buggy runs as junior rows) +
+  participation overlap / Venn (`v_overlap`) + per-athlete company +
+  **personal bests + latest run** (see below; moved from tab 2 on 2 Nov
+  2026) + the **milestone matrix** (`milestone_matrix.py`; buggy runs as junior rows) +
   the **unique-parkruns matrix** (`venue_matrix.py`; 1st then every 50th
   different parkrun, neutral greys).
 - **Tab 2** form-adjusted head-to-head summary (`v_head_to_head`,
-  `current_targets`): **personal bests + latest run** (top of the tab — see
-  below), the
+  `current_targets`): the
   head-to-head explainer, current-form targets (see **Buggy mode in the UI**),
   latest head-to-head, record leaderboard (3rd place shown only for the 3-way /
   All, each placing annotated with how many were run with a buggy), the
@@ -1094,7 +1094,7 @@ width (Streamlit stacks columns below 640px; a media query scoped to the
 one. Tabs 4 and 5 have no toggle: each is a single block, so collapsing it is
 what switching tabs already does.
 
-**Personal bests** (Tab 2, `load_personal_bests()` + `render_personal_bests()`
+**Personal bests** (Tab 1, `load_personal_bests()` + `render_personal_bests()`
 in `parkrun_app.py` — no view; the SQL lives in the loader). Each athlete's **fastest**
 run in three scopes — **All time**, **Last 12 months**, **Last 3 months** — with
 the parkrun and the date. Both rolling windows are calendar intervals anchored
@@ -1103,7 +1103,7 @@ today counts; ties on time break to the earliest date. Note the 3-month window
 is deliberately *not* the head-to-head's 91-day form window — these answer
 different questions (best single run vs. baseline for a contest).
 
-A **runs filter** above the boxes (`t2_pb_runs`, a segmented control: All
+A **runs filter** above the boxes (`t1_pb_runs`, a segmented control: All
 runs · Regular · Buggy 🛒) narrows the three scopes for all three runners
 alike — under Buggy, Raju's slots read "no buggy runs".
 `load_personal_bests(version, runs_filter)` is one cached query per value, the
@@ -1158,9 +1158,12 @@ keeping the full name in the `title` tooltip — so times, venues and dates sit 
 the same levels across all three boxes and the boxes match in height. Scope
 label and venue/date share one type size (`STAT_SMALL`); the time is larger
 (`STAT_BIG`) with tabular numerals, both from the shared stat-slot helpers in
-`parkrun_ui.py`. The block leads the tab because it motivates
-the head-to-head: their bests sit minutes apart, so ranking a shared parkrun by
-finish time would be meaningless — the explainer says so directly.
+`parkrun_ui.py`. The three scope labels reserve two lines (`stat_label(...,
+lines=2)`), since "Last 12 months" wraps on a mid-width desktop and would
+otherwise drop its time below its neighbours'. The block sat at the top of
+tab 2 until 2 Nov 2026, as the motivation for the head-to-head (their bests
+sit minutes apart, so ranking a shared parkrun by finish time would be
+meaningless); tab 2's explainer still makes that point, pointing to tab 1.
 
 ### Buggy mode in the UI
 

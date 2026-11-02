@@ -313,7 +313,7 @@ STAT_PHONE_SMALL = "0.66rem"  # label and note at that width
 def stat_label(text: str, lines: int = 1) -> str:
     """`lines` > 1 reserves that many lines and sits the text on the bottom
     one, so a label that wraps on a narrow screen does not push its value below
-    its neighbours'. The PB scopes use 1: they are fixed words that fit."""
+    its neighbours'. The PB scopes use 2: "Last 12 months" wraps on a mid-width desktop."""
     box = ""
     if lines > 1:
         box = (f"height:{lines * STAT_LINE:.2f}em;display:flex;"
