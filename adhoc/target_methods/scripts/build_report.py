@@ -76,6 +76,11 @@ EXPLAIN = {
           "of slower runs does bring it back over a couple of months. It still "
           "needs a run of the same kind in the last 91 days, as now.",
 }
+def pct2(v) -> str:
+    """A signed % to 2 dp for hover text; blank where there is no value."""
+    return "" if pd.isna(v) else f"{v:+.2f}%"
+
+
 PCT = ".2~f"      # every % on an axis: at most 2 dp, trailing zeros dropped
 VERDICTS = ["Winner changed", "Places changed", "Roster changed", "Gained",
             "Lost", "Margin only", "Unchanged"]
@@ -327,10 +332,11 @@ def scatter_fig(tg: dict) -> go.Figure:
                             symbol=symbol[name] + ("-open" if mode == "buggy" else "")),
                 customdata=np.stack([x["who"], x["short_name"],
                                      x["target_seconds"].map(fmt_time),
-                                     x["target_seconds_n"].map(fmt_time)], axis=1),
+                                     x["target_seconds_n"].map(fmt_time),
+                                     x["chg"].map(lambda v: f"{v:.2f}%")], axis=1),
                 hovertemplate="%{x|%d %b %Y} · %{customdata[1]}<br><b>%{customdata[0]}</b><br>"
                               "current %{customdata[2]} → %{customdata[3]}<br>"
-                              "%{y:.2f}% change<extra></extra>"))
+                              "%{customdata[4]} change<extra></extra>"))
     fig.update_layout(height=460, margin=dict(t=20, b=40, l=50, r=10),
                       yaxis=dict(title="|target change| vs current (%)", ticksuffix="%",
                                  tickformat=PCT),
@@ -385,10 +391,12 @@ def spread_fig(sp: pd.DataFrame) -> go.Figure:
         fig.add_trace(go.Scatter(
             x=d["sat"], y=d["med"], mode="lines", line=dict(color=c, width=1, dash="dot"),
             name="median run", showlegend=i == 1, legendgroup="median",
-            customdata=d[["min", "q1", "q3", "max"]].to_numpy(),
-            hovertemplate="%{x|%d %b %Y}<br>best %{customdata[0]:+.2f}% · Q1 %{customdata[1]:+.2f}%"
-                          "<br>median %{y:+.2f}% · Q3 %{customdata[2]:+.2f}%"
-                          "<br>worst %{customdata[3]:+.2f}%<extra></extra>"), row=i, col=1)
+            # Labels formatted here, not by plotly: d3 formats were not applied
+            # to these values in the browser and showed 13 decimal places.
+            customdata=d[["min", "q1", "med", "q3", "max"]].map(pct2).to_numpy(),
+            hovertemplate="%{x|%d %b %Y}<br>best %{customdata[0]} · Q1 %{customdata[1]}"
+                          "<br>median %{customdata[2]} · Q3 %{customdata[3]}"
+                          "<br>worst %{customdata[4]}<extra></extra>"), row=i, col=1)
         fig.add_hline(y=0, line=dict(color="#555", width=1), row=i, col=1)
         # Clipped: one walked run reads +150% and would flatten every band.
         fig.update_yaxes(ticksuffix="%", tickformat=PCT, range=[-20, 40], row=i, col=1)

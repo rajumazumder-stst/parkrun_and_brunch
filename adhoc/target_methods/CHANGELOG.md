@@ -1,6 +1,9 @@
 # Changelog
 
 ## 2026-11-02 (later)
+- Hover percentages on the spread and scatter charts are formatted in Python
+  (`pct2`). Plotly's d3 format strings were not applied to those values in the
+  browser, which showed up to 13 decimal places.
 - **How far each target moves** gets the same runner / mode / method
   checkboxes: one trace per combination; colour = method, shape = runner,
   open shape = buggy. One `filterable()` drives both charts' filters.
