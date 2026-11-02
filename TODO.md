@@ -41,6 +41,11 @@ vocabulary, the cohort; no raw `st.plotly_chart`; the thousands comma).
 Requested 8 Oct 2026. Plan to use dbt (`dbt-duckdb`) for this project. Unscoped:
 nothing below is decided.
 
+**Learning materials: `docs/learn-dbt/`** (2 Nov 2026), twelve lessons for
+building it by hand. Each open question below gets a proposed answer there:
+scope in lesson 0, the window's one definition in 5, the read-only snapshot
+in 9, legacy views and deploy in 11. The decisions are still yours.
+
 What it could take over: the analytics views (`v_results_moded`, `v_overlap`,
 `v_head_to_head`, `v_saturday_targets`) are SQL strings inside
 `parkrun_pipeline.py`, rebuilt by `ensure_views()` on every connection. They

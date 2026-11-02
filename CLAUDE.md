@@ -382,9 +382,11 @@ name** (verified), which is why a hand-maintained `country_lookup` exists.
    fatal, or route those names to the unmatched report — never resolve a name
    that maps to more than one id; (b) `ORDER BY event_id` so the map is at least
    deterministic; (c) a refresh-time check for one athlete holding two rows with
-   the same `run_number`, which is unambiguous evidence of a re-keyed duplicate
-   (two rows for one `(athlete_id, run_date)` is *legal* — decision 7 allows
-   same-day doubles at different events — so `run_number` is the tell).
+   the same `run_date` **and** `run_number`, which is unambiguous evidence of a
+   re-keyed duplicate (two rows for one `(athlete_id, run_date)` is *legal* —
+   decision 7 allows same-day doubles at different events — so `run_number` is
+   the tell; but `run_number` is the *event's* run number, so on its own it
+   repeats across dates: 119 such pairs in the data on 2 Nov 2026).
 4. **Country is stored as `country_code` (FK) on `events` only**, not on results.
    Names come from `country_lookup`.
 5. **Soft delete, never hard delete.** Events dropping out of `events.json` are
@@ -907,6 +909,7 @@ regenerated snapshot to redeploy (Streamlit Cloud auto-redeploys on push).
 | `docs/DEV.md` | Local dev workflow (incl. `PARKRUN_LABEL_AUDIT=1` for the label-impact app). Also **§ Deferred refactors** — streamlining that has been identified and costed but not done, each with value/risk/size, so the analysis is not redone every time the code looks tidyable. **Read it before starting a cleanup**; two items in it were considered and deliberately rejected. Also **§ Open decisions** — unsettled data-safety questions (the pipeline's default write target, whether the dev DB still needs a `parkrun` schema, a shrink gate on the committed artefacts), each with the options and what they cost |
 | `docs/DATA.md` | The buggy labels: what each `source` means, how the training set grows, how to correct a label by hand |
 | `docs/MODEL.md` | The estimator as built: the four features and why each survived, the fitted coefficients, every constant, class balancing and recency, the walk-forward numbers, and the features that were removed on evidence. **The fitted numbers move every refresh** — the reasoning is what is durable |
+| `docs/learn-dbt/` | Twelve lessons for moving the derived layer (the `v_*` views) to dbt-duckdb by hand, each tied to this repo's SQL, with parity checks and folded solutions. Learning material only: no `dbt/` project exists yet (`TODO.md` § dbt with DuckDB) |
 | `docs/DEPLOY.md` | Deploy/ops: local source-of-truth DB + snapshot delivery, scheduled refresh, rebuilding/seeding, retired MotherDuck path (secret flip, tokens, re-seed) |
 | `TODO.md` | The to-do list: unscoped visualisation ideas plus concrete requests, each with its open questions. An item moves to **Current status** when it ships |
 | `requirements.txt` | Pinned deps: the web app, then the pipeline (requests, bs4, lxml, html5lib, and scipy for the estimator). One file, so Streamlit Cloud installs the pipeline's too |
