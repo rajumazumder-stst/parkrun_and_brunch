@@ -308,23 +308,33 @@ def scatter_fig(tg: dict) -> go.Figure:
     base = tg["M0"][tg["M0"]["n_window"] >= 1]
     fig = go.Figure()
     colors = {"M1": "#e7298a", "M2": "#66a61e", "M3": "#1f78b4"}
+    symbol = {"George": "circle", "Raju": "square", "Duncan": "diamond"}
     for m in ("M1", "M2", "M3"):
-        x = base.merge(tg[m][tg[m]["n_window"] >= 1], on=k, suffixes=("", "_n"))
-        x["chg"] = (x["target_seconds_n"] - x["target_seconds"]).abs() / x["target_seconds"] * 100
-        x["who"] = x["athlete_name"] + np.where(x["is_buggy"], " 🛒", "")
-        fig.add_trace(go.Scattergl(
-            x=x["run_date"], y=x["chg"], mode="markers", name=METHODS[m],
-            marker=dict(size=6, color=colors[m], opacity=0.6),
-            customdata=np.stack([x["who"], x["short_name"],
-                                 x["target_seconds"].map(fmt_time),
-                                 x["target_seconds_n"].map(fmt_time)], axis=1),
-            hovertemplate="%{x|%d %b %Y} · %{customdata[1]}<br><b>%{customdata[0]}</b><br>"
-                          "current %{customdata[2]} → %{customdata[3]}<br>"
-                          "%{y:.2f}% change<extra></extra>"))
+        xm = base.merge(tg[m][tg[m]["n_window"] >= 1], on=k, suffixes=("", "_n"))
+        xm["chg"] = (xm["target_seconds_n"] - xm["target_seconds"]).abs() / xm["target_seconds"] * 100
+        xm["who"] = xm["athlete_name"] + np.where(xm["is_buggy"], " 🛒", "")
+        # One trace per runner × mode × method, so the page's checkboxes can
+        # filter on all three (meta). Colour = method, shape = runner, open = buggy.
+        for name, mode in FACETS:
+            x = xm[(xm["athlete_name"] == name) & (xm["mode"] == mode)]
+            if x.empty:
+                continue
+            fig.add_trace(go.Scattergl(
+                x=x["run_date"], y=x["chg"], mode="markers",
+                name=f"{name}{' 🛒' if mode == 'buggy' else ''} · {m}",
+                meta={"ath": name, "mode": mode, "meth": m},
+                marker=dict(size=6, color=colors[m], opacity=0.6,
+                            symbol=symbol[name] + ("-open" if mode == "buggy" else "")),
+                customdata=np.stack([x["who"], x["short_name"],
+                                     x["target_seconds"].map(fmt_time),
+                                     x["target_seconds_n"].map(fmt_time)], axis=1),
+                hovertemplate="%{x|%d %b %Y} · %{customdata[1]}<br><b>%{customdata[0]}</b><br>"
+                              "current %{customdata[2]} → %{customdata[3]}<br>"
+                              "%{y:.2f}% change<extra></extra>"))
     fig.update_layout(height=460, margin=dict(t=20, b=40, l=50, r=10),
                       yaxis=dict(title="|target change| vs current (%)", ticksuffix="%",
                                  tickformat=PCT),
-                      legend=dict(orientation="h", y=1.08))
+                      legend=dict(font=dict(size=11)))
     return fig
 
 
@@ -499,7 +509,13 @@ Counts of head-to-heads that change against the current method.</p>
 <div class="cols" id="cols"></div>
 <h2>How far each target moves</h2>
 <p class="muted">One point per runner per head-to-head: the size of the change from the current target,
-as a % of it.</p><div id="scatter"></div>
+as a % of it. Colour is the method, shape the runner (● George, ■ Raju, ◆ Duncan), and an open shape a
+buggy run. Tick boxes to choose points.</p>
+<div class="controls" id="scatterctl">
+ <fieldset><legend>Runner</legend>{boxes("ath", {n: n for n in ATHLETE_COLORS})}</fieldset>
+ <fieldset><legend>Mode</legend>{boxes("mode", {"nonbuggy": "Regular", "buggy": "Buggy 🛒"})}</fieldset>
+ <fieldset><legend>Method</legend>{boxes("meth", {m: m for m in METHODS if m != "M0"})}</fieldset>
+</div><div id="scatter"></div>
 <h2>Target time over time</h2>
 <p class="muted">Each method's target on every Saturday from the first head-to-head on, per runner and kind of
 run (no bridge, as on the app's Form tab). Colour is the runner, line style the method, and the 🛒 lines are
@@ -538,13 +554,15 @@ function show(){{const c=document.getElementById('cols');c.innerHTML='';const p=
 ['changed','cls','yr'].forEach(i=>document.getElementById(i).onchange=fill);sel.onchange=show;
 document.getElementById('prev').onclick=()=>{{if(sel.selectedIndex>0){{sel.selectedIndex--;show()}}}};
 document.getElementById('next').onclick=()=>{{if(sel.selectedIndex<sel.options.length-1){{sel.selectedIndex++;show()}}}};
-fill();draw(document.getElementById('scatter'),D.scatter,{{displayModeBar:true}});
+fill();
+function filterable(ctl,el,fig){{draw(el,fig,{{displayModeBar:true}});
+ const vis=()=>{{const on=k=>[...document.querySelectorAll('#'+ctl+' input[data-k="'+k+'"]:checked')].map(i=>i.value);
+  const a=on('ath'),md=on('mode'),me=on('meth');
+  Plotly.restyle(el,{{visible:fig.data.map(t=>a.includes(t.meta.ath)&&md.includes(t.meta.mode)&&me.includes(t.meta.meth))}})}};
+ document.querySelectorAll('#'+ctl+' input').forEach(i=>i.onchange=vis);vis()}}
+filterable('scatterctl',document.getElementById('scatter'),structuredClone(D.scatter));
 const spm=document.getElementById('spm');M.forEach(m=>opt(spm,m,D.methods[m]));
-const tr=structuredClone(D.trend),tel=document.getElementById('trend');draw(tel,tr,{{displayModeBar:true}});
-function trendVis(){{const on=k=>[...document.querySelectorAll('#trendctl input[data-k="'+k+'"]:checked')].map(i=>i.value);
- const a=on('ath'),md=on('mode'),me=on('meth');
- Plotly.restyle(tel,{{visible:tr.data.map(t=>a.includes(t.meta.ath)&&md.includes(t.meta.mode)&&me.includes(t.meta.meth))}});}}
-document.querySelectorAll('#trendctl input').forEach(i=>i.onchange=trendVis);trendVis();
+filterable('trendctl',document.getElementById('trend'),structuredClone(D.trend));
 spm.onchange=()=>draw(document.getElementById('spread'),structuredClone(D.spreads[spm.value]),{{displayModeBar:true}});spm.onchange();
 </script></body></html>"""
 

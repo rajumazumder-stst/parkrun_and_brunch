@@ -1,6 +1,9 @@
 # Changelog
 
 ## 2026-11-02 (later)
+- **How far each target moves** gets the same runner / mode / method
+  checkboxes: one trace per combination; colour = method, shape = runner,
+  open shape = buggy. One `filterable()` drives both charts' filters.
 - New section **Target time over time**: every method's target on each
   Saturday, per runner and mode (no bridge, as on the app's Form tab), with
   checkboxes for runner, mode and method. Colour is the runner, line style the
