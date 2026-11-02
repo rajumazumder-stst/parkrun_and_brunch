@@ -76,6 +76,7 @@ EXPLAIN = {
           "of slower runs does bring it back over a couple of months. It still "
           "needs a run of the same kind in the last 91 days, as now.",
 }
+PCT = ".2~f"      # every % on an axis: at most 2 dp, trailing zeros dropped
 VERDICTS = ["Winner changed", "Places changed", "Roster changed", "Gained",
             "Lost", "Margin only", "Unchanged"]
 
@@ -297,7 +298,7 @@ def occasion_panels(occ: dict, key) -> dict:
     out = {}
     for m, g in present.items():
         f = _victory_fig(g)
-        f.update_xaxes(range=[hi + pad, lo - pad])
+        f.update_xaxes(range=[hi + pad, lo - pad], tickformat=PCT)
         out[m] = {"head": bold(_h2h_headline(g)), "fig": fig_json(f), "table": table_html(g)}
     return out
 
@@ -321,7 +322,8 @@ def scatter_fig(tg: dict) -> go.Figure:
                           "current %{customdata[2]} → %{customdata[3]}<br>"
                           "%{y:.2f}% change<extra></extra>"))
     fig.update_layout(height=460, margin=dict(t=20, b=40, l=50, r=10),
-                      yaxis=dict(title="|target change| vs current (%)", ticksuffix="%"),
+                      yaxis=dict(title="|target change| vs current (%)", ticksuffix="%",
+                                 tickformat=PCT),
                       legend=dict(orientation="h", y=1.08))
     return fig
 
@@ -346,12 +348,13 @@ def spread_frame(runs: pd.DataFrame, series: dict, method: str, start) -> pd.Dat
             d = np.datetime64(sat.date(), "D")
             t, n = rule(s, d)
             if n == 0:
-                rows.append((name, mode, sat, *[np.nan] * 5))
+                rows.append((name, mode, sat, *[np.nan] * 6))
                 continue
             w = m2_runs(s, d) if method == "M2" else s["times"][_window(s, d, TARGET_WINDOW_DAYS)]
             p = (w - t) / t * 100
-            rows.append((name, mode, sat, p.min(), *np.percentile(p, [25, 50, 75]), p.max()))
-    return pd.DataFrame(rows, columns=["athlete", "mode", "sat", "min", "q1", "med", "q3", "max"])
+            rows.append((name, mode, sat, p.min(), *np.percentile(p, [25, 50, 75]), p.max(), t))
+    return pd.DataFrame(rows, columns=["athlete", "mode", "sat", "min", "q1", "med", "q3", "max",
+                                       "target"])
 
 
 def spread_fig(sp: pd.DataFrame) -> go.Figure:
@@ -373,12 +376,12 @@ def spread_fig(sp: pd.DataFrame) -> go.Figure:
             x=d["sat"], y=d["med"], mode="lines", line=dict(color=c, width=1, dash="dot"),
             name="median run", showlegend=i == 1, legendgroup="median",
             customdata=d[["min", "q1", "q3", "max"]].to_numpy(),
-            hovertemplate="%{x|%d %b %Y}<br>best %{customdata[0]:+.1f}% · Q1 %{customdata[1]:+.1f}%"
-                          "<br>median %{y:+.1f}% · Q3 %{customdata[2]:+.1f}%"
-                          "<br>worst %{customdata[3]:+.1f}%<extra></extra>"), row=i, col=1)
+            hovertemplate="%{x|%d %b %Y}<br>best %{customdata[0]:+.2f}% · Q1 %{customdata[1]:+.2f}%"
+                          "<br>median %{y:+.2f}% · Q3 %{customdata[2]:+.2f}%"
+                          "<br>worst %{customdata[3]:+.2f}%<extra></extra>"), row=i, col=1)
         fig.add_hline(y=0, line=dict(color="#555", width=1), row=i, col=1)
         # Clipped: one walked run reads +150% and would flatten every band.
-        fig.update_yaxes(ticksuffix="%", range=[-20, 40], row=i, col=1)
+        fig.update_yaxes(ticksuffix="%", tickformat=PCT, range=[-20, 40], row=i, col=1)
     fig.update_layout(height=230 * len(FACETS), margin=dict(t=40, b=30, l=50, r=10),
                       legend=dict(orientation="h", y=1.02), hovermode="x")
     return fig
@@ -409,12 +412,48 @@ def summary_tables(occ: dict, vs: dict, grid: dict):
     return summ, g
 
 
-def page(summ, grid, occ_index, panels, scatter, spreads) -> str:
+def boxes(key: str, opts: dict) -> str:
+    return "".join(f'<label><input type="checkbox" data-k="{key}" value="{html.escape(str(v))}" '
+                   f'checked> {html.escape(str(t))}</label>' for v, t in opts.items())
+
+
+DASH = {"M0": "solid", "M1": "dot", "M2": "dash", "M3": "dashdot"}
+
+
+def trend_fig(frames: dict) -> go.Figure:
+    """One line per athlete × mode × method: the target on every Saturday.
+    meta carries the three keys the page's checkboxes filter on."""
+    fig = go.Figure()
+    allt = pd.concat(f["target"] for f in frames.values()).dropna()
+    for name, mode in FACETS:
+        for m, f in frames.items():
+            d = f[(f["athlete"] == name) & (f["mode"] == mode)]
+            if d["target"].notna().sum() == 0:
+                continue
+            label = f"{name}{' 🛒' if mode == 'buggy' else ''} · {m}"
+            fig.add_trace(go.Scatter(
+                x=d["sat"], y=d["target"], mode="lines", name=label,
+                meta={"ath": name, "mode": mode, "meth": m},
+                line=dict(color=ATHLETE_COLORS[name], dash=DASH[m],
+                          width=2 if mode == "nonbuggy" else 1.5),
+                opacity=1 if mode == "nonbuggy" else 0.6,
+                customdata=d["target"].map(fmt_time),
+                hovertemplate=f"<b>{label}</b><br>%{{x|%d %b %Y}}: %{{customdata}}<extra></extra>"))
+    step = 120                                    # a tick every 2 minutes
+    ticks = np.arange(allt.min() // step * step, allt.max() + step, step)
+    fig.update_layout(height=520, margin=dict(t=20, b=40, l=60, r=10), hovermode="closest",
+                      legend=dict(font=dict(size=11)),
+                      yaxis=dict(title="target time", tickvals=ticks,
+                                 ticktext=[fmt_time(t) for t in ticks]))
+    return fig
+
+
+def page(summ, grid, occ_index, panels, scatter, spreads, trend) -> str:
     explain = "".join(f"<div class='card'><h3>{html.escape(METHODS[m])}</h3><p>{EXPLAIN[m]}</p></div>"
                       for m in METHODS)
     template = json.loads(pio.to_json(go.Figure(layout=dict(template="plotly_white"))))["layout"]["template"]
     data = {"occ": occ_index, "panels": panels, "scatter": fig_json(scatter, lock=False),
-            "spreads": spreads, "methods": METHODS, "template": template,
+            "spreads": spreads, "trend": trend, "methods": METHODS, "template": template,
             "config": PLOTLY_CONFIG}
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -433,7 +472,9 @@ def page(summ, grid, occ_index, panels, scatter, spreads) -> str:
  .col{{min-width:0;background:#fff;border:1px solid #e3e3e3;border-radius:8px;padding:10px}} .col h3{{margin:0 0 6px;font-size:14px}}
  .badge{{display:inline-block;font-size:12px;padding:1px 8px;border-radius:10px;background:#eee;margin-left:6px}}
  .badge.Winner{{background:#ffd6d6}} .badge.Places{{background:#ffe9c2}} .badge.Roster,.badge.Gained,.badge.Lost{{background:#e3dcff}}
- .res td,.res th{{font-size:13px;padding:2px 6px}} .muted{{color:#777}}
+ .res td,.res th{{font-size:13px;padding:2px 6px}}
+ fieldset{{border:1px solid #e3e3e3;border-radius:8px;padding:4px 10px;display:flex;flex-wrap:wrap;gap:4px 12px}}
+ legend{{font-size:12px;color:#777;padding:0 4px}} .muted{{color:#777}}
 </style></head><body><main>
 <h1>Head-to-head target methods</h1>
 <p class="muted">Every head-to-head re-scored under each method. Only the target changes; the
@@ -459,6 +500,16 @@ Counts of head-to-heads that change against the current method.</p>
 <h2>How far each target moves</h2>
 <p class="muted">One point per runner per head-to-head: the size of the change from the current target,
 as a % of it.</p><div id="scatter"></div>
+<h2>Target time over time</h2>
+<p class="muted">Each method's target on every Saturday from the first head-to-head on, per runner and kind of
+run (no bridge, as on the app's Form tab). Colour is the runner, line style the method, and the 🛒 lines are
+the buggy targets. A gap means no runs of that kind in the window. Tick boxes to choose lines; drag to zoom,
+double-click to reset.</p>
+<div class="controls" id="trendctl">
+ <fieldset><legend>Runner</legend>{boxes("ath", {n: n for n in ATHLETE_COLORS})}</fieldset>
+ <fieldset><legend>Mode</legend>{boxes("mode", {"nonbuggy": "Regular", "buggy": "Buggy 🛒"})}</fieldset>
+ <fieldset><legend>Method</legend>{boxes("meth", {m: m + (" (current)" if m == "M0" else "") for m in METHODS})}</fieldset>
+</div><div id="trend"></div>
 <h2>Spread of runs around the target</h2>
 <p class="muted">Every Saturday, per runner and kind of run: each run in that method's window, as a % from
 the target it gives that Saturday, from the first head-to-head on. Light band best–worst, dark band Q1–Q3, dotted line the median run,
@@ -489,6 +540,11 @@ document.getElementById('prev').onclick=()=>{{if(sel.selectedIndex>0){{sel.selec
 document.getElementById('next').onclick=()=>{{if(sel.selectedIndex<sel.options.length-1){{sel.selectedIndex++;show()}}}};
 fill();draw(document.getElementById('scatter'),D.scatter,{{displayModeBar:true}});
 const spm=document.getElementById('spm');M.forEach(m=>opt(spm,m,D.methods[m]));
+const tr=structuredClone(D.trend),tel=document.getElementById('trend');draw(tel,tr,{{displayModeBar:true}});
+function trendVis(){{const on=k=>[...document.querySelectorAll('#trendctl input[data-k="'+k+'"]:checked')].map(i=>i.value);
+ const a=on('ath'),md=on('mode'),me=on('meth');
+ Plotly.restyle(tel,{{visible:tr.data.map(t=>a.includes(t.meta.ath)&&md.includes(t.meta.mode)&&me.includes(t.meta.meth))}});}}
+document.querySelectorAll('#trendctl input').forEach(i=>i.onchange=trendVis);trendVis();
 spm.onchange=()=>draw(document.getElementById('spread'),structuredClone(D.spreads[spm.value]),{{displayModeBar:true}});spm.onchange();
 </script></body></html>"""
 
@@ -521,12 +577,13 @@ def main() -> None:
                      f"{(occ['M0'].get(k, any_g))['classification'].iloc[0]}"})
         panels[sid] = occasion_panels(occ, k)
     start = app["run_date"].min()              # the first head-to-head
-    spreads = {m: fig_json(spread_fig(spread_frame(runs, series, m, start)), lock=False)
-               for m in METHODS}
+    frames = {m: spread_frame(runs, series, m, start) for m in METHODS}
+    spreads = {m: fig_json(spread_fig(f), lock=False) for m, f in frames.items()}
+    trend = fig_json(trend_fig(frames), lock=False)
 
     OUTPUT.parent.mkdir(exist_ok=True)
     SUMMARY.parent.mkdir(exist_ok=True)
-    OUTPUT.write_text(page(summ, grid_df, occ_index, panels, scatter_fig(tg), spreads))
+    OUTPUT.write_text(page(summ, grid_df, occ_index, panels, scatter_fig(tg), spreads, trend))
     summ.to_csv(SUMMARY, index=False)
     print(f"wrote {OUTPUT} ({OUTPUT.stat().st_size / 1e6:.1f} MB) and {SUMMARY}")
 
