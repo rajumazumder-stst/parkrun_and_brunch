@@ -6,6 +6,19 @@ line on why.
 
 ---
 
+## Android install — check after merge
+
+Deferred 2 Nov 2026. Commit `7210e4d` moves the install icons to GitHub raw
+URLs, because Streamlit Cloud has answered every binary file under
+`app/static/` with a 500 since 14 Oct 2026. Still to do:
+1. Merge `dev` into `main` (Cloud redeploys from `main`).
+2. On the phone: remove any old install, open the app in Chrome, wait a few
+   seconds, ⋮ → Install app. Expect "p&b" and the egg icon.
+3. Optional: report the 500s to Streamlit. Their own `/~/+/favicon.png`
+   fails too. Once fixed, point `ICON_BASE` back at `./`.
+
+---
+
 ## Visualisation ideas
 
 Unscoped. Carried over from the *Future ideas* line that used to close
