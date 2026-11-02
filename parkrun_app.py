@@ -160,9 +160,11 @@ def _home_screen_icons_js() -> str:
             d.head.appendChild(m);
           }
           function add(d, base) {
-            // Served by [server] enableStaticServing in .streamlit/config.toml.
             // Must be real URLs: iOS ignores data: URIs for apple-touch-icon.
-            own(d, 'apple-touch-icon', 'app/static/apple-touch-icon.png', base);
+            // The icon comes off GitHub because Cloud 500s binary static files
+            // (since 14 Oct 2026; ICON_BASE in scripts/build_app_icon.py).
+            // The manifest is JSON, which Cloud still serves.
+            own(d, 'apple-touch-icon', 'https://raw.githubusercontent.com/rajumazumder-stst/parkrun_and_brunch/main/static/apple-touch-icon.png', base);
             own(d, 'manifest', 'app/static/manifest.json', base);
             title(d, 'p&b');
           }

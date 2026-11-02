@@ -240,6 +240,23 @@ def test_manifest_start_url_opens_the_site_root(app):
     assert urlsplit(url).path == "/"
 
 
+def test_install_icons_are_off_cloud_and_exist():
+    """Cloud 500s binary files under app/static/ (since 14 Oct 2026), and
+    Chrome will not install without a downloadable icon. The manifest's icons
+    and the touch icon point at GitHub's raw copy of static/, which only works
+    if each named file is committed there."""
+    import json
+    import re
+    manifest = json.loads((REPO / "static" / "manifest.json").read_text())
+    srcs = [i["src"] for i in manifest["icons"]]
+    srcs += re.findall(r"https://raw\.githubusercontent\.com/[^'\"]+",
+                       (REPO / "parkrun_app.py").read_text())
+    assert len(srcs) == 3
+    for src in srcs:
+        assert src.startswith("https://raw.githubusercontent.com/"), src
+        assert (REPO / "static" / src.rsplit("/static/", 1)[1]).is_file(), src
+
+
 def test_years_desc_is_newest_first_and_keeps_type():
     assert ui.years_desc([2019, 2025, 2019, 2023]) == [2025, 2023, 2019]
     assert ui.years_desc(["2019", "2025"]) == ["2025", "2019"]

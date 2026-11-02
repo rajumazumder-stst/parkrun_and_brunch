@@ -48,6 +48,13 @@ BG = "#1f1e19"
 # keep the two in step.
 NAME = "parkrun & brunch"
 SHORT_NAME = "p&b"
+# Icons by absolute URL off GitHub, not ./logo-*.png beside the manifest:
+# Streamlit Cloud has answered every binary file under app/static/ with a 500
+# since 14 Oct 2026, and Chrome will not install without a downloadable icon.
+# shortcut: serves whatever is on main, so a new icon goes live on merge, not
+# on deploy; return to "./" once Cloud serves static PNGs again.
+ICON_BASE = ("https://raw.githubusercontent.com/rajumazumder-stst/"
+             "parkrun_and_brunch/main/static")
 
 SIZES = (("apple-touch-icon.png", 180), ("logo-192.png", 192),
          ("logo-512.png", 512))
@@ -91,7 +98,7 @@ def main() -> int:
         "background_color": BG,
         "theme_color": BG,
         "icons": [
-            {"src": f"./{fname}", "sizes": f"{size}x{size}",
+            {"src": f"{ICON_BASE}/{fname}", "sizes": f"{size}x{size}",
              "type": "image/png", "purpose": "any maskable"}
             for fname, size in SIZES if fname.startswith("logo-")
         ],
