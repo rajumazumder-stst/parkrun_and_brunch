@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-11-02 (M4)
+- **M3 dropped** (asymmetric smoothing, and its speed grid). **M4 added**: the
+  median of the latest 13 same-mode runs within 182 days. M4 changes 19
+  winners with no lean; its targets match today's in level (median change
+  0.0%) but rest on more runs, buggy ones most of all.
+- Every rule now returns how its target was worked out. New section **How
+  each target was worked out**: one row per runner per head-to-head per
+  method, filterable by runner, mode and method. The side-by-side panels gain
+  a **How** column. Bridged targets show the handicap step.
+- Classifications in display order (George, Raju, Duncan), as the app now does.
+
 ## 2026-11-02 (later)
 - Hover percentages on the spread and scatter charts are formatted in Python
   (`pct2`). Plotly's d3 format strings were not applied to those values in the

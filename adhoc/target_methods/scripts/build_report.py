@@ -8,7 +8,7 @@ else the committed snapshot), read-only. Writes `output/target_methods.html`
 (gitignored) and `results/summary.csv` (tracked). Changes nothing in the app.
 
 Everything except the target is the app's own arithmetic, re-done in pandas so
-the sequential method (M3) is possible: the handicap bridge, the demote rule,
+each target can carry its working: the handicap bridge, the demote rule,
 pct_diff rounded to 2 dp and standard competition ranking. M0 must reproduce
 `v_head_to_head` row for row before any comparison is trusted (`check_m0`).
 """
@@ -44,15 +44,13 @@ OUTPUT = TOPIC / "output" / "target_methods.html"
 SUMMARY = TOPIC / "results" / "summary.csv"
 PLOTLY_JS = "https://cdn.jsdelivr.net/npm/plotly.js-dist-min@3.6.0/plotly.min.js"
 HANDICAP_DEFAULT = 0.15          # parkrun_pipeline.BUGGY_HANDICAP_DEFAULT
-M2_DAYS, M2_RUNS = 182, 13
-M3_DEFAULT = (0.5, 0.1)          # (a_fast, a_slow)
-M3_GRID = [(f, s) for f in (0.3, 0.5, 0.7) for s in (0.05, 0.1, 0.2)]
+M2_DAYS, M2_RUNS = 182, 13       # M2 and M4: the latest 13 runs within 26 weeks
 
 METHODS = {
     "M0": "Current — 91-day median",
     "M1": "M1 — 91 days, best/3rd-best midpoint",
     "M2": "M2 — last 13 runs in 182 days, best/3rd-best midpoint",
-    "M3": "M3 — asymmetric smoothing (½ down, ⅒ up)",
+    "M4": "M4 — last 13 runs in 182 days, median",
 }
 EXPLAIN = {
     "M0": "Your target is the <b>middle</b> of your times over the last 13 weeks "
@@ -68,13 +66,11 @@ EXPLAIN = {
           "runs. A weekly runner's 13 runs cover about the last three months; "
           "someone who runs less often reaches further back, so their target "
           "still rests on a decent number of runs.",
-    "M3": "Think of the target as a <b>marker that moves after every run</b>. "
-          "Beat it, and it jumps <b>half the way</b> to your new time at once. "
-          "Miss it, and it creeps only <b>a tenth of the way</b> towards the "
-          "slower time. So one good run raises the bar quickly; one bad run (a "
-          "hilly course, a cold, a buggy day) barely moves it; but a long spell "
-          "of slower runs does bring it back over a couple of months. It still "
-          "needs a run of the same kind in the last 91 days, as now.",
+    "M4": "The same <b>latest 13 runs within 26 weeks</b> as M2, but the target "
+          "is their <b>middle</b> time, as today. So it is the current method "
+          "with a fixed number of runs instead of a fixed number of weeks: a "
+          "busy spell no longer piles 15 runs into the window, and a quiet one "
+          "reaches back further instead of resting on one or two.",
 }
 def pct2(v) -> str:
     """A signed % to 2 dp for hover text; blank where there is no value."""
@@ -87,7 +83,7 @@ VERDICTS = ["Winner changed", "Places changed", "Roster changed", "Gained",
 
 
 # --------------------------------------------------------------------------- #
-# Target rules — one per method, each (series, date) -> (target, n)
+# Target rules — one per method, each (series, date) -> (target, n, how)
 # --------------------------------------------------------------------------- #
 def _window(s: dict, d: np.datetime64, days: int) -> slice:
     """Runs in [d - days, d - 1], the app's window (the event day excluded)."""
@@ -101,49 +97,52 @@ def best_third_mid(times) -> float:
     return float((t[0] + t[2]) / 2 if len(t) >= 3 else t[: len(t)].mean())
 
 
-def m0(s, d):
-    t = s["times"][_window(s, d, TARGET_WINDOW_DAYS)]
-    return (float(np.median(t)), len(t)) if len(t) else (np.nan, 0)
+def _day(d) -> str:
+    return pd.Timestamp(d).strftime("%-d %b %Y")
 
 
-def m1(s, d):
-    t = s["times"][_window(s, d, TARGET_WINDOW_DAYS)]
-    return (best_third_mid(t), len(t)) if len(t) else (np.nan, 0)
+def how_median(dates, times) -> str:
+    """Odd count: the one run the median is (its date). Even: the two middle times."""
+    n, o = len(times), np.argsort(times, kind="stable")
+    if n % 2:
+        return f"median of {n} run{'s' * (n > 1)}: the run on {_day(dates[o[n // 2]])}"
+    a, b = times[o[n // 2 - 1]], times[o[n // 2]]
+    return f"median of {n} runs: midpoint of {fmt_time(a)} and {fmt_time(b)}"
 
 
-def m2_runs(s, d) -> np.ndarray:
-    return s["times"][_window(s, d, M2_DAYS)][-M2_RUNS:]   # dates ascending
+def how_best3(dates, times) -> str:
+    n, t = len(times), np.sort(times)
+    if n >= 3:
+        return (f"of {n} runs: best {fmt_time(t[0])} · 2nd {fmt_time(t[1])} · "
+                f"3rd {fmt_time(t[2])} → midpoint of best and 3rd")
+    if n == 2:
+        return f"2 runs: midpoint of {fmt_time(t[0])} and {fmt_time(t[1])}"
+    return f"1 run: the run on {_day(dates[0])}"
 
 
-def m2(s, d):
-    t = m2_runs(s, d)
-    return (best_third_mid(t), len(t)) if len(t) else (np.nan, 0)
+def window_runs(method: str, s: dict, d) -> tuple:
+    """(dates, times) the method's target is taken over."""
+    w = _window(s, d, M2_DAYS if method in ("M2", "M4") else TARGET_WINDOW_DAYS)
+    dates, times = s["dates"][w], s["times"][w]
+    if method in ("M2", "M4"):                 # latest 13; dates ascending
+        dates, times = dates[-M2_RUNS:], times[-M2_RUNS:]
+    return dates, times
 
 
-def smooth(times, a_fast: float, a_slow: float) -> np.ndarray:
-    """The target after each run: starts at the first run, then moves a_fast of
-    the way to a faster time and a_slow of the way to a slower one."""
-    out, T = [], None
-    for t in times:
-        T = t if T is None else T + (a_fast if t < T else a_slow) * (t - T)
-        out.append(T)
-    return np.array(out, dtype=float)
-
-
-def m3_rule(a_fast: float, a_slow: float):
-    key = ("smooth", a_fast, a_slow)
+def make_rule(method: str):
+    median = method in ("M0", "M4")
 
     def rule(s, d):
-        n = len(s["times"][_window(s, d, TARGET_WINDOW_DAYS)])
-        if n == 0:                       # same validity rule as today
-            return np.nan, 0
-        if key not in s:
-            s[key] = smooth(s["times"], a_fast, a_slow)
-        return float(s[key][np.searchsorted(s["dates"], d, "left") - 1]), n
+        dates, times = window_runs(method, s, d)
+        if not len(times):
+            return np.nan, 0, ""
+        if median:
+            return float(np.median(times)), len(times), how_median(dates, times)
+        return best_third_mid(times), len(times), how_best3(dates, times)
     return rule
 
 
-RULES = {"M0": m0, "M1": m1, "M2": m2, "M3": m3_rule(*M3_DEFAULT)}
+RULES = {m: make_rule(m) for m in METHODS}
 
 
 def self_check() -> None:
@@ -153,19 +152,26 @@ def self_check() -> None:
     days = np.array(["2026-01-03", "2026-01-10", "2026-01-17"], "datetime64[D]")
     s = {"dates": days, "times": np.array([1300.0, 1200.0, 1400.0])}
     d = np.datetime64("2026-01-24")
-    assert m1(s, d) == (1300.0, 3)
-    assert m1(s, np.datetime64("2026-01-10")) == (1300.0, 1)      # event day excluded
+    assert RULES["M1"](s, d)[:2] == (1300.0, 3)
+    assert RULES["M1"](s, np.datetime64("2026-01-10"))[:2] == (1300.0, 1)   # event day excluded
+    assert RULES["M0"](s, d) == (1300.0, 3, "median of 3 runs: the run on 3 Jan 2026")
+    assert RULES["M1"](s, d)[2].startswith("of 3 runs: best 20:00 · 2nd 21:40 · 3rd 23:20")
+    assert RULES["M1"](s, np.datetime64("2026-01-10"))[2] == "1 run: the run on 3 Jan 2026"
+    two = {"dates": days[:2], "times": np.array([1300.0, 1200.0])}
+    assert RULES["M0"](two, d)[2] == "median of 2 runs: midpoint of 20:00 and 21:40"
     many = {"dates": np.arange(np.datetime64("2026-01-01"), np.datetime64("2026-01-21")),
             "times": np.arange(1000.0, 1020.0)}                    # 20 daily runs
-    assert len(m2_runs(many, np.datetime64("2026-01-21"))) == 13
-    assert m2(many, np.datetime64("2026-01-21"))[0] == 1008       # (1007+1009)/2
-    sm = smooth([1300, 1200, 1400], 0.5, 0.1)
-    assert list(sm) == [1300, 1250, 1265]                          # down ½, up ⅒
+    assert len(window_runs("M2", many, np.datetime64("2026-01-21"))[1]) == 13
+    assert RULES["M2"](many, np.datetime64("2026-01-21"))[0] == 1008       # (1007+1009)/2
+    assert RULES["M4"](many, np.datetime64("2026-01-21"))[:2] == (1013.0, 13)   # median 1007..1019
 
 
 # --------------------------------------------------------------------------- #
 # Head-to-heads under a rule — the app's arithmetic from the target on
 # --------------------------------------------------------------------------- #
+KIND = {"buggy": "buggy", "nonbuggy": "regular"}
+
+
 def round2(x):
     """DuckDB's round(): half away from zero."""
     return np.sign(x) * np.floor(np.abs(x) * 100 + 0.5) / 100
@@ -179,16 +185,20 @@ def targets(parts: pd.DataFrame, series: dict, handicap: dict, rule) -> pd.DataF
     for r in parts.itertuples():
         d = np.datetime64(r.run_date, "D")
         other = "nonbuggy" if r.mode == "buggy" else "buggy"
-        t, n = rule(series.get((r.athlete_id, r.mode), empty), d)
+        t, n, how = rule(series.get((r.athlete_id, r.mode), empty), d)
         basis = r.mode
         if n == 0:
-            ot, n = rule(series.get((r.athlete_id, other), empty), d)
+            ot, n, ohow = rule(series.get((r.athlete_id, other), empty), d)
             h = 1 + handicap.get(r.athlete_id, HANDICAP_DEFAULT)
             t = ot * h if r.mode == "buggy" else ot / h
             basis = "nonbuggy+handicap" if r.mode == "buggy" else "buggy-handicap"
-        rows.append((t, n, basis))
+            if n:
+                how = (f"no {KIND[r.mode]} runs → {KIND[other]} target {fmt_time(ot)} "
+                       f"{'×' if r.mode == 'buggy' else '÷'} {h:.2f} handicap = {fmt_time(t)}"
+                       f"; {KIND[other]} target: {ohow}")
+        rows.append((t, n, basis, how))
     out = parts.copy()
-    out[["target_seconds", "n_window", "target_basis"]] = pd.DataFrame(rows, index=parts.index)
+    out[["target_seconds", "n_window", "target_basis", "how"]] = pd.DataFrame(rows, index=parts.index)
     return out
 
 
@@ -200,7 +210,8 @@ def rank(tg: pd.DataFrame) -> pd.DataFrame:
     g = v.groupby(["event_id", "run_date"])
     v["place_rank"] = g["pct_diff"].rank(method="min").astype(int)
     v["n_ranked"] = g["athlete_id"].transform("size")
-    v["classification"] = g["athlete_name"].transform(lambda s: " vs ".join(sorted(s)))
+    order = list(ATHLETE_COLORS).index
+    v["classification"] = g["athlete_name"].transform(lambda s: " vs ".join(sorted(s, key=order)))
     return v
 
 
@@ -288,10 +299,11 @@ def table_html(rows: pd.DataFrame) -> str:
         f"<tr><td>{MEDAL[int(r.place_rank)]}</td><td>{html.escape(r.athlete_name)}"
         f"{' 🛒' if r.is_buggy else ''}</td><td>{fmt_time(r.actual_seconds)}</td>"
         f"<td>{fmt_time(r.target_seconds)}</td><td>{r.pct_diff:+.2f}%</td>"
-        f"<td>{basis.get(r.target_basis, '')}</td><td>{int(r.n_window)}</td></tr>"
+        f"<td>{basis.get(r.target_basis, '')}</td><td>{int(r.n_window)}</td>"
+        f"<td class='how'>{html.escape(r.how)}</td></tr>"
         for r in d.itertuples())
     return ("<table class='res'><tr><th></th><th>Runner</th><th>Time</th><th>Target</th>"
-            f"<th>vs form</th><th>Basis</th><th>Runs</th></tr>{body}</table>")
+            f"<th>vs form</th><th>Basis</th><th>Runs</th><th>How</th></tr>{body}</table>")
 
 
 def occasion_panels(occ: dict, key) -> dict:
@@ -312,9 +324,9 @@ def scatter_fig(tg: dict) -> go.Figure:
     k = ["event_id", "run_date", "athlete_id"]
     base = tg["M0"][tg["M0"]["n_window"] >= 1]
     fig = go.Figure()
-    colors = {"M1": "#e7298a", "M2": "#66a61e", "M3": "#1f78b4"}
+    colors = {"M1": "#e7298a", "M2": "#66a61e", "M4": "#1f78b4"}
     symbol = {"George": "circle", "Raju": "square", "Duncan": "diamond"}
-    for m in ("M1", "M2", "M3"):
+    for m in ("M1", "M2", "M4"):
         xm = base.merge(tg[m][tg[m]["n_window"] >= 1], on=k, suffixes=("", "_n"))
         xm["chg"] = (xm["target_seconds_n"] - xm["target_seconds"]).abs() / xm["target_seconds"] * 100
         xm["who"] = xm["athlete_name"] + np.where(xm["is_buggy"], " 🛒", "")
@@ -362,11 +374,11 @@ def spread_frame(runs: pd.DataFrame, series: dict, method: str, start) -> pd.Dat
             continue
         for sat in sats:
             d = np.datetime64(sat.date(), "D")
-            t, n = rule(s, d)
+            t, n, _ = rule(s, d)
             if n == 0:
                 rows.append((name, mode, sat, *[np.nan] * 6))
                 continue
-            w = m2_runs(s, d) if method == "M2" else s["times"][_window(s, d, TARGET_WINDOW_DAYS)]
+            w = window_runs(method, s, d)[1]
             p = (w - t) / t * 100
             rows.append((name, mode, sat, p.min(), *np.percentile(p, [25, 50, 75]), p.max(), t))
     return pd.DataFrame(rows, columns=["athlete", "mode", "sat", "min", "q1", "med", "q3", "max",
@@ -413,7 +425,7 @@ def _rgba(hexc: str, a: float) -> str:
 # --------------------------------------------------------------------------- #
 # Page
 # --------------------------------------------------------------------------- #
-def summary_tables(occ: dict, vs: dict, grid: dict):
+def summary_table(occ: dict, vs: dict) -> pd.DataFrame:
     rows = []
     for m in METHODS:
         df = pd.concat(occ[m].values())
@@ -423,11 +435,7 @@ def summary_tables(occ: dict, vs: dict, grid: dict):
             row |= {v: sum(x == v for x in vs[m].values()) for v in VERDICTS}
         row |= {f"1sts {a}": int(firsts.get(a, 0)) for a in ATHLETE_COLORS}
         rows.append(row)
-    summ = pd.DataFrame(rows).fillna("").astype(str).replace(r"\.0$", "", regex=True)
-    g = pd.DataFrame([{"a_fast": f, "a_slow": s, **{v: sum(x == v for x in d.values())
-                                                     for v in VERDICTS[:3]}}
-                      for (f, s), d in grid.items()])
-    return summ, g
+    return pd.DataFrame(rows).fillna("").astype(str).replace(r"\.0$", "", regex=True)
 
 
 def boxes(key: str, opts: dict) -> str:
@@ -435,7 +443,7 @@ def boxes(key: str, opts: dict) -> str:
                    f'checked> {html.escape(str(t))}</label>' for v, t in opts.items())
 
 
-DASH = {"M0": "solid", "M1": "dot", "M2": "dash", "M3": "dashdot"}
+DASH = {"M0": "solid", "M1": "dot", "M2": "dash", "M4": "dashdot"}
 
 
 def trend_fig(frames: dict) -> go.Figure:
@@ -466,12 +474,26 @@ def trend_fig(frames: dict) -> go.Figure:
     return fig
 
 
-def page(summ, grid, occ_index, panels, scatter, spreads, trend) -> str:
+def calc_rows(h2h: dict) -> list:
+    """One row per runner per head-to-head per method: the working behind each
+    target that decided a result. Newest first."""
+    out = []
+    for m, h in h2h.items():
+        for r in h.itertuples():
+            out.append({"date": f"{r.run_date:%Y-%m-%d}", "day": _day(r.run_date),
+                        "parkrun": r.short_name, "ath": r.athlete_name, "mode": r.mode,
+                        "meth": m, "place": MEDAL[int(r.place_rank)],
+                        "time": fmt_time(r.actual_seconds), "target": fmt_time(r.target_seconds),
+                        "pct": f"{r.pct_diff:+.2f}%", "n": int(r.n_window), "how": r.how})
+    return sorted(out, key=lambda x: (x["date"], x["parkrun"], x["ath"], x["meth"]), reverse=True)
+
+
+def page(summ, occ_index, panels, scatter, spreads, trend, calc) -> str:
     explain = "".join(f"<div class='card'><h3>{html.escape(METHODS[m])}</h3><p>{EXPLAIN[m]}</p></div>"
                       for m in METHODS)
     template = json.loads(pio.to_json(go.Figure(layout=dict(template="plotly_white"))))["layout"]["template"]
     data = {"occ": occ_index, "panels": panels, "scatter": fig_json(scatter, lock=False),
-            "spreads": spreads, "trend": trend, "methods": METHODS, "template": template,
+            "spreads": spreads, "trend": trend, "calc": calc, "methods": METHODS, "template": template,
             "config": PLOTLY_CONFIG}
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -487,12 +509,15 @@ def page(summ, grid, occ_index, panels, scatter, spreads, trend) -> str:
  .controls{{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:8px 0 14px}}
  select,button{{font:inherit;padding:4px 8px}} #occsel{{max-width:100%}}
  .cols{{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px}}
- .col{{min-width:0;background:#fff;border:1px solid #e3e3e3;border-radius:8px;padding:10px}} .col h3{{margin:0 0 6px;font-size:14px}}
+ .col{{min-width:0;overflow-x:auto;background:#fff;border:1px solid #e3e3e3;border-radius:8px;padding:10px}} .col h3{{margin:0 0 6px;font-size:14px}}
  .badge{{display:inline-block;font-size:12px;padding:1px 8px;border-radius:10px;background:#eee;margin-left:6px}}
  .badge.Winner{{background:#ffd6d6}} .badge.Places{{background:#ffe9c2}} .badge.Roster,.badge.Gained,.badge.Lost{{background:#e3dcff}}
  .res td,.res th{{font-size:13px;padding:2px 6px}}
  fieldset{{border:1px solid #e3e3e3;border-radius:8px;padding:4px 10px;display:flex;flex-wrap:wrap;gap:4px 12px}}
  legend{{font-size:12px;color:#777;padding:0 4px}} .muted{{color:#777}}
+ td.how{{text-align:left;font-size:12px;color:#444;min-width:16em}}
+ #calc{{max-height:70vh;overflow:auto;border:1px solid #e3e3e3;border-radius:8px;background:#fff}}
+ #calc table{{width:100%}} #calc th{{position:sticky;top:0;background:#fff}} #calc td,#calc th{{font-size:13px}}
 </style></head><body><main>
 <h1>Head-to-head target methods</h1>
 <p class="muted">Every head-to-head re-scored under each method. Only the target changes; the
@@ -504,10 +529,6 @@ current method is reproduced exactly before anything is compared.</p>
 winner changed › places changed › roster changed (someone ranked or demoted) › gained/lost
 (a head-to-head under one method only) › margin only (≥ 0.01 pts) › unchanged.</p>
 <div class="wrap">{summ.to_html(index=False, border=0)}</div>
-<h3>M3 with other speeds</h3>
-<p class="muted">a_fast = how far a faster run pulls the target; a_slow = how far a slower one does.
-Counts of head-to-heads that change against the current method.</p>
-<div class="wrap">{grid.to_html(index=False, border=0)}</div>
 <h2>Side by side</h2>
 <div class="controls">
  <label><input type="checkbox" id="changed" checked> changed under any method</label>
@@ -541,6 +562,18 @@ solid 0 line the target. Under the current method the dotted line sits on 0 by d
 is faster than the target. The y-axis stops at −20% and +40% (a walked run would flatten the
 bands); hover for the exact figures, drag to zoom, double-click to reset.</p>
 <div class="controls"><select id="spm"></select></div><div id="spread"></div>
+<h2>How each target was worked out</h2>
+<p class="muted">One row per runner per head-to-head per method: the target that decided the result, and the
+runs behind it. A median of an odd number of runs is one run, shown by its date; of an even number, the
+midpoint of the two middle times. M1 and M2 list the best, 2nd and 3rd times (or fewer, when there were fewer
+runs). Where a runner had no runs of that kind, the target was borrowed from the other kind through the buggy
+handicap, and the row says so. Tick boxes to choose rows.</p>
+<div class="controls" id="calcctl">
+ <fieldset><legend>Runner</legend>{boxes("ath", {n: n for n in ATHLETE_COLORS})}</fieldset>
+ <fieldset><legend>Mode</legend>{boxes("mode", {"nonbuggy": "Regular", "buggy": "Buggy 🛒"})}</fieldset>
+ <fieldset><legend>Method</legend>{boxes("meth", {m: m + (" (current)" if m == "M0" else "") for m in METHODS})}</fieldset>
+ <span class="count" id="calccount"></span>
+</div><div id="calc"></div>
 </main><script>
 const D={json.dumps(data, separators=(",", ":"), default=str)};
 const M=Object.keys(D.methods), cfg=D.config;
@@ -571,6 +604,17 @@ function filterable(ctl,el,fig){{draw(el,fig,{{displayModeBar:true}});
 filterable('scatterctl',document.getElementById('scatter'),structuredClone(D.scatter));
 const spm=document.getElementById('spm');M.forEach(m=>opt(spm,m,D.methods[m]));
 filterable('trendctl',document.getElementById('trend'),structuredClone(D.trend));
+const esc=t=>String(t).replace(/[&<>"]/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}})[c]);
+function calc(){{const on=k=>[...document.querySelectorAll('#calcctl input[data-k="'+k+'"]:checked')].map(i=>i.value);
+ const a=on('ath'),md=on('mode'),me=on('meth');
+ const rows=D.calc.filter(r=>a.includes(r.ath)&&md.includes(r.mode)&&me.includes(r.meth));
+ document.getElementById('calccount').textContent=rows.length+' rows';
+ document.getElementById('calc').innerHTML='<table><tr><th>Date</th><th>parkrun</th><th>Runner</th><th>Method</th>'
+  +'<th></th><th>Time</th><th>Target</th><th>vs target</th><th>Runs</th><th style="text-align:left">How the target was worked out</th></tr>'
+  +rows.map(r=>'<tr><td>'+r.day+'</td><td style="text-align:left">'+esc(r.parkrun)+'</td><td style="text-align:left">'+r.ath
+   +(r.mode==='buggy'?' 🛒':'')+'</td><td>'+r.meth+'</td><td>'+r.place+'</td><td>'+r.time+'</td><td>'+r.target
+   +'</td><td>'+r.pct+'</td><td>'+r.n+'</td><td class="how">'+esc(r.how)+'</td></tr>').join('')+'</table>';}}
+document.querySelectorAll('#calcctl input').forEach(i=>i.onchange=calc);calc();
 spm.onchange=()=>draw(document.getElementById('spread'),structuredClone(D.spreads[spm.value]),{{displayModeBar:true}});spm.onchange();
 </script></body></html>"""
 
@@ -585,9 +629,7 @@ def main() -> None:
           f"{app.groupby(['event_id', 'run_date']).ngroups} head-to-heads")
     occ = {m: _occ(h) for m, h in h2h.items()}
     vs = {m: verdicts(occ["M0"], occ[m]) for m in METHODS if m != "M0"}
-    grid = {(f, s): verdicts(occ["M0"], _occ(rank(targets(parts, series, handicap, m3_rule(f, s)))))
-            for f, s in M3_GRID}
-    summ, grid_df = summary_tables(occ, vs, grid)
+    summ = summary_table(occ, vs)
     print(summ.to_string(index=False))
 
     keys = sorted(set().union(*occ.values()), key=lambda k: k[1], reverse=True)
@@ -609,7 +651,7 @@ def main() -> None:
 
     OUTPUT.parent.mkdir(exist_ok=True)
     SUMMARY.parent.mkdir(exist_ok=True)
-    OUTPUT.write_text(page(summ, grid_df, occ_index, panels, scatter_fig(tg), spreads, trend))
+    OUTPUT.write_text(page(summ, occ_index, panels, scatter_fig(tg), spreads, trend, calc_rows(h2h)))
     summ.to_csv(SUMMARY, index=False)
     print(f"wrote {OUTPUT} ({OUTPUT.stat().st_size / 1e6:.1f} MB) and {SUMMARY}")
 
