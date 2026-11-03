@@ -481,7 +481,7 @@ SCATTER_COLORS = {"M1": "#e7298a", "M2": "#66a61e", "M4": "#1f78b4"}
 
 
 def page(summ, occ_index, panels, scatter, spreads, trend, calc) -> str:
-    explain = "".join(f"<div class='card'><h3>{html.escape(METHODS[m])}</h3><p>{EXPLAIN[m]}</p></div>"
+    explain = "".join(f"<div class='card' data-m='{m}'><h3>{html.escape(METHODS[m])}</h3><p>{EXPLAIN[m]}</p></div>"
                       for m in METHODS)
     template = json.loads(pio.to_json(go.Figure(layout=dict(template="plotly_white"))))["layout"]["template"]
     years = sorted({r["date"][:4] for r in scatter}, reverse=True)      # newest first
@@ -509,6 +509,8 @@ def page(summ, occ_index, panels, scatter, spreads, trend, calc) -> str:
  .res td,.res th{{font-size:13px;padding:2px 3px}}
  fieldset{{border:1px solid #e3e3e3;border-radius:8px;padding:4px 10px;display:flex;flex-wrap:wrap;gap:4px 12px}}
  legend{{font-size:12px;color:#777;padding:0 4px}} .muted{{color:#777}}
+ .master{{position:sticky;top:0;z-index:10;background:#fafafa;padding:8px 0;border-bottom:1px solid #ddd;
+  display:flex;flex-wrap:wrap;gap:10px;align-items:center}} .master fieldset{{background:#fff}}
  table.fits{{margin:8px 0}} table.fits td,table.fits th{{font-size:13px}}
  ul.how{{margin:6px 0 0;padding-left:18px;font-size:12px;color:#444}}
  td.how{{text-align:left;font-size:12px;color:#444;min-width:16em}}
@@ -519,12 +521,15 @@ def page(summ, occ_index, panels, scatter, spreads, trend, calc) -> str:
 <p class="muted">Every head-to-head re-scored under each method. Only the target changes; the
 handicap bridge, the demote rule, the % against form and the ranking are the app's own. The
 current method is reproduced exactly before anything is compared.</p>
+<div class="master" id="master"><fieldset><legend>Methods shown everywhere on this page</legend>
+{boxes("mmeth", {m: METHODS[m] for m in METHODS})}</fieldset>
+<span class="muted">Each section's own method boxes work inside this choice.</span></div>
 <h2>The methods</h2><div class="cards">{explain}</div>
 <h2>How many results change</h2>
 <p class="muted">Each proposed method against the current one, per head-to-head. First match wins:
 winner changed › places changed › roster changed (someone ranked or demoted) › gained/lost
 (a head-to-head under one method only) › margin only (≥ 0.01 pts) › unchanged.</p>
-<div class="wrap">{summ.to_html(index=False, border=0)}</div>
+<div class="wrap">{summ.to_html(index=False, border=0, table_id="summ")}</div>
 <h2>Side by side</h2>
 <div class="controls">
  <label><input type="checkbox" id="changed" checked> changed under any method</label>
@@ -581,11 +586,12 @@ const opt=(s,v,t)=>{{const o=document.createElement('option');o.value=v;o.textCo
 opt(cls,'','All classifications');[...new Set(D.occ.map(o=>o.cls))].sort().forEach(c=>opt(cls,c,c));
 opt(yr,'','All years');[...new Set(D.occ.map(o=>o.year))].sort().reverse().forEach(y=>opt(yr,y,y));
 function fill(){{const ch=document.getElementById('changed').checked;sel.innerHTML='';
- const list=D.occ.filter(o=>(!ch||o.changed)&&(!cls.value||o.cls===cls.value)&&(!yr.value||o.year==yr.value));
+ const ms=MSEL(),chg=o=>Object.entries(o.v).some(([m,v])=>ms.includes(m)&&!['Unchanged','Margin only'].includes(v));
+ const list=D.occ.filter(o=>(!ch||chg(o))&&(!cls.value||o.cls===cls.value)&&(!yr.value||o.year==yr.value));
  list.forEach(o=>opt(sel,o.key,o.label));document.getElementById('count').textContent=list.length+' head-to-heads';show()}}
 function show(){{const c=document.getElementById('cols');c.innerHTML='';const p=D.panels[sel.value];if(!p)return;
  const o=D.occ.find(o=>o.key===sel.value);
- const todo=[];M.forEach(m=>{{const d=document.createElement('div');d.className='col';const v=o.v[m]||'';
+ const todo=[];MSEL().forEach(m=>{{const d=document.createElement('div');d.className='col';const v=o.v[m]||'';
   d.innerHTML='<h3>'+D.methods[m]+(v?'<span class="badge '+v.split(' ')[0]+'">'+v+'</span>':'')+'</h3>';
   if(p[m]){{d.innerHTML+='<div>'+p[m].head+'</div>';const g=document.createElement('div');d.appendChild(g);
    d.insertAdjacentHTML('beforeend',p[m].table);c.appendChild(d);todo.push([g,p[m].fig])}}
@@ -593,12 +599,13 @@ function show(){{const c=document.getElementById('cols');c.innerHTML='';const p=
 ['changed','cls','yr'].forEach(i=>document.getElementById(i).onchange=fill);sel.onchange=show;
 document.getElementById('prev').onclick=()=>{{if(sel.selectedIndex>0){{sel.selectedIndex--;show()}}}};
 document.getElementById('next').onclick=()=>{{if(sel.selectedIndex<sel.options.length-1){{sel.selectedIndex++;show()}}}};
+const MSEL=()=>[...document.querySelectorAll('#master input:checked')].map(i=>i.value);
 fill();
 function filterable(ctl,el,fig){{draw(el,fig,{{displayModeBar:true}});
  const vis=()=>{{const on=k=>[...document.querySelectorAll('#'+ctl+' input[data-k="'+k+'"]:checked')].map(i=>i.value);
   const a=on('ath'),md=on('mode'),me=on('meth');
   Plotly.restyle(el,{{visible:fig.data.map(t=>a.includes(t.meta.ath)&&md.includes(t.meta.mode)&&me.includes(t.meta.meth))}})}};
- document.querySelectorAll('#'+ctl+' input').forEach(i=>i.onchange=vis);vis()}}
+ document.querySelectorAll('#'+ctl+' input').forEach(i=>i.onchange=vis);vis();return vis}}
 const SCOL=D.scatterColors,SYM={{George:'circle',Raju:'square',Duncan:'diamond'}};
 const T0=Date.UTC(D.scatterOrigin,0,1),YR=365.25*864e5,f2=v=>v.toFixed(2);
 function scatterDraw(){{const on=k=>[...document.querySelectorAll('#scatterctl input[data-k="'+k+'"]:checked')].map(i=>i.value);
@@ -645,7 +652,7 @@ function scatterDraw(){{const on=k=>[...document.querySelectorAll('#scatterctl i
   +'points start later (the buggy ones start in 2025) it lies outside the data; read the slope, not the start.</p>':'<p class="muted">Not enough points for a line of best fit.</p>'}}
 document.querySelectorAll('#scatterctl input').forEach(i=>i.onchange=scatterDraw);scatterDraw();
 const spm=document.getElementById('spm');M.forEach(m=>opt(spm,m,D.methods[m]));
-filterable('trendctl',document.getElementById('trend'),structuredClone(D.trend));
+const trendVis=filterable('trendctl',document.getElementById('trend'),structuredClone(D.trend));
 const esc=t=>String(t).replace(/[&<>"]/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}})[c]);
 function calc(){{const on=k=>[...document.querySelectorAll('#calcctl input[data-k="'+k+'"]:checked')].map(i=>i.value);
  const a=on('ath'),md=on('mode'),me=on('meth');
@@ -658,6 +665,17 @@ function calc(){{const on=k=>[...document.querySelectorAll('#calcctl input[data-
    +'</td><td>'+r.pct+'</td><td>'+r.n+'</td><td class="how">'+esc(r.how)+'</td></tr>').join('')+'</table>';}}
 document.querySelectorAll('#calcctl input').forEach(i=>i.onchange=calc);calc();
 spm.onchange=()=>draw(document.getElementById('spread'),structuredClone(D.spreads[spm.value]),{{displayModeBar:true}});spm.onchange();
+// The master filter: section method boxes follow it (and hide what it leaves out),
+// the summary rows and spread options too, then every section redraws.
+function applyMaster(){{const ms=MSEL();
+ document.querySelectorAll('input[data-k="meth"]').forEach(i=>{{const on=ms.includes(i.value);i.checked=on;i.parentElement.hidden=!on}});
+ document.querySelectorAll('.card[data-m]').forEach(c=>c.hidden=!ms.includes(c.dataset.m));
+ document.querySelectorAll('#summ tr').forEach((tr,i)=>{{if(i)tr.hidden=!ms.includes(tr.cells[0].textContent.trim())}});
+ [...spm.options].forEach(o=>o.hidden=!ms.includes(o.value));
+ const spEl=document.getElementById('spread');
+ if(ms.length){{if(!ms.includes(spm.value))spm.value=ms[0];spEl.hidden=false;spm.onchange()}}else spEl.hidden=true;
+ fill();scatterDraw();trendVis();calc()}}
+document.querySelectorAll('#master input').forEach(i=>i.onchange=applyMaster);
 </script></body></html>"""
 
 

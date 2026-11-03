@@ -1,6 +1,10 @@
 # Changelog
 
 ## 2026-11-03
+- **Master method filter** at the top, pinned while scrolling. Every section
+  follows it: method cards, summary rows, side-by-side columns (and "changed"
+  counts only the methods shown), the scatter, trend and working-table method
+  boxes (hidden when left out), and the spread chart's method list.
 - The scatter shows **signed** change (proposed − current, as a % of current)
   instead of its size: below 0 the proposal sets a faster target. Section
   renamed "How each target moves". Medians: M1 −3.25%, M2 −3.80%, M4 0.00%;
