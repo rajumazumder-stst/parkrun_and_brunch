@@ -325,8 +325,8 @@ def occasion_panels(occ: dict, key) -> dict:
 
 
 def scatter_rows(tg: dict) -> list:
-    """One point per runner per head-to-head per proposed method: how far its
-    target moved from the current one, as a % of it. Plain rows, not a figure:
+    """One point per runner per head-to-head per proposed method: how its
+    target differs from the current one, as a signed % of it. Plain rows, not a figure:
     the page builds the chart itself so the year filter can drop points and the
     best-fit lines can be refitted to what is shown."""
     k = ["event_id", "run_date", "athlete_id"]
@@ -334,13 +334,14 @@ def scatter_rows(tg: dict) -> list:
     out = []
     for m in (m for m in METHODS if m != "M0"):
         x = base.merge(tg[m][tg[m]["n_window"] >= 1], on=k, suffixes=("", "_n"))
-        x["chg"] = (x["target_seconds_n"] - x["target_seconds"]).abs() / x["target_seconds"] * 100
+        # Signed: negative = the proposal sets a faster (harder) target than today.
+        x["chg"] = (x["target_seconds_n"] - x["target_seconds"]) / x["target_seconds"] * 100
         for r in x.itertuples():
             out.append({"date": f"{r.run_date:%Y-%m-%d}", "chg": round(float(r.chg), 4),
                         "ath": r.athlete_name, "mode": r.mode, "meth": m,
                         "who": r.athlete_name + (" 🛒" if r.is_buggy else ""),
                         "parkrun": r.short_name, "cur": fmt_time(r.target_seconds),
-                        "new": fmt_time(r.target_seconds_n), "txt": f"{r.chg:.2f}%"})
+                        "new": fmt_time(r.target_seconds_n), "txt": pct2(r.chg)})
     return out
 
 
@@ -531,9 +532,9 @@ winner changed › places changed › roster changed (someone ranked or demoted)
  <button id="prev">‹</button><select id="occsel"></select><button id="next">›</button>
  <span id="count" class="muted"></span></div>
 <div class="cols" id="cols"></div>
-<h2>How far each target moves</h2>
-<p class="muted">One point per runner per head-to-head: the size of the change from the current target,
-as a % of it. Colour is the method, shape the runner (● George, ■ Raju, ◆ Duncan), and an open shape a
+<h2>How each target moves</h2>
+<p class="muted">One point per runner per head-to-head: the proposed target minus the current one, as a % of the
+current one. <b>Below 0, the proposal sets a faster (harder) target; above 0, a slower (easier) one.</b> Colour is the method, shape the runner (● George, ■ Raju, ◆ Duncan), and an open shape a
 buggy run. Tick boxes to choose points. The lines are least-squares lines of best fit, one per runner,
 mode and method, refitted to the points shown; their equations are in the table under the chart.</p>
 <div class="controls" id="scatterctl">
@@ -630,17 +631,18 @@ function scatterDraw(){{const on=k=>[...document.querySelectorAll('#scatterctl i
   eq.push([who,m,txt.replace(' x',' <i>x</i>'),f2(r2),n])}});
  const el=document.getElementById('scatter');
  Plotly.react(el,traces,{{template:D.template,autosize:true,height:460,margin:{{t:20,b:40,l:50,r:10}},
-  yaxis:{{title:{{text:'|target change| vs current (%)'}},ticksuffix:'%',tickformat:'.2~f'}},legend:{{font:{{size:11}}}}}},
+  yaxis:{{title:{{text:'target change vs current (%) · − faster, + slower'}},ticksuffix:'%',tickformat:'+.2~f',
+   zeroline:true,zerolinecolor:'#555',zerolinewidth:1.5}},legend:{{font:{{size:11}}}}}},
   {{responsive:true,displayModeBar:true}});
  document.getElementById('fits').innerHTML=eq.length?'<div class="wrap"><table class="fits"><tr><th>Runner</th><th>Method</th>'
   +'<th style="text-align:left">Line of best fit</th><th>R²</th><th>Points</th></tr>'
   +eq.map(([w,m,t,r,n])=>'<tr><td>'+w+'</td><td><span style="color:'+SCOL[m]+'">■</span> '+m+'</td><td style="text-align:left">'
    +t+'</td><td>'+r+'</td><td>'+n+'</td></tr>').join('')+'</table></div><p class="muted">'
-  +'<i>x</i> = years since 1 Jan '+D.scatterOrigin+'. The slope is the change in the size of the move per year; R² is the share '
+  +'<i>x</i> = years since 1 Jan '+D.scatterOrigin+'. The slope is how much the change shifts per year (negative: the proposal’s target gets faster relative to today’s over time); R² is the share '
   +'of the spread the line explains (0 = none, 1 = all). On the chart, colour is the method and line style the runner '
   +'(solid George, dashed Raju, dotted Duncan); thinner, paler lines are buggy. A group with fewer than two points, or '
   +'all on one day, has no line. The value at <i>x</i> = 0 is the line carried back to 1 Jan '+D.scatterOrigin+': for a group whose '
-  +'points start later (the buggy ones start in 2025) it lies outside the data and can be negative; read the slope, not the start.</p>':'<p class="muted">Not enough points for a line of best fit.</p>'}}
+  +'points start later (the buggy ones start in 2025) it lies outside the data; read the slope, not the start.</p>':'<p class="muted">Not enough points for a line of best fit.</p>'}}
 document.querySelectorAll('#scatterctl input').forEach(i=>i.onchange=scatterDraw);scatterDraw();
 const spm=document.getElementById('spm');M.forEach(m=>opt(spm,m,D.methods[m]));
 filterable('trendctl',document.getElementById('trend'),structuredClone(D.trend));

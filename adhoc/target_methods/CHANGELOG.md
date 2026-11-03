@@ -1,6 +1,10 @@
 # Changelog
 
 ## 2026-11-03
+- The scatter shows **signed** change (proposed − current, as a % of current)
+  instead of its size: below 0 the proposal sets a faster target. Section
+  renamed "How each target moves". Medians: M1 −3.25%, M2 −3.80%, M4 0.00%;
+  M1 and M2 are faster in 94% and 98% of rows, M4 in 36%.
 - Lines of best fit are now **one per runner × mode × method** (was one per
   method), with the equations in a table under the chart. Line colour = method,
   line style = runner, thinner and paler = buggy. All 15 checked against numpy.
