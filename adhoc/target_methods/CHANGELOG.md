@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-03
+- **How far each target moves**: a year filter, and a least-squares line of
+  best fit per method, refitted in the page to whatever the filters leave,
+  with its equation, R² and point count under the chart (x = years since
+  1 Jan of the first year). The chart is now built in the page from plain
+  rows, so a filter can drop single points. Fits checked against numpy.
+- Side-by-side panels: each runner's working moves from a column to a list
+  under the table, and tighter cells, so no panel scrolls sideways.
+
 ## 2026-11-02 (M4)
 - **M3 dropped** (asymmetric smoothing, and its speed grid). **M4 added**: the
   median of the latest 13 same-mode runs within 182 days. M4 changes 19

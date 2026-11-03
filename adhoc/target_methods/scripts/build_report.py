@@ -299,11 +299,15 @@ def table_html(rows: pd.DataFrame) -> str:
         f"<tr><td>{MEDAL[int(r.place_rank)]}</td><td>{html.escape(r.athlete_name)}"
         f"{' 🛒' if r.is_buggy else ''}</td><td>{fmt_time(r.actual_seconds)}</td>"
         f"<td>{fmt_time(r.target_seconds)}</td><td>{r.pct_diff:+.2f}%</td>"
-        f"<td>{basis.get(r.target_basis, '')}</td><td>{int(r.n_window)}</td>"
-        f"<td class='how'>{html.escape(r.how)}</td></tr>"
+        f"<td>{basis.get(r.target_basis, '')}</td><td>{int(r.n_window)}</td></tr>"
         for r in d.itertuples())
+    # The working goes under the table, not in a column: a 4-column panel is
+    # too narrow for it, and a column made every panel scroll sideways.
+    how = "".join(f"<li><b>{html.escape(r.athlete_name)}{' 🛒' if r.is_buggy else ''}</b>: "
+                  f"{html.escape(r.how)}</li>" for r in d.itertuples())
     return ("<table class='res'><tr><th></th><th>Runner</th><th>Time</th><th>Target</th>"
-            f"<th>vs form</th><th>Basis</th><th>Runs</th><th>How</th></tr>{body}</table>")
+            f"<th>vs form</th><th>Basis</th><th>Runs</th></tr>{body}</table>"
+            f"<ul class='how'>{how}</ul>")
 
 
 def occasion_panels(occ: dict, key) -> dict:
@@ -320,40 +324,24 @@ def occasion_panels(occ: dict, key) -> dict:
     return out
 
 
-def scatter_fig(tg: dict) -> go.Figure:
+def scatter_rows(tg: dict) -> list:
+    """One point per runner per head-to-head per proposed method: how far its
+    target moved from the current one, as a % of it. Plain rows, not a figure:
+    the page builds the chart itself so the year filter can drop points and the
+    best-fit lines can be refitted to what is shown."""
     k = ["event_id", "run_date", "athlete_id"]
     base = tg["M0"][tg["M0"]["n_window"] >= 1]
-    fig = go.Figure()
-    colors = {"M1": "#e7298a", "M2": "#66a61e", "M4": "#1f78b4"}
-    symbol = {"George": "circle", "Raju": "square", "Duncan": "diamond"}
-    for m in ("M1", "M2", "M4"):
-        xm = base.merge(tg[m][tg[m]["n_window"] >= 1], on=k, suffixes=("", "_n"))
-        xm["chg"] = (xm["target_seconds_n"] - xm["target_seconds"]).abs() / xm["target_seconds"] * 100
-        xm["who"] = xm["athlete_name"] + np.where(xm["is_buggy"], " 🛒", "")
-        # One trace per runner × mode × method, so the page's checkboxes can
-        # filter on all three (meta). Colour = method, shape = runner, open = buggy.
-        for name, mode in FACETS:
-            x = xm[(xm["athlete_name"] == name) & (xm["mode"] == mode)]
-            if x.empty:
-                continue
-            fig.add_trace(go.Scattergl(
-                x=x["run_date"], y=x["chg"], mode="markers",
-                name=f"{name}{' 🛒' if mode == 'buggy' else ''} · {m}",
-                meta={"ath": name, "mode": mode, "meth": m},
-                marker=dict(size=6, color=colors[m], opacity=0.6,
-                            symbol=symbol[name] + ("-open" if mode == "buggy" else "")),
-                customdata=np.stack([x["who"], x["short_name"],
-                                     x["target_seconds"].map(fmt_time),
-                                     x["target_seconds_n"].map(fmt_time),
-                                     x["chg"].map(lambda v: f"{v:.2f}%")], axis=1),
-                hovertemplate="%{x|%d %b %Y} · %{customdata[1]}<br><b>%{customdata[0]}</b><br>"
-                              "current %{customdata[2]} → %{customdata[3]}<br>"
-                              "%{customdata[4]} change<extra></extra>"))
-    fig.update_layout(height=460, margin=dict(t=20, b=40, l=50, r=10),
-                      yaxis=dict(title="|target change| vs current (%)", ticksuffix="%",
-                                 tickformat=PCT),
-                      legend=dict(font=dict(size=11)))
-    return fig
+    out = []
+    for m in (m for m in METHODS if m != "M0"):
+        x = base.merge(tg[m][tg[m]["n_window"] >= 1], on=k, suffixes=("", "_n"))
+        x["chg"] = (x["target_seconds_n"] - x["target_seconds"]).abs() / x["target_seconds"] * 100
+        for r in x.itertuples():
+            out.append({"date": f"{r.run_date:%Y-%m-%d}", "chg": round(float(r.chg), 4),
+                        "ath": r.athlete_name, "mode": r.mode, "meth": m,
+                        "who": r.athlete_name + (" 🛒" if r.is_buggy else ""),
+                        "parkrun": r.short_name, "cur": fmt_time(r.target_seconds),
+                        "new": fmt_time(r.target_seconds_n), "txt": f"{r.chg:.2f}%"})
+    return out
 
 
 FACETS = [("George", "nonbuggy"), ("George", "buggy"), ("Raju", "nonbuggy"),
@@ -488,11 +476,16 @@ def calc_rows(h2h: dict) -> list:
     return sorted(out, key=lambda x: (x["date"], x["parkrun"], x["ath"], x["meth"]), reverse=True)
 
 
+SCATTER_COLORS = {"M1": "#e7298a", "M2": "#66a61e", "M4": "#1f78b4"}
+
+
 def page(summ, occ_index, panels, scatter, spreads, trend, calc) -> str:
     explain = "".join(f"<div class='card'><h3>{html.escape(METHODS[m])}</h3><p>{EXPLAIN[m]}</p></div>"
                       for m in METHODS)
     template = json.loads(pio.to_json(go.Figure(layout=dict(template="plotly_white"))))["layout"]["template"]
-    data = {"occ": occ_index, "panels": panels, "scatter": fig_json(scatter, lock=False),
+    years = sorted({r["date"][:4] for r in scatter}, reverse=True)      # newest first
+    data = {"occ": occ_index, "panels": panels, "scatter": scatter, "scatterOrigin": int(years[-1]),
+            "scatterColors": SCATTER_COLORS,
             "spreads": spreads, "trend": trend, "calc": calc, "methods": METHODS, "template": template,
             "config": PLOTLY_CONFIG}
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
@@ -512,9 +505,11 @@ def page(summ, occ_index, panels, scatter, spreads, trend, calc) -> str:
  .col{{min-width:0;overflow-x:auto;background:#fff;border:1px solid #e3e3e3;border-radius:8px;padding:10px}} .col h3{{margin:0 0 6px;font-size:14px}}
  .badge{{display:inline-block;font-size:12px;padding:1px 8px;border-radius:10px;background:#eee;margin-left:6px}}
  .badge.Winner{{background:#ffd6d6}} .badge.Places{{background:#ffe9c2}} .badge.Roster,.badge.Gained,.badge.Lost{{background:#e3dcff}}
- .res td,.res th{{font-size:13px;padding:2px 6px}}
+ .res td,.res th{{font-size:13px;padding:2px 3px}}
  fieldset{{border:1px solid #e3e3e3;border-radius:8px;padding:4px 10px;display:flex;flex-wrap:wrap;gap:4px 12px}}
  legend{{font-size:12px;color:#777;padding:0 4px}} .muted{{color:#777}}
+ ul.fits{{list-style:none;padding:0;margin:6px 0;display:grid;gap:4px;font-variant-numeric:tabular-nums}}
+ ul.how{{margin:6px 0 0;padding-left:18px;font-size:12px;color:#444}}
  td.how{{text-align:left;font-size:12px;color:#444;min-width:16em}}
  #calc{{max-height:70vh;overflow:auto;border:1px solid #e3e3e3;border-radius:8px;background:#fff}}
  #calc table{{width:100%}} #calc th{{position:sticky;top:0;background:#fff}} #calc td,#calc th{{font-size:13px}}
@@ -539,12 +534,14 @@ winner changed › places changed › roster changed (someone ranked or demoted)
 <h2>How far each target moves</h2>
 <p class="muted">One point per runner per head-to-head: the size of the change from the current target,
 as a % of it. Colour is the method, shape the runner (● George, ■ Raju, ◆ Duncan), and an open shape a
-buggy run. Tick boxes to choose points.</p>
+buggy run. Tick boxes to choose points. The dashed lines are least-squares lines of best fit, one per
+method, refitted to the points shown; their equations are under the chart.</p>
 <div class="controls" id="scatterctl">
  <fieldset><legend>Runner</legend>{boxes("ath", {n: n for n in ATHLETE_COLORS})}</fieldset>
  <fieldset><legend>Mode</legend>{boxes("mode", {"nonbuggy": "Regular", "buggy": "Buggy 🛒"})}</fieldset>
  <fieldset><legend>Method</legend>{boxes("meth", {m: m for m in METHODS if m != "M0"})}</fieldset>
-</div><div id="scatter"></div>
+ <fieldset><legend>Year</legend>{boxes("year", {y: y for y in years})}</fieldset>
+</div><div id="scatter"></div><div id="fits"></div>
 <h2>Target time over time</h2>
 <p class="muted">Each method's target on every Saturday from the first head-to-head on, per runner and kind of
 run (no bridge, as on the app's Form tab). Colour is the runner, line style the method, and the 🛒 lines are
@@ -601,7 +598,38 @@ function filterable(ctl,el,fig){{draw(el,fig,{{displayModeBar:true}});
   const a=on('ath'),md=on('mode'),me=on('meth');
   Plotly.restyle(el,{{visible:fig.data.map(t=>a.includes(t.meta.ath)&&md.includes(t.meta.mode)&&me.includes(t.meta.meth))}})}};
  document.querySelectorAll('#'+ctl+' input').forEach(i=>i.onchange=vis);vis()}}
-filterable('scatterctl',document.getElementById('scatter'),structuredClone(D.scatter));
+const SCOL=D.scatterColors,SYM={{George:'circle',Raju:'square',Duncan:'diamond'}};
+const T0=Date.UTC(D.scatterOrigin,0,1),YR=365.25*864e5,f2=v=>v.toFixed(2);
+function scatterDraw(){{const on=k=>[...document.querySelectorAll('#scatterctl input[data-k="'+k+'"]:checked')].map(i=>i.value);
+ const a=on('ath'),md=on('mode'),me=on('meth'),yrs=on('year');
+ const pts=D.scatter.filter(p=>a.includes(p.ath)&&md.includes(p.mode)&&me.includes(p.meth)&&yrs.includes(p.date.slice(0,4)));
+ const groups={{}};pts.forEach(p=>{{(groups[p.ath+'|'+p.mode+'|'+p.meth]??=[]).push(p)}});
+ const traces=Object.entries(groups).map(([k,g])=>{{const [ath,mode,meth]=k.split('|');return {{type:'scattergl',mode:'markers',
+  name:ath+(mode==='buggy'?' 🛒':'')+' · '+meth,x:g.map(p=>p.date),y:g.map(p=>p.chg),
+  customdata:g.map(p=>[p.who,p.parkrun,p.cur,p.new,p.txt]),
+  marker:{{size:6,color:SCOL[meth],opacity:0.6,symbol:SYM[ath]+(mode==='buggy'?'-open':'')}},
+  hovertemplate:'%{{x|%d %b %Y}} · %{{customdata[1]}}<br><b>%{{customdata[0]}}</b><br>current %{{customdata[2]}} → %{{customdata[3]}}<br>%{{customdata[4]}} change<extra></extra>'}}}});
+ // Least squares per method over the points shown: y = c + b·x, x in years since 1 Jan of the first year.
+ const eq=[],day=x=>new Date(T0+x*YR).toISOString().slice(0,10);
+ me.forEach(m=>{{const g=pts.filter(p=>p.meth===m),n=g.length;if(n<2)return;
+  const xs=g.map(p=>(Date.parse(p.date)-T0)/YR),ys=g.map(p=>p.chg);
+  const mx=xs.reduce((s,v)=>s+v,0)/n,my=ys.reduce((s,v)=>s+v,0)/n;let sxx=0,sxy=0,syy=0;
+  for(let i=0;i<n;i++){{const dx=xs[i]-mx,dy=ys[i]-my;sxx+=dx*dx;sxy+=dx*dy;syy+=dy*dy}}
+  if(sxx===0)return;const b=sxy/sxx,c=my-b*mx,r2=syy?sxy*sxy/(sxx*syy):0;
+  const x0=Math.min(...xs),x1=Math.max(...xs);
+  traces.push({{type:'scatter',mode:'lines',name:'best fit · '+m,x:[day(x0),day(x1)],y:[c+b*x0,c+b*x1],
+   line:{{color:SCOL[m],width:2,dash:'dash'}},hoverinfo:'skip'}});
+  const bs=f2(Math.abs(b));
+  eq.push('<li><span style="color:'+SCOL[m]+'">■</span> <b>'+m+'</b>: change = '+f2(c)+'% '+(b<0&&bs!=='0.00'?'−':'+')+' '
+   +bs+'% × <i>x</i> &nbsp;·&nbsp; R² = '+f2(r2)+' &nbsp;·&nbsp; '+n+' points</li>')}});
+ const el=document.getElementById('scatter');
+ Plotly.react(el,traces,{{template:D.template,autosize:true,height:460,margin:{{t:20,b:40,l:50,r:10}},
+  yaxis:{{title:{{text:'|target change| vs current (%)'}},ticksuffix:'%',tickformat:'.2~f'}},legend:{{font:{{size:11}}}}}},
+  {{responsive:true,displayModeBar:true}});
+ document.getElementById('fits').innerHTML=eq.length?'<ul class="fits">'+eq.join('')+'</ul><p class="muted">'
+  +'<i>x</i> = years since 1 Jan '+D.scatterOrigin+'. The slope is the change in the size of the move per year; R² is the share '
+  +'of the spread the line explains (0 = none, 1 = all).</p>':'<p class="muted">Not enough points for a line of best fit.</p>'}}
+document.querySelectorAll('#scatterctl input').forEach(i=>i.onchange=scatterDraw);scatterDraw();
 const spm=document.getElementById('spm');M.forEach(m=>opt(spm,m,D.methods[m]));
 filterable('trendctl',document.getElementById('trend'),structuredClone(D.trend));
 const esc=t=>String(t).replace(/[&<>"]/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}})[c]);
@@ -651,7 +679,7 @@ def main() -> None:
 
     OUTPUT.parent.mkdir(exist_ok=True)
     SUMMARY.parent.mkdir(exist_ok=True)
-    OUTPUT.write_text(page(summ, occ_index, panels, scatter_fig(tg), spreads, trend, calc_rows(h2h)))
+    OUTPUT.write_text(page(summ, occ_index, panels, scatter_rows(tg), spreads, trend, calc_rows(h2h)))
     summ.to_csv(SUMMARY, index=False)
     print(f"wrote {OUTPUT} ({OUTPUT.stat().st_size / 1e6:.1f} MB) and {SUMMARY}")
 
