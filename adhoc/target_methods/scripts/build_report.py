@@ -508,7 +508,7 @@ def page(summ, occ_index, panels, scatter, spreads, trend, calc) -> str:
  .res td,.res th{{font-size:13px;padding:2px 3px}}
  fieldset{{border:1px solid #e3e3e3;border-radius:8px;padding:4px 10px;display:flex;flex-wrap:wrap;gap:4px 12px}}
  legend{{font-size:12px;color:#777;padding:0 4px}} .muted{{color:#777}}
- ul.fits{{list-style:none;padding:0;margin:6px 0;display:grid;gap:4px;font-variant-numeric:tabular-nums}}
+ table.fits{{margin:8px 0}} table.fits td,table.fits th{{font-size:13px}}
  ul.how{{margin:6px 0 0;padding-left:18px;font-size:12px;color:#444}}
  td.how{{text-align:left;font-size:12px;color:#444;min-width:16em}}
  #calc{{max-height:70vh;overflow:auto;border:1px solid #e3e3e3;border-radius:8px;background:#fff}}
@@ -534,8 +534,8 @@ winner changed › places changed › roster changed (someone ranked or demoted)
 <h2>How far each target moves</h2>
 <p class="muted">One point per runner per head-to-head: the size of the change from the current target,
 as a % of it. Colour is the method, shape the runner (● George, ■ Raju, ◆ Duncan), and an open shape a
-buggy run. Tick boxes to choose points. The dashed lines are least-squares lines of best fit, one per
-method, refitted to the points shown; their equations are under the chart.</p>
+buggy run. Tick boxes to choose points. The lines are least-squares lines of best fit, one per runner,
+mode and method, refitted to the points shown; their equations are in the table under the chart.</p>
 <div class="controls" id="scatterctl">
  <fieldset><legend>Runner</legend>{boxes("ath", {n: n for n in ATHLETE_COLORS})}</fieldset>
  <fieldset><legend>Mode</legend>{boxes("mode", {"nonbuggy": "Regular", "buggy": "Buggy 🛒"})}</fieldset>
@@ -609,26 +609,38 @@ function scatterDraw(){{const on=k=>[...document.querySelectorAll('#scatterctl i
   customdata:g.map(p=>[p.who,p.parkrun,p.cur,p.new,p.txt]),
   marker:{{size:6,color:SCOL[meth],opacity:0.6,symbol:SYM[ath]+(mode==='buggy'?'-open':'')}},
   hovertemplate:'%{{x|%d %b %Y}} · %{{customdata[1]}}<br><b>%{{customdata[0]}}</b><br>current %{{customdata[2]}} → %{{customdata[3]}}<br>%{{customdata[4]}} change<extra></extra>'}}}});
- // Least squares per method over the points shown: y = c + b·x, x in years since 1 Jan of the first year.
- const eq=[],day=x=>new Date(T0+x*YR).toISOString().slice(0,10);
- me.forEach(m=>{{const g=pts.filter(p=>p.meth===m),n=g.length;if(n<2)return;
+ // Least squares per runner × mode × method over the points shown: y = c + b·x,
+ // x in years since 1 Jan of the first year. Display order: runner, mode, method.
+ const eq=[],day=x=>new Date(T0+x*YR).toISOString().slice(0,10),DASHES={{George:'solid',Raju:'dash',Duncan:'dot'}};
+ const keys=Object.keys(groups).sort((p,q)=>{{const r=k=>{{const [a,md,m]=k.split('|');
+  return [['George','Raju','Duncan'].indexOf(a),md==='buggy'?1:0,m]}};const x=r(p),y=r(q);
+  return x[0]-y[0]||x[1]-y[1]||(x[2]<y[2]?-1:x[2]>y[2]?1:0)}});
+ keys.forEach(k=>{{const [ath,mode,m]=k.split('|'),g=groups[k],n=g.length,who=ath+(mode==='buggy'?' 🛒':'');
   const xs=g.map(p=>(Date.parse(p.date)-T0)/YR),ys=g.map(p=>p.chg);
+  if(n<2){{eq.push([who,m,'—','—',n]);return}}
   const mx=xs.reduce((s,v)=>s+v,0)/n,my=ys.reduce((s,v)=>s+v,0)/n;let sxx=0,sxy=0,syy=0;
   for(let i=0;i<n;i++){{const dx=xs[i]-mx,dy=ys[i]-my;sxx+=dx*dx;sxy+=dx*dy;syy+=dy*dy}}
-  if(sxx===0)return;const b=sxy/sxx,c=my-b*mx,r2=syy?sxy*sxy/(sxx*syy):0;
+  if(sxx===0){{eq.push([who,m,'—','—',n]);return}}
+  const b=sxy/sxx,c=my-b*mx,r2=syy?sxy*sxy/(sxx*syy):0,bs=f2(Math.abs(b));
+  const txt='change = '+(c<0&&f2(-c)!=='0.00'?'−':'')+f2(Math.abs(c))+'% '+(b<0&&bs!=='0.00'?'−':'+')+' '+bs+'% × x';
   const x0=Math.min(...xs),x1=Math.max(...xs);
-  traces.push({{type:'scatter',mode:'lines',name:'best fit · '+m,x:[day(x0),day(x1)],y:[c+b*x0,c+b*x1],
-   line:{{color:SCOL[m],width:2,dash:'dash'}},hoverinfo:'skip'}});
-  const bs=f2(Math.abs(b));
-  eq.push('<li><span style="color:'+SCOL[m]+'">■</span> <b>'+m+'</b>: change = '+f2(c)+'% '+(b<0&&bs!=='0.00'?'−':'+')+' '
-   +bs+'% × <i>x</i> &nbsp;·&nbsp; R² = '+f2(r2)+' &nbsp;·&nbsp; '+n+' points</li>')}});
+  traces.push({{type:'scatter',mode:'lines',name:'fit · '+who+' · '+m,x:[day(x0),day(x1)],y:[c+b*x0,c+b*x1],
+   line:{{color:SCOL[m],width:mode==='buggy'?1.5:2,dash:DASHES[ath]}},opacity:mode==='buggy'?0.7:1,
+   hovertemplate:'<b>'+who+' · '+m+'</b><br>'+txt+'<br>R² = '+f2(r2)+'<extra></extra>'}});
+  eq.push([who,m,txt.replace(' x',' <i>x</i>'),f2(r2),n])}});
  const el=document.getElementById('scatter');
  Plotly.react(el,traces,{{template:D.template,autosize:true,height:460,margin:{{t:20,b:40,l:50,r:10}},
   yaxis:{{title:{{text:'|target change| vs current (%)'}},ticksuffix:'%',tickformat:'.2~f'}},legend:{{font:{{size:11}}}}}},
   {{responsive:true,displayModeBar:true}});
- document.getElementById('fits').innerHTML=eq.length?'<ul class="fits">'+eq.join('')+'</ul><p class="muted">'
+ document.getElementById('fits').innerHTML=eq.length?'<div class="wrap"><table class="fits"><tr><th>Runner</th><th>Method</th>'
+  +'<th style="text-align:left">Line of best fit</th><th>R²</th><th>Points</th></tr>'
+  +eq.map(([w,m,t,r,n])=>'<tr><td>'+w+'</td><td><span style="color:'+SCOL[m]+'">■</span> '+m+'</td><td style="text-align:left">'
+   +t+'</td><td>'+r+'</td><td>'+n+'</td></tr>').join('')+'</table></div><p class="muted">'
   +'<i>x</i> = years since 1 Jan '+D.scatterOrigin+'. The slope is the change in the size of the move per year; R² is the share '
-  +'of the spread the line explains (0 = none, 1 = all).</p>':'<p class="muted">Not enough points for a line of best fit.</p>'}}
+  +'of the spread the line explains (0 = none, 1 = all). On the chart, colour is the method and line style the runner '
+  +'(solid George, dashed Raju, dotted Duncan); thinner, paler lines are buggy. A group with fewer than two points, or '
+  +'all on one day, has no line. The value at <i>x</i> = 0 is the line carried back to 1 Jan '+D.scatterOrigin+': for a group whose '
+  +'points start later (the buggy ones start in 2025) it lies outside the data and can be negative; read the slope, not the start.</p>':'<p class="muted">Not enough points for a line of best fit.</p>'}}
 document.querySelectorAll('#scatterctl input').forEach(i=>i.onchange=scatterDraw);scatterDraw();
 const spm=document.getElementById('spm');M.forEach(m=>opt(spm,m,D.methods[m]));
 filterable('trendctl',document.getElementById('trend'),structuredClone(D.trend));

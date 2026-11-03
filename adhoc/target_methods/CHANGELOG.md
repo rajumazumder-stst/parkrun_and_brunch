@@ -1,6 +1,9 @@
 # Changelog
 
 ## 2026-11-03
+- Lines of best fit are now **one per runner × mode × method** (was one per
+  method), with the equations in a table under the chart. Line colour = method,
+  line style = runner, thinner and paler = buggy. All 15 checked against numpy.
 - **How far each target moves**: a year filter, and a least-squares line of
   best fit per method, refitted in the page to whatever the filters leave,
   with its equation, R² and point count under the chart (x = years since
