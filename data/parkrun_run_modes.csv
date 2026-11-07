@@ -869,4 +869,4 @@ athlete_id,run_date,event_id,is_buggy,source,confidence,reason,set_at
 5462426,2026-10-17,76,false,model,0.8704647712250749,"model p=0.130 on 4 features, 181 training runs, half-life None",2026-10-17 14:41:26.621605+01
 5462426,2026-10-24,3163,true,model,0.7169362659725392,"model p=0.717 on 4 features, 182 training runs, half-life None",2026-10-24 14:31:40.727749+01
 5462426,2026-10-31,3830,false,model,0.9294796180923262,"model p=0.071 on 4 features, 183 training runs, half-life None",2026-10-31 14:31:42.617768+00
-5462426,2026-11-07,3163,true,model,0.6443798699550948,"model p=0.644 on 4 features, 184 training runs, half-life None",2026-11-07 17:57:20.629849+00
+5462426,2026-11-07,3163,false,user,,corrected by hand,2026-11-07 18:08:41.41448+00
