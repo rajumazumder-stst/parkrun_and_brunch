@@ -19,6 +19,82 @@ URLs, because Streamlit Cloud has answered every binary file under
 
 ---
 
+## Buggy estimator — investigate updates
+
+Requested 14 Nov 2026, after four wrong calls in two weeks: George at
+Osterley on 7 and 14 Nov (called buggy, ran regular), Duncan at Lordship on
+7 Nov (called buggy, ran regular) and at Rhos-on-Sea on 14 Nov (called
+regular, pushed). In three of the four, course history
+(`event_buggy_share`) outvoted the finishing time. At Osterley George would
+have had to run 20:56 or faster, 31 s off his 20:25 PB, to be called regular.
+
+**How the methods were tested.** A blind replay of every run after each
+athlete's first buggy run (George 81, Duncan 36): each run scored only from
+the runs before it, with the live estimator's machinery, and every stored
+label taken as correct. The replay of the current model reproduces its
+stored calls exactly. Results page, private:
+<https://claude.ai/artifact/G8ZarshPzKPnm2nW6781pd>. The replay scripts were
+throwaway and are not in the repo.
+
+| Method | George, right of 81 | Duncan, right of 36 |
+|---|---|---|
+| Always say regular | 47 | **25** |
+| Current model | 72 | 24 |
+| Range model: + range question, course history from last 5 visits only | **75** | 24 |
+| Range model, no course history | 74 | 25 |
+| Median model: + median question, course history from last 5 visits only | 72 | **28** |
+| Median model, no course history | 73 | **28** |
+| Nearer-median rule: closer of last-10 regular / last-10 buggy median, no model | 66 | 22 |
+
+The **range question** asks whether today's course-adjusted time is likelier
+under the spread of his last 10 regular or last 8 buggy times. The **median
+question** asks which of those two medians it is nearer.
+
+Earlier, on a narrower scope (after each athlete's fifth buggy run: George
+76, Duncan 19, counted as wrong calls): current 7 / 9; course history
+weakened by shrinking toward the era rate with 10 or 30 pseudo-runs 8 / 9;
+course history removed with nothing added 10 / 7; a crude two-range rule on
+its own 9 / 13.
+
+**What the replay showed**
+- **Weakening course history by shrinkage does nothing.** The refit raises
+  its weight to compensate. Only removing it, or capping its weight by hand,
+  would change anything.
+- **The range question suits George**, whose regular and buggy times barely
+  overlap (since March, 20:57–22:39 against 23:13–26:49). It takes the
+  Osterley calls to 2% and 0.2% buggy. **For Duncan every fit weights it
+  backwards**, so for him it is noise.
+- **The median question suits Duncan.** It catches all 11 of his buggy runs
+  and is never wrong when it says regular (17 of 17). But the five buggy runs
+  only it catches sit at 52–67%, and it calls two holiday runs buggy (Corner
+  Brook 90%, Kovach 60%).
+- **Course history earns at most one call per runner** once either question
+  is in, in either direction.
+- **Lordship on 7 Nov is wrong in every version.**
+- **How a missing median is filled matters.** Filling it with "no evidence"
+  (0) rather than the column median changed every fit, not just the runs that
+  had no median. That is the right choice, and any build must keep it.
+
+**Leading candidate:** drop course history; the range question for George,
+the median question for Duncan. Not yet replayed as that combination.
+
+**Open questions**
+- **Choosing the question per runner.** Fixed by hand, or picked by the
+  walk-forward itself so it can change as the data does?
+- **Untuned constants.** 10 regular / 8 buggy recent runs, the 2% spread
+  floor, and the course adjustment (median offset at the course, else a slope
+  on `course_diff`).
+- **Duncan's sample** is 36 runs, 11 buggy. One or two calls either way
+  reorder the table.
+- **The feedback loop.** The replay took every stored label as correct, but
+  `model` labels train later fits. Re-measure the uncorrected bound
+  (`walk_forward(uncorrected=True)`) for any candidate.
+- **On shipping:** rewrite `docs/MODEL.md`, keep `model_estimates` write-once
+  (old calls stay as they were made), and decide whether tab 6 marks which
+  model made each call.
+
+---
+
 ## Visualisation ideas
 
 Unscoped. Carried over from the *Future ideas* line that used to close
