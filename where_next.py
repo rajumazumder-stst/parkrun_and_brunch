@@ -47,7 +47,8 @@ from streamlit_folium import st_folium
 
 from parkrun_calendar import theme as cal_theme
 from parkrun_core import crosses_water
-from parkrun_ui import (ATHLETE_COLORS, BUGGY_GLYPH, _read_sql, closable_popover,
+from parkrun_ui import (ATHLETE_COLORS, BUGGY_GLYPH, _read_sql, class_order,
+                        closable_popover,
                         flag, flag_html, fmt_n)
 
 # Fixed athlete order for every per-athlete mark: a square means the same
@@ -408,7 +409,9 @@ def _pie_svg(wins: dict, diameter: int) -> str:
     """A small SVG pie for a venue marker — one slice per athlete, area split by
     their share of form-adjusted 1sts, coloured by ATHLETE_COLORS."""
     r = diameter / 2
-    items = [(n, c) for n, c in wins.items() if c > 0]
+    # Slices clockwise from 12 o'clock in display order, never the frame's
+    # (alphabetical) column order.
+    items = [(n, wins[n]) for n in ATHLETE_COLORS if wins.get(n, 0) > 0]
     total = sum(c for _, c in items)
     if not items or total == 0:
         return ""
@@ -1621,7 +1624,7 @@ def _planner_filters(*, countries, hc, travel, has_travel, base) -> dict:
              "the islands, Ireland and Europe. Their driving times count "
              "sailing time only: no check-in, no wait for a departure.")
 
-    classes = sorted(hc["classification"].unique())
+    classes = class_order(hc["classification"])
     out["done_filter"] = _choice_rows("Who has run it", ATHLETES,
                                       DONE_CHOICES, "t5_done",
                                       default=DEFAULT_DONE)

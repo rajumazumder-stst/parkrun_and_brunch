@@ -495,6 +495,6 @@ possibly who won that day.
         + (f"  —  filtered to {', '.join(bits)}" if bits else "")
     )
 
-    for name in sorted(BUGGY_ATHLETES.values()):
+    for name in BUGGY_ATHLETES.values():   # George, Duncan: display order
         st.divider()
         _athlete(df, sel, name)

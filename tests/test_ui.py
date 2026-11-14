@@ -240,6 +240,45 @@ def test_manifest_start_url_opens_the_site_root(app):
     assert urlsplit(url).path == "/"
 
 
+def test_install_icons_are_off_cloud_and_exist():
+    """Cloud 500s binary files under app/static/ (since 14 Oct 2026), and
+    Chrome will not install without a downloadable icon. The manifest's icons
+    and the touch icon point at GitHub's raw copy of static/, which only works
+    if each named file is committed there."""
+    import json
+    import re
+    manifest = json.loads((REPO / "static" / "manifest.json").read_text())
+    srcs = [i["src"] for i in manifest["icons"]]
+    srcs += re.findall(r"https://raw\.githubusercontent\.com/[^'\"]+",
+                       (REPO / "parkrun_app.py").read_text())
+    assert len(srcs) == 3
+    for src in srcs:
+        assert src.startswith("https://raw.githubusercontent.com/"), src
+        assert (REPO / "static" / src.rsplit("/static/", 1)[1]).is_file(), src
+
+
+def test_one_athlete_order_george_raju_duncan():
+    """docs/STYLE.md: George, Raju, Duncan unless a result orders them. The
+    app's order (ATHLETE_COLORS) and the pipeline's (ATHLETE_NAMES, which
+    orders names inside a classification) are one order."""
+    assert list(ui.ATHLETE_COLORS) == ["George", "Raju", "Duncan"]
+    assert [n.capitalize() for n in parkrun_core.ATHLETE_NAMES.values()] == list(ui.ATHLETE_COLORS)
+    got = ui.class_order(["Raju vs Duncan", "George vs Raju vs Duncan", "George vs Duncan",
+                          "George vs Raju", "George vs Raju"])
+    assert got == ["George vs Raju", "George vs Duncan", "Raju vs Duncan",
+                   "George vs Raju vs Duncan"]
+
+
+def test_no_alphabetical_athlete_sort_in_ui():
+    """A sorted() over athlete names puts Duncan first; display code uses
+    ATHLETE_COLORS order instead (docs/STYLE.md § Colour and marks)."""
+    import re
+    pat = re.compile(r"sorted\([^)]*(athlete_name|BUGGY_ATHLETES)")
+    for f in ("parkrun_app.py", "where_next.py", "estimator_tab.py",
+              "h2h_streaks.py", "milestone_matrix.py", "venue_matrix.py"):
+        assert not pat.search((REPO / f).read_text()), f
+
+
 def test_years_desc_is_newest_first_and_keeps_type():
     assert ui.years_desc([2019, 2025, 2019, 2023]) == [2025, 2023, 2019]
     assert ui.years_desc(["2019", "2025"]) == ["2025", "2019"]

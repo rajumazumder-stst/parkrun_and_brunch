@@ -1,10 +1,10 @@
-"""parkrun & brunch — comparison app for George, Duncan and Raju.
+"""parkrun & brunch — comparison app for George, Raju and Duncan.
 
 Reads the `parkrun` schema (read-only) from the local DuckDB and presents:
   Tab 1  intro + participation calendar + overlap (Venn) + per-athlete company
-         + milestone matrix (milestone_matrix.py)
+         + personal bests + milestone matrix (milestone_matrix.py)
          + unique-parkruns matrix (venue_matrix.py)
-  Tab 2  personal bests + head-to-head summary (targets, latest result,
+  Tab 2  head-to-head summary (targets, latest result,
          record, win/loss streaks, cumulative 1sts)
   Tab 3  head-to-head detail (drill into a single contest: scoreline one-liner
          + victory lollipop chart + results table)
@@ -68,6 +68,7 @@ from parkrun_ui import (  # shared with label_impact.py — see that module
     fmt_n,
     fmt_time,
     POPOVER_CLOSE_CSS,
+    class_order,
     closable_popover,
     keep_widget_state,
     show_chart,
@@ -160,9 +161,11 @@ def _home_screen_icons_js() -> str:
             d.head.appendChild(m);
           }
           function add(d, base) {
-            // Served by [server] enableStaticServing in .streamlit/config.toml.
             // Must be real URLs: iOS ignores data: URIs for apple-touch-icon.
-            own(d, 'apple-touch-icon', 'app/static/apple-touch-icon.png', base);
+            // The icon comes off GitHub because Cloud 500s binary static files
+            // (since 14 Oct 2026; ICON_BASE in scripts/build_app_icon.py).
+            // The manifest is JSON, which Cloud still serves.
+            own(d, 'apple-touch-icon', 'https://raw.githubusercontent.com/rajumazumder-stst/parkrun_and_brunch/main/static/apple-touch-icon.png', base);
             own(d, 'manifest', 'app/static/manifest.json', base);
             title(d, 'p&b');
           }
@@ -620,14 +623,6 @@ TGT_BIG = "1.5rem"
 TGT_GAP = "0.75rem"   # space between the last target and the popover button
 
 
-def pb_order(pb: pd.DataFrame) -> list[str]:
-    """Athletes by all-time best, fastest first — the order of the PB boxes
-    and of the streaks heatmap. Pass the unfiltered frame, so switching the
-    runs filter never reshuffles the boxes or drops a runner."""
-    return list(pb[pb["scope"] == "All time"]
-                .sort_values("time_seconds")["athlete_name"])
-
-
 def render_personal_bests(pb: pd.DataFrame, order: list[str],
                           runs_filter: str = "all") -> None:
     """One bordered box per athlete: the three scopes side by side, then that
@@ -679,8 +674,8 @@ def render_personal_bests(pb: pd.DataFrame, order: list[str],
 
     # Label / value / note are the shared stat-slot helpers (parkrun_ui):
     # the scope is the label, the time the value, the date the note.
-    def _small(text: str, muted: bool = True) -> str:
-        return stat_note(text) if muted else stat_label(text)
+    def _small(text: str, muted: bool = True, lines: int = 1) -> str:
+        return stat_note(text) if muted else stat_label(text, lines=lines)
 
     _big = stat_value
 
@@ -733,7 +728,10 @@ def render_personal_bests(pb: pd.DataFrame, order: list[str],
             # break the alignment the whole block is built on.
             value, venue = _timed(r, glyph=rf != "buggy"), r["short_name"]
             date = pd.Timestamp(r["run_date"]).strftime("%d %b %Y")
-        for html in (_small(scope, muted=False), _big(value), _venue(venue),
+        # Two lines for the scopes: "Last 12 months" wraps on a mid-width
+        # desktop, and a wrapped label would drop its time below its neighbours'.
+        label = _small(scope, muted=False, lines=1 if scope == PB_LATEST else 2)
+        for html in (label, _big(value), _venue(venue),
                      _small(date)):
             st.markdown(html, unsafe_allow_html=True)
 
@@ -1126,10 +1124,6 @@ try:
     h2h = load_h2h(_ver)
     targets = load_targets(_ver)
     target_runs = load_target_window_runs(_ver)
-    # "all" spelt out: st.cache_data keys on the arguments as passed, so a
-    # defaulted call would cache the same frame twice beside tab 2's filter.
-    personal_bests = load_personal_bests(_ver, "all")
-    pb_runner_order = pb_order(personal_bests)
     meta = load_data_meta(_ver)
 except duckdb.IOException:
     st.error(
@@ -1138,7 +1132,7 @@ except duckdb.IOException:
     )
     st.stop()
 
-CLASS_OPTS = ["All"] + sorted(h2h["classification"].unique())
+CLASS_OPTS = ["All"] + class_order(h2h["classification"])
 # Tab 3 also offers each runner: every head-to-head they were ranked in.
 CLASS_OPTS_BY_RUNNER = (
     ["All"]
@@ -1176,10 +1170,10 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
 # =========================================================================== #
 with tab1:
     render_title()
-    if section("George, Duncan & Raju", "t1_intro"):
+    if section("George, Raju & Duncan", "t1_intro"):
         st.markdown(
             """
-    Every Saturday morning, three friends — **George**, **Duncan** and **Raju** —
+    Every Saturday morning, three friends — **George**, **Raju** and **Duncan** —
     lace up for a **parkrun**: a free, timed 5k. Some weeks they line up together;
     other weeks they are scattered across the country chasing new venues. The one
     constant? **Brunch afterwards.** ☕🥐
@@ -1259,16 +1253,18 @@ with tab1:
             "three of them together and nothing else."
         )
 
-        has = {"Raju": "has_raju", "Duncan": "has_duncan", "George": "has_george"}
-        r, d, g = (overlap[has["Raju"]], overlap[has["Duncan"]], overlap[has["George"]])
+        # venn3 places A top-left, B top-right, C at the bottom: George, Raju,
+        # Duncan, the display order (docs/STYLE.md).
+        has = {n: f"has_{n.lower()}" for n in ATHLETE_COLORS}   # v_overlap columns
+        g, r, d = (overlap[has[n]] for n in ATHLETE_COLORS)
         subsets = (
-            int((r & ~d & ~g).sum()),  # Raju only
-            int((~r & d & ~g).sum()),  # Duncan only
-            int((r & d & ~g).sum()),  # Raju & Duncan
-            int((~r & ~d & g).sum()),  # George only
-            int((r & ~d & g).sum()),  # Raju & George
-            int((~r & d & g).sum()),  # Duncan & George
-            int((r & d & g).sum()),  # all three
+            int((g & ~r & ~d).sum()),  # George only
+            int((~g & r & ~d).sum()),  # Raju only
+            int((g & r & ~d).sum()),  # George & Raju
+            int((~g & ~r & d).sum()),  # Duncan only
+            int((g & ~r & d).sum()),  # George & Duncan
+            int((~g & r & d).sum()),  # Raju & Duncan
+            int((g & r & d).sum()),  # all three
         )
 
         col_v, col_b = st.columns([1, 1])
@@ -1276,12 +1272,8 @@ with tab1:
             fig, ax = plt.subplots(figsize=(5, 5))
             v = venn3(
                 subsets=subsets,
-                set_labels=("Raju", "Duncan", "George"),
-                set_colors=(
-                    ATHLETE_COLORS["Raju"],
-                    ATHLETE_COLORS["Duncan"],
-                    ATHLETE_COLORS["George"],
-                ),
+                set_labels=tuple(ATHLETE_COLORS),
+                set_colors=tuple(ATHLETE_COLORS.values()),
                 alpha=0.55,
                 ax=ax,
             )
@@ -1335,6 +1327,27 @@ with tab1:
             show_chart(fig2)
 
     st.divider()
+    keep_widget_state(("t1_pb_runs",))
+    if section("Personal bests", "t1_pbs"):
+        st.caption(
+            "Each runner's fastest parkrun over three periods — all time, "
+            "the last 12 months and the last 3 months, the two rolling "
+            "windows counted back from the latest refresh and including that "
+            "day. The filter narrows those three to regular or buggy runs, for "
+            "all three runners alike. Below the line is their most recent run, "
+            "whatever the time and whatever the filter."
+        )
+        # Always exactly one choice: seeded to "all", and `required` stops a
+        # click on the lit button from clearing it.
+        if st.session_state.get("t1_pb_runs") not in PB_FILTERS:
+            st.session_state["t1_pb_runs"] = "all"
+        pb_filter = st.segmented_control(
+            "Runs", list(PB_FILTERS), format_func=lambda k: PB_FILTERS[k][0],
+            key="t1_pb_runs", label_visibility="collapsed", required=True)
+        render_personal_bests(load_personal_bests(_ver, pb_filter),
+                              list(ATHLETE_COLORS), pb_filter)
+
+    st.divider()
     if section("Milestones", "t1_milestones"):
         render_milestone_matrix(_ver)
 
@@ -1347,35 +1360,14 @@ with tab1:
 # =========================================================================== #
 with tab2:
     st.header("⚔️ Head-to-head")
-    keep_widget_state(("t2_pb_runs",))
 
-    if section("Personal bests", "t2_pbs"):
-        st.caption(
-            "Each runner's fastest parkrun over three periods — all time, "
-            "the last 12 months and the last 3 months, the two rolling "
-            "windows counted back from the latest refresh and including that "
-            "day. The filter narrows those three to regular or buggy runs, for "
-            "all three runners alike. Below the line is their most recent run, "
-            "whatever the time and whatever the filter."
-        )
-        # Always exactly one choice: seeded to "all", and `required` stops a
-        # click on the lit button from clearing it.
-        if st.session_state.get("t2_pb_runs") not in PB_FILTERS:
-            st.session_state["t2_pb_runs"] = "all"
-        pb_filter = st.segmented_control(
-            "Runs", list(PB_FILTERS), format_func=lambda k: PB_FILTERS[k][0],
-            key="t2_pb_runs", label_visibility="collapsed", required=True)
-        render_personal_bests(load_personal_bests(_ver, pb_filter),
-                              pb_runner_order, pb_filter)
-
-    st.divider()
     if section("How a head-to-head works", "t2_how", default=False):
         st.markdown(
             """
     A **head-to-head** is any occasion where two or more of them ran the same
     parkrun on the same day.
 
-    As the **personal bests** above show, they run to very different clocks — their
+    As the **personal bests** on the first tab show, they run to very different clocks — their
     best times sit minutes apart. Ranking a shared parkrun by finish time would
     therefore hand the same person the win every week and say nothing about how any
     of them actually ran that day. That is exactly why the head-to-head exists: we
@@ -1422,14 +1414,8 @@ with tab2:
             # ONE BOX PER ATHLETE, holding their non-buggy target first and their
             # buggy target second. Two athletes now have two current forms each, and
             # a flat row of five tiles buried whose target belonged to whom.
-            # Athletes ordered by their primary (non-buggy) target, so the reading
-            # order does not jump around as labels change.
-            def _primary(name: str) -> float:
-                g = targets[targets["athlete_name"] == name]
-                nb = g[g["mode"] == "nonbuggy"] if "mode" in g else g
-                return float((nb if not nb.empty else g)["target_seconds"].min())
-
-            names = sorted(targets["athlete_name"].unique(), key=_primary)
+            # Athletes in display order (George, Raju, Duncan), never by target.
+            names = [n for n in ATHLETE_COLORS if n in set(targets["athlete_name"])]
             cols = st.columns(len(names))
             for col, name in zip(cols, names):
                 g = targets[targets["athlete_name"] == name]
@@ -1581,7 +1567,7 @@ with tab2:
             "every head-to-head — the classification and year/season choices "
             "above do not apply. A hatched cell is a runner against themselves."
         )
-        render_streak_heatmap(h2h, pb_runner_order)
+        render_streak_heatmap(h2h, list(ATHLETE_COLORS))
 
     # ----- cumulative 1st-place finishes over the selected period ----- #
     st.divider()
@@ -1602,7 +1588,7 @@ with tab2:
 
                 fig4 = go.Figure()
                 no_wins = []
-                for name in sorted(summ["athlete_name"].unique()):
+                for name in [n for n in ATHLETE_COLORS if n in set(summ["athlete_name"])]:
                     w = trend[trend["athlete_name"] == name].sort_values("run_date")
                     color = ATHLETE_COLORS.get(name, "#888888")
                     if w.empty:
@@ -1860,7 +1846,7 @@ with tab4:
                 plot_df, x="run_date", y="target_seconds", color="athlete_name",
                 color_discrete_map=ATHLETE_COLORS,
                 category_orders={
-                    "athlete_name": sorted(sat_f["athlete_name"].unique()),
+                    "athlete_name": list(ATHLETE_COLORS),
                     "mode": ["nonbuggy", "buggy"],
                 },
                 custom_data=(["target_fmt", "n_window", "mode"] if has_modes

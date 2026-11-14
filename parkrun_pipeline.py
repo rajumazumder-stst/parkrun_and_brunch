@@ -103,6 +103,9 @@ MD_DATABASE = "parkrun_snapshot"
 # and bs4; the hosted app installs neither).
 ATHLETE_NAMES = parkrun_core.ATHLETE_NAMES
 ATHLETE_IDS = parkrun_core.ATHLETE_IDS
+# Ids in display order as a SQL list, for list_position(): names inside a
+# classification follow George, Raju, Duncan, not the alphabet.
+ATHLETE_ORDER_SQL = str(list(ATHLETE_IDS))
 TARGET_WINDOW_DAYS = parkrun_core.TARGET_WINDOW_DAYS
 # Multiplicative cost of pushing a buggy, used to bridge a target when an
 # athlete has no runs of the run's own mode in the window. A placeholder until
@@ -774,7 +777,7 @@ def ensure_views(con: duckdb.DuckDBPyConnection) -> None:
         ),
         labelled AS (
             SELECT *,
-                   string_agg(athlete_name, ' vs ' ORDER BY athlete_name)
+                   string_agg(athlete_name, ' vs ' ORDER BY list_position({ATHLETE_ORDER_SQL}, athlete_id))
                      OVER (PARTITION BY event_id, run_date) AS classification,
                    count(*) OVER (PARTITION BY event_id, run_date) AS n_ranked
             FROM placed
@@ -875,7 +878,7 @@ placed AS (
 ),
 labelled AS (
     SELECT *,
-           string_agg(athlete_name, ' vs ' ORDER BY athlete_name)
+           string_agg(athlete_name, ' vs ' ORDER BY list_position({ATHLETE_ORDER_SQL}, athlete_id))
              OVER (PARTITION BY event_id, run_date) AS classification,
            count(*) OVER (PARTITION BY event_id, run_date) AS n_ranked
     FROM placed
@@ -942,7 +945,8 @@ def ensure_legacy_views(con: duckdb.DuckDBPyConnection) -> None:
         log("legacy views: skipped (set PARKRUN_LABEL_AUDIT=1 to build them)")
         return
     con.execute(LEGACY_HEAD_TO_HEAD_SQL.format(
-        schema=SCHEMA, window=TARGET_WINDOW_DAYS))
+        schema=SCHEMA, window=TARGET_WINDOW_DAYS,
+        ATHLETE_ORDER_SQL=ATHLETE_ORDER_SQL))
     con.execute(LEGACY_SATURDAY_TARGETS_SQL.format(
         schema=SCHEMA, window=TARGET_WINDOW_DAYS))
     log("legacy views: v_head_to_head_legacy + v_saturday_targets_legacy created")

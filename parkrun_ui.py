@@ -222,6 +222,15 @@ UK_TZ = ZoneInfo("Europe/London")
 # --------------------------------------------------------------------------- #
 # Filters
 # --------------------------------------------------------------------------- #
+def class_order(classes) -> list[str]:
+    """Head-to-head classifications in display order: two-ways before the
+    three-way, each by the athletes' places in ATHLETE_COLORS (George vs Raju,
+    George vs Duncan, Raju vs Duncan, then all three), never alphabetical."""
+    pos = {n: i for i, n in enumerate(ATHLETE_COLORS)}
+    return sorted(set(classes), key=lambda c: (
+        len(c.split(" vs ")), sorted(pos.get(n, 99) for n in c.split(" vs "))))
+
+
 def years_desc(values) -> list:
     """The distinct years in `values`, newest first — the one order every year
     filter in the app offers (docs/STYLE.md § Filters). The most recent year is
@@ -313,7 +322,7 @@ STAT_PHONE_SMALL = "0.66rem"  # label and note at that width
 def stat_label(text: str, lines: int = 1) -> str:
     """`lines` > 1 reserves that many lines and sits the text on the bottom
     one, so a label that wraps on a narrow screen does not push its value below
-    its neighbours'. The PB scopes use 1: they are fixed words that fit."""
+    its neighbours'. The PB scopes use 2: "Last 12 months" wraps on a mid-width desktop."""
     box = ""
     if lines > 1:
         box = (f"height:{lines * STAT_LINE:.2f}em;display:flex;"

@@ -1,0 +1,53 @@
+# Changelog
+
+## 2026-11-03
+- **Master method filter** at the top, pinned while scrolling. Every section
+  follows it: method cards, summary rows, side-by-side columns (and "changed"
+  counts only the methods shown), the scatter, trend and working-table method
+  boxes (hidden when left out), and the spread chart's method list.
+- The scatter shows **signed** change (proposed − current, as a % of current)
+  instead of its size: below 0 the proposal sets a faster target. Section
+  renamed "How each target moves". Medians: M1 −3.25%, M2 −3.80%, M4 0.00%;
+  M1 and M2 are faster in 94% and 98% of rows, M4 in 36%.
+- Lines of best fit are now **one per runner × mode × method** (was one per
+  method), with the equations in a table under the chart. Line colour = method,
+  line style = runner, thinner and paler = buggy. All 15 checked against numpy.
+- **How far each target moves**: a year filter, and a least-squares line of
+  best fit per method, refitted in the page to whatever the filters leave,
+  with its equation, R² and point count under the chart (x = years since
+  1 Jan of the first year). The chart is now built in the page from plain
+  rows, so a filter can drop single points. Fits checked against numpy.
+- Side-by-side panels: each runner's working moves from a column to a list
+  under the table, and tighter cells, so no panel scrolls sideways.
+
+## 2026-11-02 (M4)
+- **M3 dropped** (asymmetric smoothing, and its speed grid). **M4 added**: the
+  median of the latest 13 same-mode runs within 182 days. M4 changes 19
+  winners with no lean; its targets match today's in level (median change
+  0.0%) but rest on more runs, buggy ones most of all.
+- Every rule now returns how its target was worked out. New section **How
+  each target was worked out**: one row per runner per head-to-head per
+  method, filterable by runner, mode and method. The side-by-side panels gain
+  a **How** column. Bridged targets show the handicap step.
+- Classifications in display order (George, Raju, Duncan), as the app now does.
+
+## 2026-11-02 (later)
+- Hover percentages on the spread and scatter charts are formatted in Python
+  (`pct2`). Plotly's d3 format strings were not applied to those values in the
+  browser, which showed up to 13 decimal places.
+- **How far each target moves** gets the same runner / mode / method
+  checkboxes: one trace per combination; colour = method, shape = runner,
+  open shape = buggy. One `filterable()` drives both charts' filters.
+- New section **Target time over time**: every method's target on each
+  Saturday, per runner and mode (no bridge, as on the app's Form tab), with
+  checkboxes for runner, mode and method. Colour is the runner, line style the
+  method; buggy lines are thinner and lighter.
+- Percentages are never shown to more than 2 dp: % axes use `.2~f`, and the
+  spread hover is now 2 dp (was 1).
+
+## 2026-11-02
+- Topic created. `build_report.py` re-scores every head-to-head under M0
+  (current, verified against `v_head_to_head`), M1, M2 and M3, then writes the
+  HTML report and `results/summary.csv`. Run against the local source of
+  truth (data to 1 Nov 2026): 214 head-to-heads, 39–41 winners change under
+  each proposal, all in George's favour.

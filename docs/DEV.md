@@ -539,6 +539,52 @@ Gating the snapshot alone protects the *recoverable* artefact and leaves
 `parkrun_run_modes.csv` — the only trace of the labels outside the binary DB —
 exposed, which is the wrong asymmetry.
 
+### 4. One source for the current-form targets and the Saturday targets?
+
+Asked 2 Nov 2026. This one is about **duplication**, not data safety. Tab 2's
+*Current form targets* reads `current_targets`, and tab 4's *Form — target
+time by Saturday* reads `v_saturday_targets`. Could they read one thing?
+
+**What each is.** They use the same formula: the median of same-mode
+`time_seconds` over `[date − 91, date − 1]`, with no handicap bridge.
+
+| | `current_targets` (table) | `v_saturday_targets` (view) |
+|---|---|---|
+| Dates | each refresh date, any weekday | every Saturday in the data span |
+| Computed | once, at the refresh, then **frozen** | live, on every read |
+| Rows with no runs in the window | kept (`n_window = 0`, NULL target) | dropped |
+| Raju's buggy row | never written | generated, then dropped by `n_window ≥ 1` |
+| Read by | `load_targets`, **latest `refresh_date` only** | tab 4 |
+
+**Where they disagree** for the same athlete, mode and date:
+- a label, result or handicap changed after the refresh (frozen against live);
+- the rows from before buggy mode, migrated as pooled `nonbuggy`;
+- every refresh that is not on a Saturday, which has no view row at all.
+
+**The app never reads the history**, which is the reason `current_targets` is a
+table at all (`CLAUDE.md` § `current_targets`). Tab 2 shows only the latest
+date, and on that date the table and a live computation agree unless something
+was relabelled since the refresh.
+
+**The target arithmetic is written out three times:** `v_head_to_head`'s
+`win` CTE, `v_saturday_targets` and `update_current_targets`. Two of those
+are tied to `TARGET_WINDOW_DAYS`, but the median, the mode filter and the
+window bounds are each copied by hand.
+
+| Option | For | Against |
+|---|---|---|
+| **One view, `v_form_targets`**, over every Saturday plus the latest refresh date. Tab 2 reads the max date and tab 4 the Saturdays. `current_targets` stays as a write-only history | One definition for both tabs, and a target method change (`adhoc/target_methods/`) lands once instead of twice. The history survives | Tab 2 becomes live rather than frozen, so a relabel moves it the same day. That is arguably more correct. The view needs the refresh date, which it can read from `max(refresh_date)` |
+| **The same, and retire `current_targets`** | One fewer table and one fewer writer in `_finalize` | Loses the only record of what the targets *were*. That cannot be rebuilt once a label changes |
+| **Tab 4 reads `current_targets`** | No new view | History starts on 27 Jun 2026 (40 refresh dates to 1 Nov), the dates are irregular, and the frozen values contradict the live head-to-heads |
+| **Leave it** | Zero diff | The three copies stay |
+
+**Open. Leaning the first option, and after the target-method decision**, so
+the merge is written once in whichever method wins. A shared SQL fragment
+for the target (one Python string formatted into all three, as
+`TARGET_WINDOW_DAYS` already is) would remove the hand copies. If dbt takes
+over (`docs/learn-dbt/`), that fragment becomes a macro or an intermediate
+model.
+
 
 ## Deferred refactors
 
